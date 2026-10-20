@@ -65,4 +65,29 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 	if summerRep.TotalOrderUnits <= rep.TotalOrderUnits {
 		t.Fatalf("expected summer forecast units (%d) > November forecast units (%d)", summerRep.TotalOrderUnits, rep.TotalOrderUnits)
 	}
+
+	// 6. Проверка 6-уровневой шкалы сегментов продаж (0-Нет продаж .. 5-Высокий)
+	var segCounts [6]int
+	for i := range rep.Items {
+		it := &rep.Items[i]
+		if it.SalesSegment < 0 || it.SalesSegment > 5 {
+			t.Fatalf("row %d invalid SalesSegment=%d", it.ExcelRow, it.SalesSegment)
+		}
+		wantLabel := model.SalesSegmentLabelByCode(it.SalesSegment)
+		if it.SalesSegmentLabel != wantLabel {
+			t.Fatalf("row %d label mismatch: got %q want %q", it.ExcelRow, it.SalesSegmentLabel, wantLabel)
+		}
+		if it.SumSalesLast6M <= 0 && it.SalesSegment != 0 {
+			t.Fatalf("row %d has 0 sales in 6m (%v), want segment 0, got %d", it.ExcelRow, it.SumSalesLast6M, it.SalesSegment)
+		}
+		if it.SumSalesLast6M > 0 && it.SalesSegment == 0 {
+			t.Fatalf("row %d has positive 6m sales (%v), must be in 1..5, got 0", it.ExcelRow, it.SumSalesLast6M)
+		}
+		segCounts[it.SalesSegment]++
+	}
+	for seg, cnt := range segCounts {
+		if cnt == 0 {
+			t.Fatalf("expected non-empty sales segment %d (%s), got 0 items", seg, model.SalesSegmentLabelByCode(seg))
+		}
+	}
 }

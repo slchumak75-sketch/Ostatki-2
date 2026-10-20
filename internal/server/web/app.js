@@ -218,7 +218,7 @@
       if (grp && it.group !== grp) return false;
       const itemSup = it.supplier || '(Поставщик не указан)';
       if (sup && itemSup !== sup) return false;
-      if (seg && it.abcxyz !== seg) return false;
+      if (seg !== '' && String(it.salesSegment) !== seg && it.salesSegmentLabel !== seg) return false;
 
       if (status === 'order' && it.finalOrderQty <= 0) return false;
       if (status === 'outliers' && it.outlierMonths <= 0) return false;
@@ -227,7 +227,7 @@
       if (status === 'manual' && it.manualOverride == null) return false;
 
       if (q) {
-        const hay = `${it.name} ${it.sku} ${it.supplier} ${it.group} ${it.warehouse} ${it.abcxyz}`.toLowerCase();
+        const hay = `${it.name} ${it.sku} ${it.supplier} ${it.group} ${it.warehouse} ${it.salesSegmentLabel}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -274,6 +274,15 @@
     tbody.innerHTML = slice.map((it) => {
       const isSelected = it.excelRow === state.selectedExcelRow;
       const isManual = it.manualOverride != null;
+      const hasAutoOrder = it.autoOrderQty > 0;
+      const segNum = Number(it.salesSegment) || 0;
+      const segLabel = it.salesSegmentLabel || `${segNum}-Нет продаж`;
+      const segTitle = `${segLabel} • продажи за 6 мес.: ${fmtInt(it.sumSalesLast6M)}, за 12 мес.: ${fmtInt(it.sumSalesLast12M)}`;
+
+      const rowCls = [
+        hasAutoOrder ? 'auto-order-row' : '',
+        isSelected ? 'selected-row' : '',
+      ].filter(Boolean).join(' ');
 
       const qtyCls = [
         'qty-input',
@@ -281,12 +290,12 @@
         isManual ? 'is-manual' : '',
       ].filter(Boolean).join(' ');
 
-      return `<tr data-row="${it.excelRow}" class="${isSelected ? 'selected-row' : ''}">
+      return `<tr data-row="${it.excelRow}" class="${rowCls}">
         <td class="wh-cell" title="${esc(it.warehouse)}"><span class="cell-2lines">${formatTwoLines(it.warehouse)}</span></td>
         <td class="grp-cell" title="${esc(it.group)}"><span class="cell-2lines">${formatTwoLines(it.group)}</span></td>
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
-        <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 4px">${esc(it.abcxyz)}</span></td>
+        <td class="seg-cell" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${esc(segLabel)}</span></td>
         <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
         <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
         <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">

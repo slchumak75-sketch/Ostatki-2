@@ -123,8 +123,9 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	groupDecay := math.Max(0.5, params.RecencyDecay)
 	groupIndices := buildGroupIndices(groupCleanTotals, periods, groupDecay)
 
-	// 2. Классификация ABC, медианная наценка по группам и дневная сетка горизонта
+	// 2. Классификация ABC, 6-уровневая сегментация продаж (0..5), медианная наценка по группам и дневная сетка горизонта
 	abcClasses := computeABCClasses(wb.Items, periods)
+	salesSegments, sumLast6List := computeSalesSegments(wb.Items, periods)
 	groupMarkup := computeGroupMedianMarkup(wb.Items)
 
 	type dayStep struct {
@@ -338,17 +339,24 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			cappedRounded[k] = roundTo(cvVal, 1)
 		}
 
+		salesSeg := salesSegments[i]
+		salesSegLabel := model.SalesSegmentLabelByCode(salesSeg)
+		sumLast6 := sumLast6List[i]
+
 		calcItems[i] = model.CalculatedItem{
 			RawItem:           item,
 			ABCClass:          abc,
 			XYZClass:          xyz,
 			ABCXYZ:            abcxyz,
+			SalesSegment:      salesSeg,
+			SalesSegmentLabel: salesSegLabel,
 			CV:                roundTo(cv, 2),
 			NonZeroMonths:     nzMonths,
 			OutlierMonths:     outlierCounts[i],
 			CappedSales:       cappedRounded,
 			SumSalesAll:       roundTo(sumAll, 2),
 			SumSalesLast12M:   roundTo(sumLast12, 2),
+			SumSalesLast6M:    roundTo(sumLast6, 2),
 			ActiveMonths:      activeMonths,
 			BaseMonthlyRate:   roundTo(baseRate, 2),
 			HorizonSeasonIdx:  roundTo(effSeasonIdx, 2),
@@ -368,7 +376,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			IsOverstock:       isOverstock,
 			OverstockValue:    roundTo(overstockVal, 2),
 			MonthlyForecast12: roundedM12,
-			Explanation:       buildExplanationV2(abcxyz, baseRate, effSeasonIdx, totalSpanDays, demand, effSafetyPct, targetStock, item.ClosingStock, autoQty, outlierCounts[i], overridePtr, minDisplayApplied, 0),
+			Explanation:       buildExplanationV2(salesSegLabel, baseRate, effSeasonIdx, totalSpanDays, demand, effSafetyPct, targetStock, item.ClosingStock, autoQty, outlierCounts[i], overridePtr, minDisplayApplied, 0),
 		}
 
 		report.UncappedOrderCost += float64(finalQty) * item.PurchasePrice
@@ -895,7 +903,7 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 			it.OrderCost = roundTo(float64(it.FinalOrderQty)*it.PurchasePrice, 2)
 			it.OrderRetailValue = roundTo(float64(it.FinalOrderQty)*effectiveRetail, 2)
 			it.Explanation = buildExplanationV2(
-				it.ABCXYZ, it.BaseMonthlyRate, it.HorizonSeasonIdx,
+				it.SalesSegmentLabel, it.BaseMonthlyRate, it.HorizonSeasonIdx,
 				totalSpanDays,
 				it.ForecastDemand, it.EffectiveSafety, it.TargetStock, it.ClosingStock,
 				it.AutoOrderQty, it.OutlierMonths, it.ManualOverride, false, it.BudgetTrimmedQty,
@@ -969,6 +977,88 @@ func resolveDatesAndCompleteness(wb *model.WorkbookData, periods []model.PeriodC
 	}
 	now := time.Now().UTC()
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC), completeness
+}
+
+func quantileSorted(sorted []float64, p float64) float64 {
+	n := len(sorted)
+	if n == 0 {
+		return 0
+	}
+	if n == 1 {
+		return sorted[0]
+	}
+	pos := float64(n-1) * p
+	lo := int(math.Floor(pos))
+	hi := int(math.Ceil(pos))
+	if lo < 0 {
+		lo = 0
+	}
+	if hi >= n {
+		hi = n - 1
+	}
+	frac := pos - float64(lo)
+	return sorted[lo] + (sorted[hi]-sorted[lo])*frac
+}
+
+// computeSalesSegments рассчитывает 6-уровневый параметр сегментов продаж (0..5):
+//   - 0 ("0-Нет продаж") — продажи отсутствуют в течение последних 6 месяцев (sumLast6 <= 0)
+//   - 1 ("1-Низкий") .. 5 ("5-Высокий") — квинтили (20/40/60/80%) интенсивности продаж за 6 месяцев среди активных SKU
+func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn) ([]int, []float64) {
+	T := len(periods)
+	startIdx := T - 6
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	n := len(items)
+	sum6 := make([]float64, n)
+	active := make([]float64, 0, n)
+	for i, it := range items {
+		s6 := 0.0
+		for pIdx := startIdx; pIdx < T && pIdx < len(it.MonthlySales); pIdx++ {
+			s6 += it.MonthlySales[pIdx]
+		}
+		sum6[i] = s6
+		if s6 > 0 {
+			active = append(active, s6)
+		}
+	}
+
+	segments := make([]int, n)
+	if len(active) == 0 {
+		return segments, sum6
+	}
+
+	sort.Float64s(active)
+	allSame := active[0] == active[len(active)-1]
+	q20 := quantileSorted(active, 0.20)
+	q40 := quantileSorted(active, 0.40)
+	q60 := quantileSorted(active, 0.60)
+	q80 := quantileSorted(active, 0.80)
+
+	for i, s6 := range sum6 {
+		if s6 <= 0 {
+			segments[i] = 0
+			continue
+		}
+		if allSame {
+			segments[i] = 3
+			continue
+		}
+		switch {
+		case s6 <= q20+1e-9:
+			segments[i] = 1
+		case s6 <= q40+1e-9:
+			segments[i] = 2
+		case s6 <= q60+1e-9:
+			segments[i] = 3
+		case s6 <= q80+1e-9:
+			segments[i] = 4
+		default:
+			segments[i] = 5
+		}
+	}
+	return segments, sum6
 }
 
 func computeABCClasses(items []model.RawItem, periods []model.PeriodColumn) []string {

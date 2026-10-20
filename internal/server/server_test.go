@@ -124,6 +124,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"lblHorizon",
 		"lblLeadTime",
 		"lblSafety",
+		"ABC-XYZ: Все",
+		"AX — Золотой хит",
 	} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("HTML still contains removed element/label: %q", removed)
@@ -135,8 +137,15 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
 		`Ведомость <span class="tab-counter" id="cntTabTable">`,
 		`class="param-field param-paired"`,
+		`<option value="5">5-Высокий</option>`,
+		`<option value="4">4-Выше среднего</option>`,
+		`<option value="3">3-Средний</option>`,
+		`<option value="2">2-Ниже среднего</option>`,
+		`<option value="1">1-Низкий</option>`,
+		`<option value="0">0-Нет продаж</option>`,
 		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
 		`<th data-sort="group" class="grp-col">Группа</th>`,
+		`<th data-sort="salesSegment" class="seg-col"`,
 		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
 		`<th data-sort="closingStock" class="num-col col-5digits">Остаток</th>`,
 		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
@@ -180,6 +189,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".checks-inline-bar",
 		".param-field.param-paired",
 		"minmax(0, 1fr) minmax(0, 1fr)",
+		".auto-order-row",
+		"--auto-order-bg",
+		".seg-pill",
 	} {
 		if !strings.Contains(cssBody, mustHaveCSS) {
 			t.Fatalf("styles.css missing required styling rule: %q", mustHaveCSS)
@@ -219,6 +231,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"formatTwoLines",
 		"fmtRetail",
 		"cell-2lines",
+		"auto-order-row",
+		"salesSegment",
+		"salesSegmentLabel",
 	} {
 		if !strings.Contains(jsBody, mustHaveJS) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
