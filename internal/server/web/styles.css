@@ -115,6 +115,8 @@ html, body {
   background: var(--surface-alt);
   color: var(--text);
   font-size: 12px;
+  width: 100%;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -126,33 +128,9 @@ html, body {
   font-size: 11.5px;
 }
 
-.matrix-grid-3x3 {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.matrix-cell {
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  padding: 12px 14px;
-  background: var(--surface-alt);
-  cursor: pointer;
-  transition: transform 0.1s ease, border-color 0.14s ease;
-}
-
-.matrix-cell:hover {
-  border-color: var(--primary);
-  transform: translateY(-1px);
-}
-
 @media print {
-  .topbar, .params-panel, .tabs-bar, .toolbar, .pagination-bar, .inspector-drawer {
+  .topbar, .params-panel, .tabs-bar, .toolbar, .pagination-bar {
     display: none !important;
-  }
-  .table-split-layout {
-    display: block !important;
   }
   body, .workspace, .table-container {
     background: #fff !important;
@@ -431,6 +409,17 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+}
+
+.param-field.param-paired {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .param-field.param-paired {
+    grid-column: span 1;
+  }
 }
 
 .param-field label {
@@ -453,12 +442,9 @@ html, body {
   background: var(--surface-alt);
   color: var(--text);
   font-size: 12px;
-}
-
-.param-field input[type="range"] {
-  accent-color: var(--primary);
-  cursor: pointer;
-  margin: 4px 0 2px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .field-hint {
@@ -486,12 +472,16 @@ html, body {
 }
 
 .inline-row {
-  display: flex;
-  gap: 5px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
 }
 
-.inline-row input {
-  flex: 1;
+.inline-row input,
+.inline-row select {
+  width: 100%;
   min-width: 0;
 }
 
@@ -589,26 +579,14 @@ html, body {
   max-width: 220px;
 }
 
-/* Main Split View: Table + Inspector */
-.table-split-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
-  gap: 12px;
-  align-items: start;
-}
-
-@media (max-width: 1280px) {
-  .table-split-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
+/* Main Full-Width Table */
 .table-container {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
+  width: 100%;
 }
 
 .data-table {
@@ -868,101 +846,7 @@ html, body {
   padding: 0 5px;
 }
 
-/* Inspector Drawer */
-.inspector-drawer {
-  position: sticky;
-  top: 46px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 10px 12px;
-  box-shadow: var(--shadow);
-  min-height: 320px;
-}
-
-.inspector-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--text-muted);
-  padding: 48px 16px;
-  gap: 8px;
-}
-
-.inspector-placeholder h3 {
-  margin: 4px 0 0;
-  color: var(--text);
-  font-size: 14.5px;
-}
-
-.ins-head h3 {
-  margin: 4px 0 6px;
-  font-size: 15px;
-  line-height: 1.35;
-}
-
-.ins-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin: 12px 0;
-}
-
-.ins-metric {
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 8px 10px;
-}
-
-.ins-metric span {
-  display: block;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.ins-metric strong {
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-
-.explain-box {
-  background: var(--order-col-bg);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  padding: 9px 11px;
-  font-size: 12px;
-  line-height: 1.45;
-  margin-bottom: 12px;
-}
-
-.inspector-content {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.chart-block {
-  margin: 0;
-}
-
-.chart-block h4 {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-/* Analytics & Suppliers Views */
-.analytics-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
+/* Suppliers & Warehouses Views */
 .card-block {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -980,26 +864,6 @@ html, body {
   margin: 0 0 12px;
   font-size: 12.5px;
   color: var(--text-muted);
-}
-
-.season-matrix {
-  width: 100%;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-
-.season-matrix th,
-.season-matrix td {
-  padding: 9px 8px;
-  border: 1px solid var(--border);
-  text-align: center;
-  font-size: 12.5px;
-}
-
-.season-matrix th:first-child,
-.season-matrix td:first-child {
-  text-align: left;
-  font-weight: 700;
 }
 
 .warehouses-strip {
