@@ -23,7 +23,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	h := app.Handler()
 
-	// 1. GET /api/state
+	// 0. Проверка параметров по умолчанию: Срок поставки = 4 дня, Базовый страх. запас = 10%
+	defParams := model.DefaultParams()
+	if defParams.LeadTimeDays != 4 || defParams.SafetyStockPct != 10.0 {
+		t.Fatalf("expected DefaultParams LeadTimeDays=4 & SafetyStockPct=10, got lead=%d safety=%v", defParams.LeadTimeDays, defParams.SafetyStockPct)
+	}
 	req := httptest.NewRequest(http.MethodGet, "/api/state", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -85,7 +89,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/upload code=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	// 7. GET / и GET /app.js (проверка удаления лишних полей и наличия только графиков в правой панели)
+	// 7. GET /, GET /styles.css и GET /app.js (проверка UI-структуры, колонок и удалённых панелей)
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -102,6 +106,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 		">Стр.<",
 		"Прод. 12м",
 		"Столбец 8: К закупкам",
+		"Ведомость и Столбец 8",
+		"Матрица ABC×XYZ и Сезонность",
+		"view-seasonality",
+		"seasonalityContainer",
+		"inspectorDrawer",
+		"inspectorPlaceholder",
+		"inspectorContent",
+		"table-split-layout",
 		"inpStartDate",
 		"hintCompleteness",
 		"inpDecay",
@@ -119,17 +131,28 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	for _, mustHaveHTML := range []string{
 		`<input type="number" id="inpHorizon"`,
-		`<input type="number" id="inpLeadTime"`,
-		`<input type="number" id="inpSafety"`,
+		`<input type="number" id="inpLeadTime" min="0" max="180" step="1" value="4"`,
+		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
+		`Ведомость <span class="tab-counter" id="cntTabTable">`,
+		`class="param-field param-paired"`,
 		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
 		`<th data-sort="group" class="grp-col">Группа</th>`,
 		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
 		`<th data-sort="closingStock" class="num-col col-5digits">Остаток</th>`,
 		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
+		`<th data-sort="purchasePrice" class="num-col">Цена</th>`,
+		`<th data-sort="retailPrice" class="num-col">Розница</th>`,
 	} {
 		if !strings.Contains(htmlBody, mustHaveHTML) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
+	}
+	// Проверка, что столбец «Розница» следует сразу после столбца «Цена»
+	priceIdx := strings.Index(htmlBody, `<th data-sort="purchasePrice" class="num-col">Цена</th>`)
+	retailIdx := strings.Index(htmlBody, `<th data-sort="retailPrice" class="num-col">Розница</th>`)
+	sumIdx := strings.Index(htmlBody, `<th data-sort="orderCost" class="num-col">Сумма</th>`)
+	if !(priceIdx > 0 && retailIdx > priceIdx && sumIdx > retailIdx) {
+		t.Fatalf("expected column order Цена -> Розница -> Сумма, got indices %d, %d, %d", priceIdx, retailIdx, sumIdx)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/styles.css", nil)
@@ -139,8 +162,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	if strings.Contains(cssBody, "stock-crit") {
-		t.Fatalf("styles.css still contains stock-crit highlight on closingStock")
+	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout"} {
+		if strings.Contains(cssBody, removedCSS) {
+			t.Fatalf("styles.css still contains removed selector: %q", removedCSS)
+		}
 	}
 	for _, mustHaveCSS := range []string{
 		".col-5digits",
@@ -153,6 +178,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"padding: 1px 6px",
 		"height: 18px",
 		".checks-inline-bar",
+		".param-field.param-paired",
+		"minmax(0, 1fr) minmax(0, 1fr)",
 	} {
 		if !strings.Contains(cssBody, mustHaveCSS) {
 			t.Fatalf("styles.css missing required styling rule: %q", mustHaveCSS)
@@ -179,19 +206,22 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"lblHorizon",
 		"lblLeadTime",
 		"lblSafety",
+		"renderInspector",
+		"buildHistoryBarSVG",
+		"buildTwelveMonthSVG",
+		"renderSeasonalityView",
 	} {
 		if strings.Contains(jsBody, removedJS) {
 			t.Fatalf("app.js still contains removed fragment: %q", removedJS)
 		}
 	}
-	for _, keptChart := range []string{
-		"buildHistoryBarSVG",
-		"buildTwelveMonthSVG",
+	for _, mustHaveJS := range []string{
 		"formatTwoLines",
+		"fmtRetail",
 		"cell-2lines",
 	} {
-		if !strings.Contains(jsBody, keptChart) {
-			t.Fatalf("app.js missing required UI helper/function: %q", keptChart)
+		if !strings.Contains(jsBody, mustHaveJS) {
+			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
 		}
 	}
 }

@@ -78,7 +78,7 @@
         <div class="presets-bar">
           <span class="presets-title">Режим планирования:</span>
           <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
-          <button class="preset-chip active" data-preset="standard">Стандарт (30+7 дн.)</button>
+          <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
           <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
           <button class="preset-chip" data-preset="twomonths">На 2 месяца (60 дн.)</button>
           <button class="preset-chip" data-preset="spring">Подготовка к весне (Март–Апр)</button>
@@ -95,13 +95,13 @@
 
         <div class="param-field" title="Плечо доставки поставщика в днях">
           <label for="inpLeadTime">Срок поставки (дней):</label>
-          <input type="number" id="inpLeadTime" min="0" max="180" step="1" value="7" />
+          <input type="number" id="inpLeadTime" min="0" max="180" step="1" value="4" />
           <span class="field-hint">Плечо доставки поставщика</span>
         </div>
 
         <div class="param-field" title="Базовый страховой запас (адаптируется по ABC-XYZ)">
           <label for="inpSafety">Базовый страх. запас: (%)</label>
-          <input type="number" id="inpSafety" min="0" max="200" step="1" value="20" />
+          <input type="number" id="inpSafety" min="0" max="200" step="1" value="10" />
           <span class="field-hint">Адаптируется по ABC-XYZ</span>
         </div>
 
@@ -128,7 +128,7 @@
           <span class="field-hint">37 мес. статистики продаж</span>
         </div>
 
-        <div class="param-field">
+        <div class="param-field param-paired">
           <label for="selPackMultiple">Кратность заказа / витрина</label>
           <div class="inline-row">
             <select id="selPackMultiple" title="Кратность упаковки">
@@ -146,7 +146,7 @@
           <span class="field-hint">Упаковка и полка A/B</span>
         </div>
 
-        <div class="param-field">
+        <div class="param-field param-paired">
           <label for="selRounding">Округление и заголовок H7</label>
           <div class="inline-row">
             <select id="selRounding">
@@ -187,13 +187,10 @@
       </div>
     </section>
 
-    <!-- Навигация по 4 вкладкам -->
+    <!-- Навигация по вкладкам -->
     <nav class="tabs-bar" role="tablist">
       <button class="tab-btn active" data-tab="table" role="tab">
-        Ведомость и Столбец 8 <span class="tab-counter" id="cntTabTable">0</span>
-      </button>
-      <button class="tab-btn" data-tab="seasonality" role="tab">
-        Матрица ABC×XYZ и Сезонность
+        Ведомость <span class="tab-counter" id="cntTabTable">0</span>
       </button>
       <button class="tab-btn" data-tab="suppliers" role="tab">
         Поставщики и склады <span class="tab-counter" id="cntTabSuppliers">0</span>
@@ -249,61 +246,47 @@
         <button class="btn btn-ghost btn-sm hidden" id="btnClearOverrides">Сбросить ручные правки</button>
       </div>
 
-      <div class="table-split-layout">
-        <div class="table-container">
-          <table class="data-table" id="itemsTable">
-            <thead>
-              <tr>
-                <th data-sort="warehouse" class="wh-col">Склад</th>
-                <th data-sort="group" class="grp-col">Группа</th>
-                <th data-sort="sku">Артикул</th>
-                <th data-sort="name" class="col-name">Номенклатура</th>
-                <th data-sort="abcxyz" class="center-col" title="Матрица оборачиваемости (A/B/C) и стабильности спроса (X/Y/Z)">Сегм.</th>
-                <th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
-                <th data-sort="closingStock" class="num-col col-5digits">Остаток</th>
-                <th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>
-                <th data-sort="purchasePrice" class="num-col">Цена</th>
-                <th data-sort="orderCost" class="num-col">Сумма</th>
-                <th data-sort="supplier">Поставщик</th>
-              </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-          </table>
+      <div class="table-container">
+        <table class="data-table" id="itemsTable">
+          <thead>
+            <tr>
+              <th data-sort="warehouse" class="wh-col">Склад</th>
+              <th data-sort="group" class="grp-col">Группа</th>
+              <th data-sort="sku">Артикул</th>
+              <th data-sort="name" class="col-name">Номенклатура</th>
+              <th data-sort="abcxyz" class="center-col" title="Матрица оборачиваемости (A/B/C) и стабильности спроса (X/Y/Z)">Сегм.</th>
+              <th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
+              <th data-sort="closingStock" class="num-col col-5digits">Остаток</th>
+              <th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>
+              <th data-sort="purchasePrice" class="num-col">Цена</th>
+              <th data-sort="retailPrice" class="num-col">Розница</th>
+              <th data-sort="orderCost" class="num-col">Сумма</th>
+              <th data-sort="supplier">Поставщик</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
 
-          <footer class="pagination-bar">
-            <div id="paginationInfo">Показано 0 из 0</div>
-            <div class="pagination-controls">
-              <label>Строк:
-                <select id="selPageSize">
-                  <option value="50">50</option>
-                  <option value="100" selected>100</option>
-                  <option value="250">250</option>
-                  <option value="2000">Все</option>
-                </select>
-              </label>
-              <button class="btn btn-secondary btn-sm" id="btnPrevPage">← Назад</button>
-              <span id="lblPageNum">1 / 1</span>
-              <button class="btn btn-secondary btn-sm" id="btnNextPage">Вперёд →</button>
-            </div>
-          </footer>
-        </div>
-
-        <!-- Графики выбранного товара -->
-        <aside class="inspector-drawer" id="inspectorDrawer">
-          <div class="inspector-placeholder" id="inspectorPlaceholder">
-            <p>Выберите позицию в таблице слева для отображения графиков.</p>
+        <footer class="pagination-bar">
+          <div id="paginationInfo">Показано 0 из 0</div>
+          <div class="pagination-controls">
+            <label>Строк:
+              <select id="selPageSize">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="250">250</option>
+                <option value="2000">Все</option>
+              </select>
+            </label>
+            <button class="btn btn-secondary btn-sm" id="btnPrevPage">← Назад</button>
+            <span id="lblPageNum">1 / 1</span>
+            <button class="btn btn-secondary btn-sm" id="btnNextPage">Вперёд →</button>
           </div>
-          <div class="inspector-content hidden" id="inspectorContent"></div>
-        </aside>
+        </footer>
       </div>
     </section>
 
-    <!-- ВКЛАДКА 2: МАТРИЦА ABC-XYZ И СЕЗОННАЯ АНАЛИТИКА -->
-    <section class="tab-view" id="view-seasonality">
-      <div class="analytics-grid" id="seasonalityContainer"></div>
-    </section>
-
-    <!-- ВКЛАДКА 3: ПОСТАВЩИКИ И СКЛАДЫ -->
+    <!-- ВКЛАДКА 2: ПОСТАВЩИКИ И СКЛАДЫ -->
     <section class="tab-view" id="view-suppliers">
       <div class="warehouses-strip" id="warehousesContainer"></div>
       <div class="card-block">
