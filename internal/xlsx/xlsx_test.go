@@ -3,8 +3,11 @@ package xlsx_test
 import (
 	"archive/zip"
 	"bytes"
+	"io"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
@@ -119,6 +122,44 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 	for _, f := range szr.File {
 		if f.Name == "xl/worksheets/sheet5.xml" {
 			t.Fatalf("sheet5.xml (Variant 1 comparison) must be excluded from Variant 2 workbook")
+		}
+	}
+
+	// Проверка индивидуального заказа поставщику (4 столбца + шаблон имени файла)
+	dt := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
+	gotName := xlsx.FormatSupplierOrderFilename("Склад Кореличи", `ООО "ГолдДекор"`, dt)
+	wantName := "Склад Кореличи, ООО «ГолдДекор», 20.10.2026.xlsx"
+	if gotName != wantName {
+		t.Fatalf("FormatSupplierOrderFilename mismatch: got %q want %q", gotName, wantName)
+	}
+
+	singleOrder, err := xlsx.GenerateSingleSupplierOrderXLSX(rep, "Склад Кореличи", `ООО "ГолдДекор"`)
+	if err != nil || len(singleOrder) < 800 {
+		t.Fatalf("GenerateSingleSupplierOrderXLSX failed: err=%v len=%d", err, len(singleOrder))
+	}
+	ozr, err := zip.NewReader(bytes.NewReader(singleOrder), int64(len(singleOrder)))
+	if err != nil {
+		t.Fatalf("zip read singleOrder failed: %v", err)
+	}
+	for _, f := range ozr.File {
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			rc, _ := f.Open()
+			rawXML, _ := io.ReadAll(rc)
+			_ = rc.Close()
+			xmlStr := string(rawXML)
+			for _, colHdr := range []string{
+				`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">Наименование склада</t></is></c>`,
+				`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
+				`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
+				`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Заказ</t></is></c>`,
+			} {
+				if !strings.Contains(xmlStr, colHdr) {
+					t.Fatalf("single supplier order sheet1.xml missing column header: %s", colHdr)
+				}
+			}
+			if strings.Contains(xmlStr, `r="E1"`) {
+				t.Fatalf("single supplier order must contain strictly 4 columns (A..D), found E1")
+			}
 		}
 	}
 }
