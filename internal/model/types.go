@@ -204,8 +204,9 @@ type WarehouseSummary struct {
 	OverstockCost  float64 `json:"overstockCost"`
 }
 
-// SupplierSummary агрегирует заказ по поставщику.
+// SupplierSummary агрегирует заказ по поставщику в разрезе склада.
 type SupplierSummary struct {
+	Warehouse      string  `json:"warehouse"`
 	Supplier       string  `json:"supplier"`
 	TotalItems     int     `json:"totalItems"`
 	OrderItems     int     `json:"orderItems"`

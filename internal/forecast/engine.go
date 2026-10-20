@@ -455,10 +455,14 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		if supName == "" {
 			supName = "(Поставщик не указан)"
 		}
-		ss, ok := supMap[supName]
+		supKey := it.Warehouse + "\x00" + supName
+		ss, ok := supMap[supKey]
 		if !ok {
-			ss = &model.SupplierSummary{Supplier: supName}
-			supMap[supName] = ss
+			ss = &model.SupplierSummary{
+				Warehouse: it.Warehouse,
+				Supplier:  supName,
+			}
+			supMap[supKey] = ss
 		}
 		ss.TotalItems++
 		if it.FinalOrderQty > 0 {
@@ -532,6 +536,9 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	sort.Slice(report.Suppliers, func(i, j int) bool {
 		if math.Abs(report.Suppliers[i].TotalOrderCost-report.Suppliers[j].TotalOrderCost) > 1e-6 {
 			return report.Suppliers[i].TotalOrderCost > report.Suppliers[j].TotalOrderCost
+		}
+		if report.Suppliers[i].Warehouse != report.Suppliers[j].Warehouse {
+			return report.Suppliers[i].Warehouse < report.Suppliers[j].Warehouse
 		}
 		return report.Suppliers[i].Supplier < report.Suppliers[j].Supplier
 	})

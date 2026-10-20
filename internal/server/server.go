@@ -153,6 +153,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/save-inplace", s.handleSaveInPlace)
 	mux.HandleFunc("/api/export/xlsx", s.handleExportFilledXLSX)
 	mux.HandleFunc("/api/export/orders", s.handleExportOrdersXLSX)
+	mux.HandleFunc("/api/export/supplier-order", s.handleExportSingleSupplierOrderXLSX)
 	mux.HandleFunc("/api/heartbeat", s.handleHeartbeat)
 	mux.HandleFunc("/api/shutdown", s.handleShutdown)
 
@@ -394,6 +395,49 @@ func (s *AppServer) handleExportOrdersXLSX(w http.ResponseWriter, r *http.Reques
 		suffix = sanitizeFilePart(filterWarehouse)
 	}
 	dlName := fmt.Sprintf("Заявки поставщикам — %s (%s).xlsx", suffix, rep.EffectiveStartDate)
+	sendXLSXAttachment(w, dlName, outBytes)
+}
+
+func (s *AppServer) handleExportSingleSupplierOrderXLSX(w http.ResponseWriter, r *http.Request) {
+	s.touchHeartbeat()
+	s.mu.RLock()
+	rep := s.report
+	s.mu.RUnlock()
+
+	if rep == nil {
+		writeError(w, http.StatusBadRequest, "нет данных расчёта")
+		return
+	}
+	filterWarehouse := strings.TrimSpace(r.URL.Query().Get("warehouse"))
+	filterSupplier := strings.TrimSpace(r.URL.Query().Get("supplier"))
+
+	whForName := filterWarehouse
+	if whForName == "" {
+		var whList []string
+		seenWh := make(map[string]bool)
+		for _, it := range rep.Items {
+			if it.FinalOrderQty <= 0 {
+				continue
+			}
+			supName := strings.TrimSpace(it.Supplier)
+			if filterSupplier != "" && supName != filterSupplier && !(filterSupplier == "(Поставщик не указан)" && supName == "") {
+				continue
+			}
+			if it.Warehouse != "" && !seenWh[it.Warehouse] {
+				seenWh[it.Warehouse] = true
+				whList = append(whList, it.Warehouse)
+			}
+		}
+		whForName = strings.Join(whList, " + ")
+	}
+
+	outBytes, err := xlsx.GenerateSingleSupplierOrderXLSX(rep, filterWarehouse, filterSupplier)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "ошибка генерации заказа поставщику: "+err.Error())
+		return
+	}
+
+	dlName := xlsx.FormatSupplierOrderFilename(whForName, filterSupplier, time.Now())
 	sendXLSXAttachment(w, dlName, outBytes)
 }
 

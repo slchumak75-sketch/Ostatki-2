@@ -52,23 +52,40 @@
       .replace(/"/g, '&quot;');
   }
 
-  function formatTwoLines(raw) {
-    const s = String(raw ?? '').trim().replace(/\s+/g, ' ');
-    if (!s) return '';
-    const words = s.split(' ');
-    if (words.length === 1) return esc(words[0]);
-    let bestIdx = 1;
-    let bestMax = Infinity;
-    for (let i = 1; i < words.length; i++) {
-      const l1 = words.slice(0, i).join(' ');
-      const l2 = words.slice(i).join(' ');
-      const curMax = Math.max(l1.length, l2.length);
-      if (curMax < bestMax) {
-        bestMax = curMax;
-        bestIdx = i;
+  function cleanFilenamePart(raw) {
+    const s = String(raw ?? '').trim();
+    let out = '';
+    let openQuote = true;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch === '"') {
+        if (openQuote) {
+          if (i > 0 && s[i - 1] !== ' ') out += ' ';
+          out += '«';
+        } else {
+          out += '»';
+        }
+        openQuote = !openQuote;
+      } else {
+        out += ch;
       }
     }
-    return `${esc(words.slice(0, bestIdx).join(' '))}<br>${esc(words.slice(bestIdx).join(' '))}`;
+    return out
+      .replace(/[\/\\]/g, '_')
+      .replace(/:/g, '-')
+      .replace(/[*?<>|]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function formatOrderFileName(warehouse, supplier) {
+    const wh = cleanFilenamePart(warehouse) || 'Все склады';
+    const sup = cleanFilenamePart(supplier) || 'Поставщик не указан';
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(now.getFullYear());
+    return `${wh}, ${sup}, ${dd}.${mm}.${yyyy}.xlsx`;
   }
 
   let toastTimer = null;
@@ -170,9 +187,22 @@
       'Все группы',
       (g) => `${g.group} (к закупке: ${g.orderItemCount})`
     );
+    // Уникальные поставщики для выпадающего фильтра на вкладке «Ведомость»
+    const supAgg = new Map();
+    for (const s of rep.suppliers) {
+      const prev = supAgg.get(s.supplier);
+      if (!prev) {
+        supAgg.set(s.supplier, { value: s.supplier, supplier: s.supplier, totalOrderCost: s.totalOrderCost, orderItems: s.orderItems });
+      } else {
+        prev.totalOrderCost += s.totalOrderCost;
+        prev.orderItems += s.orderItems;
+      }
+    }
+    const uniqueSuppliers = [...supAgg.values()].sort((a, b) => b.totalOrderCost - a.totalOrderCost || a.supplier.localeCompare(b.supplier, 'ru'));
+
     keepSet(
       el('fltSupplier'),
-      rep.suppliers.map((s) => ({ value: s.supplier, ...s })),
+      uniqueSuppliers,
       'Все поставщики',
       (s) => `${s.supplier} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})`
     );
@@ -291,8 +321,8 @@
       ].filter(Boolean).join(' ');
 
       return `<tr data-row="${it.excelRow}" class="${rowCls}">
-        <td class="wh-cell" title="${esc(it.warehouse)}"><span class="cell-2lines">${formatTwoLines(it.warehouse)}</span></td>
-        <td class="grp-cell" title="${esc(it.group)}"><span class="cell-2lines">${formatTwoLines(it.group)}</span></td>
+        <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
+        <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
         <td class="seg-cell" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${esc(segLabel)}</span></td>
@@ -334,7 +364,12 @@
     `).join('');
 
     el('suppliersBody').innerHTML = rep.suppliers.map((s) => {
-      const rawSupParam = s.supplier === '(Поставщик не указан)' ? '' : s.supplier;
+      const orderQs = new URLSearchParams();
+      if (s.warehouse) orderQs.set('warehouse', s.warehouse);
+      if (s.supplier) orderQs.set('supplier', s.supplier);
+      const orderHref = `api/export/supplier-order?${orderQs.toString()}`;
+      const orderFileName = formatOrderFileName(s.warehouse, s.supplier);
+
       const statusBadge = s.orderItems === 0
         ? `<span class="badge" style="color:var(--text-muted)">Нет потребности</span>`
         : s.belowMinOrder
@@ -342,6 +377,7 @@
           : `<span class="badge badge-green">Готов к отправке (${s.shareOfBudget.toFixed(1)}%)</span>`;
 
       return `<tr>
+        <td class="wh-cell" title="${esc(s.warehouse)}">${esc(s.warehouse)}</td>
         <td><strong>${esc(s.supplier)}</strong></td>
         <td class="num-col">${fmtInt(s.totalItems)}</td>
         <td class="num-col">${fmtInt(s.orderItems)}</td>
@@ -349,9 +385,9 @@
         <td class="num-col" style="font-weight:700">${fmtMoney(s.totalOrderCost)} руб.</td>
         <td class="num-col">${fmtMoney(s.totalRetailVal)} руб.</td>
         <td class="center-col">${statusBadge}</td>
-        <td class="right-col">
-          <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}">В таблице</button>
-          ${s.orderItems > 0 && rawSupParam ? `<a class="btn btn-secondary btn-sm" href="api/export/orders?supplier=${encodeURIComponent(rawSupParam)}" style="text-decoration:none">Заказ .xlsx</a>` : ''}
+        <td class="right-col" style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}" data-filter-wh="${esc(s.warehouse || '')}">В таблице</button>
+          ${s.orderItems > 0 ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ .xlsx</a>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -374,8 +410,8 @@
               <th>Артикул</th>
               <th class="col-name">Номенклатура</th>
               <th>Поставщик</th>
-              <th class="num-col col-5digits">Остаток</th>
               <th class="num-col col-5digits">Продажи</th>
+              <th class="num-col col-5digits">Остаток</th>
               <th class="num-col">Цена</th>
               <th class="num-col">Розница</th>
               <th class="num-col">Заморожено сверх года</th>
@@ -383,13 +419,13 @@
           </thead>
           <tbody>
             ${over.slice(0, 150).map((it) => `<tr data-jump-row="${it.excelRow}">
-              <td class="wh-cell" title="${esc(it.warehouse)}"><span class="cell-2lines">${formatTwoLines(it.warehouse)}</span></td>
-              <td class="grp-cell" title="${esc(it.group)}"><span class="cell-2lines">${formatTwoLines(it.group)}</span></td>
+              <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
+              <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
               <td class="name-cell">${esc(it.name)}</td>
               <td>${esc(it.supplier || '')}</td>
-              <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
               <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
+              <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
               <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
               <td class="num-col">${fmtRetail(it)}</td>
               <td class="num-col" style="color:var(--warn);font-weight:700">${fmtMoney(it.overstockValue)} руб.</td>
@@ -657,6 +693,7 @@
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
       el('fltSupplier').value = btn.dataset.filterSup;
+      el('fltWarehouse').value = btn.dataset.filterWh || '';
       state.page = 1;
       recomputeFilteredList();
       renderTable();

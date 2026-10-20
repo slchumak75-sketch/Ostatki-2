@@ -70,6 +70,18 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /api/export/orders code=%d len=%d", rec.Code, rec.Body.Len())
 	}
 
+	// 5b. GET /api/export/supplier-order — заказ поставщику из столбца «Действия» (4 столбца + шаблон имени файла)
+	req = httptest.NewRequest(http.MethodGet, `/api/export/supplier-order?warehouse=%D0%A1%D0%BA%D0%BB%D0%B0%D0%B4+%D0%9A%D0%BE%D1%80%D0%B5%D0%BB%D0%B8%D1%87%D0%B8&supplier=%D0%9E%D0%9E%D0%9E+%22%D0%93%D0%BE%D0%BB%D0%B4%D0%94%D0%B5%D0%BA%D0%BE%D1%80%22`, nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.Len() < 800 {
+		t.Fatalf("GET /api/export/supplier-order code=%d len=%d", rec.Code, rec.Body.Len())
+	}
+	disp := rec.Header().Get("Content-Disposition")
+	if !strings.Contains(disp, "%D0%A1%D0%BA%D0%BB%D0%B0%D0%B4%20%D0%9A%D0%BE%D1%80%D0%B5%D0%BB%D0%B8%D1%87%D0%B8%2C%20%D0%9E%D0%9E%D0%9E%20%C2%AB%D0%93%D0%BE%D0%BB%D0%B4%D0%94%D0%B5%D0%BA%D0%BE%D1%80%C2%BB%2C%20") {
+		t.Fatalf("unexpected Content-Disposition filename header: %s", disp)
+	}
+
 	// 6. POST /api/upload
 	rawBytes, err := os.ReadFile(repoFile)
 	if err != nil {
@@ -171,7 +183,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout"} {
+	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "font-size: 8px"} {
 		if strings.Contains(cssBody, removedCSS) {
 			t.Fatalf("styles.css still contains removed selector: %q", removedCSS)
 		}
@@ -181,8 +193,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"calc(6ch",
 		".wh-col",
 		".grp-col",
-		".cell-2lines",
-		"font-size: 8px",
+		"font-size: 11.5px",
 		"width: 1%",
 		"padding: 1px 6px",
 		"height: 18px",
@@ -222,21 +233,31 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"buildHistoryBarSVG",
 		"buildTwelveMonthSVG",
 		"renderSeasonalityView",
+		"formatTwoLines",
+		"cell-2lines",
 	} {
 		if strings.Contains(jsBody, removedJS) {
 			t.Fatalf("app.js still contains removed fragment: %q", removedJS)
 		}
 	}
 	for _, mustHaveJS := range []string{
-		"formatTwoLines",
 		"fmtRetail",
-		"cell-2lines",
 		"auto-order-row",
 		"salesSegment",
 		"salesSegmentLabel",
+		"api/export/supplier-order",
+		"formatOrderFileName",
 	} {
 		if !strings.Contains(jsBody, mustHaveJS) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
 		}
+	}
+	// Проверка, что во вкладке «Радар неликвидов» столбец «Продажи» стоит перед «Остаток»
+	ovStart := strings.Index(jsBody, "function renderOverstockView")
+	ovChunk := jsBody[ovStart:]
+	ovSalesIdx := strings.Index(ovChunk, `<th class="num-col col-5digits">Продажи</th>`)
+	ovStockIdx := strings.Index(ovChunk, `<th class="num-col col-5digits">Остаток</th>`)
+	if !(ovSalesIdx > 0 && ovStockIdx > ovSalesIdx) {
+		t.Fatalf("expected Overstock table columns Продажи -> Остаток, got indices %d, %d", ovSalesIdx, ovStockIdx)
 	}
 }

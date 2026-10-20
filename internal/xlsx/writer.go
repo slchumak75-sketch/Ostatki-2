@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 )
@@ -553,29 +554,31 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 		return nil, err
 	}
 
-	// Лист 2: Сводка по поставщикам
+	// Лист 2: Сводка по поставщикам в разрезе складов
 	var s2 strings.Builder
 	s2.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <cols>
-  <col min="1" max="1" width="34" customWidth="1"/>
-  <col min="2" max="5" width="18" customWidth="1"/>
-  <col min="6" max="6" width="16" customWidth="1"/>
+  <col min="1" max="1" width="20" customWidth="1"/>
+  <col min="2" max="2" width="34" customWidth="1"/>
+  <col min="3" max="6" width="18" customWidth="1"/>
+  <col min="7" max="7" width="16" customWidth="1"/>
 </cols><sheetData>`)
 	s2.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, h := range []string{"Поставщик", "Всего SKU", "SKU к закупке", "Единиц к закупке", "Сумма закупки (руб.)", "Доля бюджета (%)"} {
+	for i, h := range []string{"Склад", "Поставщик", "Всего SKU", "SKU к закупке", "Единиц к закупке", "Сумма закупки (руб.)", "Доля бюджета (%)"} {
 		s2.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s2.WriteString(`</row>`)
 	for i, sup := range report.Suppliers {
 		r := strconv.Itoa(i + 2)
 		s2.WriteString(`<row r="` + r + `" ht="20" customHeight="1">`)
-		s2.WriteString(inlineStrCell("A"+r, 2, sup.Supplier))
-		s2.WriteString(numCell("B"+r, 6, float64(sup.TotalItems)))
-		s2.WriteString(numCell("C"+r, 6, float64(sup.OrderItems)))
-		s2.WriteString(numCell("D"+r, 3, float64(sup.TotalOrderQty)))
-		s2.WriteString(numCell("E"+r, 4, sup.TotalOrderCost))
-		s2.WriteString(numCell("F"+r, 4, sup.ShareOfBudget))
+		s2.WriteString(inlineStrCell("A"+r, 2, sup.Warehouse))
+		s2.WriteString(inlineStrCell("B"+r, 2, sup.Supplier))
+		s2.WriteString(numCell("C"+r, 6, float64(sup.TotalItems)))
+		s2.WriteString(numCell("D"+r, 6, float64(sup.OrderItems)))
+		s2.WriteString(numCell("E"+r, 3, float64(sup.TotalOrderQty)))
+		s2.WriteString(numCell("F"+r, 4, sup.TotalOrderCost))
+		s2.WriteString(numCell("G"+r, 4, sup.ShareOfBudget))
 		s2.WriteString(`</row>`)
 	}
 	s2.WriteString(`</sheetData></worksheet>`)
@@ -623,7 +626,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
   <col min="7" max="10" width="16" customWidth="1"/>
 </cols><sheetData>`)
 	s4.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, h := range []string{"Стр. Excel", "Склад", "Поставщик", "Группа номенклатуры", "Артикул", "Номенклатура", "Остаток", "Продажи 12м", "Запас (дней)", "Заморожено (руб.)"} {
+	for i, h := range []string{"Стр. Excel", "Склад", "Поставщик", "Группа номенклатуры", "Артикул", "Номенклатура", "Продажи 12м", "Остаток", "Запас (дней)", "Заморожено (руб.)"} {
 		s4.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s4.WriteString(`</row>`)
@@ -644,14 +647,205 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 		s4.WriteString(inlineStrCell("D"+rs, 2, it.Group))
 		s4.WriteString(inlineStrCell("E"+rs, 2, it.SKU))
 		s4.WriteString(inlineStrCell("F"+rs, 2, it.Name))
-		s4.WriteString(numCell("G"+rs, 6, it.ClosingStock))
-		s4.WriteString(numCell("H"+rs, 6, it.SumSalesLast12M))
+		s4.WriteString(numCell("G"+rs, 6, it.SumSalesLast12M))
+		s4.WriteString(numCell("H"+rs, 6, it.ClosingStock))
 		s4.WriteString(numCell("I"+rs, 4, it.DaysOfSupply))
 		s4.WriteString(numCell("J"+rs, 4, it.OverstockValue))
 		s4.WriteString(`</row>`)
 	}
 	s4.WriteString(`</sheetData></worksheet>`)
 	if err := addFile("xl/worksheets/sheet4.xml", s4.String()); err != nil {
+		return nil, err
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// CleanFilenamePart очищает наименование склада или поставщика для безопасного использования
+// в имени файла Windows/macOS/Linux, заменяя прямые кавычки "..." на «...».
+func CleanFilenamePart(raw string) string {
+	var qBuf strings.Builder
+	openQuote := true
+	runes := []rune(strings.TrimSpace(raw))
+	for idx, ch := range runes {
+		if ch == '"' {
+			if openQuote {
+				if idx > 0 && runes[idx-1] != ' ' {
+					qBuf.WriteRune(' ')
+				}
+				qBuf.WriteRune('«')
+			} else {
+				qBuf.WriteRune('»')
+			}
+			openQuote = !openQuote
+			continue
+		}
+		qBuf.WriteRune(ch)
+	}
+	replacer := strings.NewReplacer(`/`, "_", `\`, "_", `:`, "-", `*`, "", `?`, "", `<`, "", `>`, "", `|`, "")
+	cleaned := strings.Join(strings.Fields(replacer.Replace(qBuf.String())), " ")
+	if len([]rune(cleaned)) > 120 {
+		cleaned = string([]rune(cleaned)[:120])
+	}
+	return cleaned
+}
+
+// FormatSupplierOrderFilename формирует имя файла заказа поставщику строго по шаблону:
+// "<Наименование склада>, <Наименование поставщика>, <текущая дата заказа>.xlsx".
+func FormatSupplierOrderFilename(warehouse string, supplier string, orderDate time.Time) string {
+	wh := CleanFilenamePart(warehouse)
+	if wh == "" {
+		wh = "Все склады"
+	}
+	sup := CleanFilenamePart(supplier)
+	if sup == "" {
+		sup = "Поставщик не указан"
+	}
+	dateStr := orderDate.Format("02.01.2006")
+	return fmt.Sprintf("%s, %s, %s.xlsx", wh, sup, dateStr)
+}
+
+// GenerateSingleSupplierOrderXLSX формирует одностраничную Excel-таблицу заказа поставщику
+// строго из 4 столбцов:
+//  1. Наименование склада
+//  2. Артикул
+//  3. Номенклатура
+//  4. Заказ
+func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWarehouse string, filterSupplier string) ([]byte, error) {
+	var orderItems []model.CalculatedItem
+	for _, it := range report.Items {
+		if it.FinalOrderQty <= 0 {
+			continue
+		}
+		if filterWarehouse != "" && it.Warehouse != filterWarehouse {
+			continue
+		}
+		supName := strings.TrimSpace(it.Supplier)
+		if filterSupplier != "" && supName != filterSupplier && !(filterSupplier == "(Поставщик не указан)" && supName == "") {
+			continue
+		}
+		orderItems = append(orderItems, it)
+	}
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	addFile := func(name, content string) error {
+		w, err := zw.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte(content))
+		return err
+	}
+
+	if err := addFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats.package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Заказ поставщику" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1">
+    <numFmt numFmtId="165" formatCode="#,##0"/>
+  </numFmts>
+  <fonts count="3">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF0F172A"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="4">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF1E3A8A"/></patternFill></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFE2F9DF"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border>
+      <left style="thin"><color rgb="FFCBD5E1"/></left>
+      <right style="thin"><color rgb="FFCBD5E1"/></right>
+      <top style="thin"><color rgb="FFCBD5E1"/></top>
+      <bottom style="thin"><color rgb="FFCBD5E1"/></bottom>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="4">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+    <xf numFmtId="165" fontId="2" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`); err != nil {
+		return nil, err
+	}
+
+	var s1 strings.Builder
+	s1.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols>
+  <col min="1" max="1" width="22" customWidth="1"/>
+  <col min="2" max="2" width="16" customWidth="1"/>
+  <col min="3" max="3" width="54" customWidth="1"/>
+  <col min="4" max="4" width="12" customWidth="1"/>
+</cols><sheetData>`)
+
+	s1.WriteString(`<row r="1" ht="26" customHeight="1">`)
+	for i, h := range []string{"Наименование склада", "Артикул", "Номенклатура", "Заказ"} {
+		s1.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
+	}
+	s1.WriteString(`</row>`)
+
+	for idx, it := range orderItems {
+		rs := strconv.Itoa(idx + 2)
+		s1.WriteString(`<row r="` + rs + `" ht="20" customHeight="1">`)
+		s1.WriteString(inlineStrCell("A"+rs, 2, it.Warehouse))
+		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
+		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
+		s1.WriteString(numCell("D"+rs, 3, float64(it.FinalOrderQty)))
+		s1.WriteString(`</row>`)
+	}
+	s1.WriteString(`</sheetData>`)
+	if len(orderItems) > 0 {
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:D%d"/>`, len(orderItems)+1))
+	}
+	s1.WriteString(`</worksheet>`)
+	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {
 		return nil, err
 	}
 
