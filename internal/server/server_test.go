@@ -114,6 +114,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		}
 	}
 	for _, mustHaveHTML := range []string{
+		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
+		`<th data-sort="group" class="grp-col">Группа</th>`,
 		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
 		`<th data-sort="closingStock" class="num-col col-5digits">Остаток</th>`,
 		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
@@ -130,9 +132,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	for _, mustHaveCSS := range []string{".col-5digits", "calc(6ch"} {
+	for _, mustHaveCSS := range []string{".col-5digits", "calc(6ch", ".wh-col", ".grp-col", ".cell-2lines", "font-size: 8px", "width: 1%"} {
 		if !strings.Contains(cssBody, mustHaveCSS) {
-			t.Fatalf("styles.css missing 5-digit column width rule: %q", mustHaveCSS)
+			t.Fatalf("styles.css missing required column styling rule: %q", mustHaveCSS)
 		}
 	}
 
@@ -160,9 +162,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 	for _, keptChart := range []string{
 		"buildHistoryBarSVG",
 		"buildTwelveMonthSVG",
+		"formatTwoLines",
+		"cell-2lines",
 	} {
 		if !strings.Contains(jsBody, keptChart) {
-			t.Fatalf("app.js missing required chart function: %q", keptChart)
+			t.Fatalf("app.js missing required UI helper/function: %q", keptChart)
 		}
 	}
 }
