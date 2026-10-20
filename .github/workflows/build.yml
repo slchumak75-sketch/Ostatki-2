@@ -1,4 +1,4 @@
-name: Сборка Windows — Вариант 1, Вариант 2 и Вариант 3
+name: Сборка Windows — Варианты 1, 2, 3 и 4
 
 on:
   push:
@@ -171,7 +171,7 @@ jobs:
           fi
 
   build-variant-3:
-    name: Вариант 3 (актуальная сборка PRO SCM)
+    name: Вариант 3 (сохранённая сборка PRO SCM v3)
     runs-on: ubuntu-latest
 
     steps:
@@ -184,10 +184,10 @@ jobs:
           go-version: '1.24'
           cache: false
 
-      - name: Автотесты сборки «Вариант 3» (включая реальный Excel-файл)
+      - name: Автотесты сборки «Вариант 3»
         run: |
-          go vet ./cmd/... ./internal/... ./variants/variant3/...
-          go test -v -race ./internal/... ./variants/variant3/...
+          go vet ./variants/variant3/...
+          go test -v -race ./variants/variant3/...
 
       - name: Кросс-компиляция Windows x64 — «Вариант 3»
         run: |
@@ -195,11 +195,11 @@ jobs:
 
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
             go build -trimpath -ldflags="-s -w -H=windowsgui" \
-            -o "dist/Вариант 3/OstatkiZakupki_Вариант_3.exe" ./cmd/ostatki
+            -o "dist/Вариант 3/OstatkiZakupki_Вариант_3.exe" ./variants/variant3/cmd/ostatki
 
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
             go build -trimpath -ldflags="-s -w" \
-            -o "dist/Вариант 3/OstatkiZakupki_Вариант_3_cli.exe" ./cmd/ostatki
+            -o "dist/Вариант 3/OstatkiZakupki_Вариант_3_cli.exe" ./variants/variant3/cmd/ostatki
 
           cat << 'BAT1' > "dist/Вариант 3/Запустить_Вариант_3.bat"
           @echo off
@@ -215,17 +215,11 @@ jobs:
           pause
           BAT2
 
-          cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 3/"
           cp "Ведомость с периодом ОК (Вариант 3).xlsx" "dist/Вариант 3/"
-          cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 3/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 3/"
 
           cp "dist/Вариант 3/OstatkiZakupki_Вариант_3.exe" "dist/OstatkiZakupki_Variant_3.exe"
           (cd "dist/Вариант 3" && zip -r ../Variant_3_Windows_x64.zip .)
-
-          # Smoke-проверка пакетной обработки свежесобранным бинарником Варианта 3
-          go build -trimpath -ldflags="-s -w" -o dist/ostatki-v3-linux ./cmd/ostatki
-          ./dist/ostatki-v3-linux -headless -input "Ведомость с периодом ОК (1).xlsx" -output dist/verified_v3.xlsx
 
       - name: Публикация артефакта «Вариант 3»
         uses: actions/upload-artifact@v4
@@ -239,21 +233,108 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES_V3="Сохранённая актуальная сборка «Вариант 3» (PRO SCM): раздельные столбцы Склад / Группа / Артикул, чистое наименование Номенклатуры, поле ввода без стрелок, игнорирование красных полей 1С, ABC×XYZ, Croston/SBA, анти-выброс и 4-листовый отчёт (7 102,89 руб.)."
+          NOTES_V3="Сохранённая сборка «Вариант 3» (PRO SCM): раздельные столбцы Склад / Группа / Артикул, чистое наименование Номенклатуры, поле ввода без стрелок, 5 сводных карточек и полные параметры расчёта."
           if gh release view variant-3 >/dev/null 2>&1; then
             for old in $(gh release view variant-3 --json assets --jq '.assets[].name'); do
               gh release delete-asset variant-3 "$old" -y || true
             done
-            gh release edit variant-3 --latest --title "Вариант 3" --notes "$NOTES_V3"
+            gh release edit variant-3 --latest=false --title "Вариант 3" --notes "$NOTES_V3"
             gh release upload variant-3 \
               "dist/OstatkiZakupki_Variant_3.exe#OstatkiZakupki_Variant_3.exe (Вариант 3 — Windows x64 GUI)" \
               "dist/Variant_3_Windows_x64.zip#Variant_3_Windows_x64.zip (Полный архив Вариант 3)" --clobber
           else
             gh release create variant-3 \
               --target "${{ github.sha }}" \
-              --latest \
+              --latest=false \
               --title "Вариант 3" \
               --notes "$NOTES_V3" \
               "dist/OstatkiZakupki_Variant_3.exe#OstatkiZakupki_Variant_3.exe (Вариант 3 — Windows x64 GUI)" \
               "dist/Variant_3_Windows_x64.zip#Variant_3_Windows_x64.zip (Полный архив Вариант 3)"
+          fi
+
+  build-variant-4:
+    name: Вариант 4 (актуальная сборка PRO SCM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Клонирование репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Автотесты актуальной сборки «Вариант 4»
+        run: |
+          go vet ./cmd/... ./internal/...
+          go test -v -race ./internal/...
+
+      - name: Кросс-компиляция Windows x64 — «Вариант 4»
+        run: |
+          mkdir -p "dist/Вариант 4"
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w -H=windowsgui" \
+            -o "dist/Вариант 4/OstatkiZakupki_Вариант_4.exe" ./cmd/ostatki
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o "dist/Вариант 4/OstatkiZakupki_Вариант_4_cli.exe" ./cmd/ostatki
+
+          cat << 'BAT1' > "dist/Вариант 4/Запустить_Вариант_4.bat"
+          @echo off
+          chcp 65001 >nul
+          start "" "%~dp0OstatkiZakupki_Вариант_4.exe"
+          BAT1
+
+          cat << 'BAT2' > "dist/Вариант 4/Автозаполнение_без_окна_Вариант_4.bat"
+          @echo off
+          chcp 65001 >nul
+          "%~dp0OstatkiZakupki_Вариант_4_cli.exe" -headless -inplace -orders-output "Заявки поставщикам (авторасчёт).xlsx"
+          echo.
+          pause
+          BAT2
+
+          cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 4/"
+          cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 4/"
+          cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 4/"
+
+          cp "dist/Вариант 4/OstatkiZakupki_Вариант_4.exe" "dist/OstatkiZakupki_Variant_4.exe"
+          (cd "dist/Вариант 4" && zip -r ../Variant_4_Windows_x64.zip .)
+
+          # Smoke-проверка пакетной обработки свежесобранным бинарником Варианта 4
+          go build -trimpath -ldflags="-s -w" -o dist/ostatki-v4-linux ./cmd/ostatki
+          ./dist/ostatki-v4-linux -headless -input "Ведомость с периодом ОК (1).xlsx" -output dist/verified_v4.xlsx
+
+      - name: Публикация артефакта «Вариант 4»
+        uses: actions/upload-artifact@v4
+        with:
+          name: Вариант 4
+          path: dist/Вариант 4/*
+          if-no-files-found: error
+
+      - name: Публикация релиза GitHub «Вариант 4»
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): лаконичный интерфейс (только ключевые карточки «Столбец 8 К закупкам» и «Бюджет закупки», убраны лишние блоки «Ожидаемая розница и маржа», «Горизонт планирования», «Анти-выбросы и Радар неликвидов» и поле «Вес свежих лет:»), раздельные столбцы Склад / Группа / Артикул, чистое наименование Номенклатуры, поле ввода без стрелок."
+          if gh release view variant-4 >/dev/null 2>&1; then
+            for old in $(gh release view variant-4 --json assets --jq '.assets[].name'); do
+              gh release delete-asset variant-4 "$old" -y || true
+            done
+            gh release edit variant-4 --latest --title "Вариант 4" --notes "$NOTES_V4"
+            gh release upload variant-4 \
+              "dist/OstatkiZakupki_Variant_4.exe#OstatkiZakupki_Variant_4.exe (Вариант 4 — Windows x64 GUI)" \
+              "dist/Variant_4_Windows_x64.zip#Variant_4_Windows_x64.zip (Полный архив Вариант 4)" --clobber
+          else
+            gh release create variant-4 \
+              --target "${{ github.sha }}" \
+              --latest \
+              --title "Вариант 4" \
+              --notes "$NOTES_V4" \
+              "dist/OstatkiZakupki_Variant_4.exe#OstatkiZakupki_Variant_4.exe (Вариант 4 — Windows x64 GUI)" \
+              "dist/Variant_4_Windows_x64.zip#Variant_4_Windows_x64.zip (Полный архив Вариант 4)"
           fi

@@ -109,8 +109,6 @@
     el('inpBudgetCap').value = p.budgetCap || 0;
     el('inpMinSupplier').value = p.minSupplierOrder ?? 50;
     el('selSeasonMode').value = p.seasonMode;
-    el('inpDecay').value = p.recencyDecay;
-    el('lblDecay').textContent = Number(p.recencyDecay).toFixed(2);
     el('selPackMultiple').value = String(p.packMultiple || 1);
     el('selMinDisplay').value = String(p.minDisplayStock || 0);
     el('selRounding').value = p.rounding;
@@ -184,19 +182,6 @@
     } else {
       el('kpiBudgetInfo').textContent = `Активных поставщиков: ${activeSups} из ${rep.suppliers.length}`;
     }
-
-    el('kpiRetailValue').textContent = `${fmtMoney(rep.totalRetailValue)} руб.`;
-    el('kpiMarginValue').textContent = `Ожидаемая маржа: +${fmtMoney(rep.expectedMargin)} руб.`;
-
-    const totalDays = rep.params.horizonDays + rep.params.leadTimeDays;
-    el('kpiHorizonRange').textContent = `${rep.effectiveStartDate} → ${rep.effectiveEndDate}`;
-    const grpIdxSummary = rep.groups
-      .map((g) => `${g.group.replace(/^\d+\s*/, '')}: ×${g.horizonIndex.toFixed(2)}`)
-      .join(' • ');
-    el('kpiSeasonSummary').textContent = `${totalDays} дн. • ${grpIdxSummary}`;
-
-    el('kpiOverstockVal').textContent = `${fmtMoney(rep.overstockFrozenCost)} руб. (${rep.overstockItemsCount} SKU)`;
-    el('kpiOutlierInfo').textContent = `Сглажено опт-выбросов: ${rep.outlierItemsCount} SKU • Ручных правок: ${rep.manualOverrideCount}`;
 
     el('btnClearOverrides').classList.toggle('hidden', rep.manualOverrideCount === 0);
     el('cntTabSuppliers').textContent = activeSups;
@@ -617,7 +602,7 @@
       leadTimeDays: Number(el('inpLeadTime').value) || 0,
       safetyStockPct: Number(el('inpSafety').value) || 0,
       seasonMode: el('selSeasonMode').value,
-      recencyDecay: Number(el('inpDecay').value) || 0.65,
+      recencyDecay: state.report?.params?.recencyDecay ?? 0.65,
       shrinkageK: 12,
       minDisplayStock: Number(el('selMinDisplay').value) || 0,
       rounding: el('selRounding').value,
@@ -717,12 +702,11 @@
       el('paramsBody').classList.toggle('hidden');
     });
 
-    ['inpHorizon', 'inpLeadTime', 'inpSafety', 'inpDecay'].forEach((id) => {
+    ['inpHorizon', 'inpLeadTime', 'inpSafety'].forEach((id) => {
       el(id).addEventListener('input', () => {
         el('lblHorizon').textContent = el('inpHorizon').value;
         el('lblLeadTime').textContent = el('inpLeadTime').value;
         el('lblSafety').textContent = `${el('inpSafety').value}%`;
-        el('lblDecay').textContent = Number(el('inpDecay').value).toFixed(2);
         scheduleRecalculate();
       });
     });

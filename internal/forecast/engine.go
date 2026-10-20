@@ -10,7 +10,7 @@ import (
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 )
 
-// NormalizeParams проверяет и приводит параметры расчёта «Варианта 3» к допустимым границам.
+// NormalizeParams проверяет и приводит параметры расчёта «Варианта 4» к допустимым границам.
 func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 	if p.HorizonDays < 1 {
 		p.HorizonDays = 30
@@ -70,7 +70,7 @@ func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 	return p
 }
 
-// Calculate выполняет полный расчёт сборки «Вариант 3».
+// Calculate выполняет полный расчёт сборки «Вариант 4».
 func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int) *model.CalculationReport {
 	params := NormalizeParams(rawParams)
 	periods := make([]model.PeriodColumn, len(wb.Periods))
@@ -143,7 +143,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	// 3. Построчный расчёт всех SKU
 	calcItems := make([]model.CalculatedItem, nItems)
 	report := &model.CalculationReport{
-		BuildVariant:          "Вариант 3",
+		BuildVariant:          "Вариант 4",
 		FileName:              wb.FileName,
 		Title:                 wb.Title,
 		CreatedDate:           wb.CreatedDate,
@@ -211,7 +211,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			abcxyz = "DD"
 		}
 
-		// --- Расчёт потребности «Вариант 3» ---
+		// --- Расчёт потребности «Вариант 4» ---
 		v2MonthForecast, baseRate, flatRate := forecastItem12Months(cleanSales, activeStart, periods, gIdx, params.RecencyDecay, params.ShrinkageK, params.SeasonMode)
 
 		flatDemand := 0.0

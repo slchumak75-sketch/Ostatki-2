@@ -63,7 +63,7 @@ const (
 	RoundFloor   RoundingMode = "floor"   // Экономное округление вниз (только полные единицы >= 1.0)
 )
 
-// ForecastParams задаёт все параметры алгоритма расчёта столбца 8 («К закупкам») в сборке «Вариант 3».
+// ForecastParams задаёт все параметры алгоритма расчёта столбца 8 («К закупкам») в сборке «Вариант 4».
 type ForecastParams struct {
 	PlanStartDate        string       `json:"planStartDate"`        // Дата начала горизонта планирования YYYY-MM-DD
 	NormalizePartialLast bool         `json:"normalizePartialLast"` // Нормализовать неполный последний месяц по дате выгрузки Excel
@@ -79,7 +79,7 @@ type ForecastParams struct {
 	WriteZeroValues      bool         `json:"writeZeroValues"`      // Записывать 0 в пустые ячейки столбца 8
 	ColumnHeader         string       `json:"columnHeader"`         // Текст заголовка в ячейке H7 ("К закупкам")
 
-	// Расширения «Варианта 3» (PRO SCM):
+	// Расширения «Варианта 4» (PRO SCM):
 	OutlierFilter     bool    `json:"outlierFilter"`     // Подавление разовых оптовых выбросов (Winsorization)
 	UseCrostonZ       bool    `json:"useCrostonZ"`       // Метод Croston/SBA для редких позиций класса Z
 	AdaptiveSafetySLA bool    `json:"adaptiveSafetySLA"` // Адаптивный страховой запас по матрице ABC-XYZ
@@ -88,7 +88,7 @@ type ForecastParams struct {
 	PackMultiple      int     `json:"packMultiple"`      // Минимальная кратность заказа (1 = поштучно)
 }
 
-// DefaultParams возвращает оптимальные параметры сборки «Вариант 3» по умолчанию.
+// DefaultParams возвращает оптимальные параметры сборки «Вариант 4» по умолчанию.
 func DefaultParams() ForecastParams {
 	return ForecastParams{
 		PlanStartDate:        "",
@@ -122,7 +122,7 @@ type MatrixCell struct {
 	OrderCost  float64 `json:"orderCost"`  // Сумма закупки (руб.)
 }
 
-// CalculatedItem содержит все расчётные показатели «Варианта 3» по одной строке ведомости.
+// CalculatedItem содержит все расчётные показатели «Варианта 4» по одной строке ведомости.
 type CalculatedItem struct {
 	RawItem
 	ABCClass          string      `json:"abcClass"`          // A, B, C или D (без продаж)
@@ -142,7 +142,7 @@ type CalculatedItem struct {
 	ForecastDemand    float64     `json:"forecastDemand"`    // Ожидаемый спрос за (HorizonDays + LeadTimeDays)
 	SafetyUnits       float64     `json:"safetyUnits"`       // Страховой запас в единицах
 	TargetStock       float64     `json:"targetStock"`       // Целевой запас на горизонт
-	AutoOrderQty      int         `json:"autoOrderQty"`      // Автоматически рассчитанное значение «Вариант 3»
+	AutoOrderQty      int         `json:"autoOrderQty"`      // Автоматически рассчитанное значение «Вариант 4»
 	FinalOrderQty     int         `json:"finalOrderQty"`     // Итоговое «К закупкам» (с учётом бюджета и ручных правок)
 	ManualOverride    *int        `json:"manualOverride"`    // Ручная правка пользователя (nil если авто)
 	FlatComparisonQty int         `json:"flatComparisonQty"` // Сколько было бы заказано БЕЗ учёта сезонности
@@ -195,7 +195,7 @@ type SupplierSummary struct {
 	BelowMinOrder  bool    `json:"belowMinOrder"` // Сумма заказа > 0, но ниже порога рентабельной доставки
 }
 
-// CalculationReport объединяет все расчёты сборки «Вариант 3».
+// CalculationReport объединяет все расчёты сборки «Вариант 4».
 type CalculationReport struct {
 	BuildVariant          string             `json:"buildVariant"`
 	FileName              string             `json:"fileName"`
