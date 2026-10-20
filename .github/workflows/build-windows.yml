@@ -86,9 +86,12 @@ jobs:
         run: |
           $src = Get-ChildItem -Filter *.xlsx | Select-Object -First 1
           if ($null -eq $src) { throw "В корне репозитория нет .xlsx для smoke-теста" }
-          .\dist\Ostatki.exe -version
-          .\dist\Ostatki.exe -cli -in $src.FullName -out smoke_result.xlsx
-          if ($LASTEXITCODE -ne 0) { throw "CLI завершился с ошибкой" }
+          $ver = .\dist\Ostatki.exe -version
+          Write-Host "::notice::smoke version: $ver"
+          $out = .\dist\Ostatki.exe -cli -in $src.FullName -out smoke_result.xlsx 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_; Write-Host "::notice::smoke: $_" }
+          if ($code -ne 0) { throw "CLI завершился с ошибкой" }
           if (-not (Test-Path smoke_result.xlsx)) { throw "Smoke: выходной xlsx не создан" }
 
       - name: Package zip (exe + README + руководство)
