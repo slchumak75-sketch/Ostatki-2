@@ -60,15 +60,26 @@ jobs:
           Write-Host "Version: $v"
 
       - name: Build Ostatki.exe (windows/amd64, CGO off)
-        shell: pwsh
+        shell: bash
         env:
           CGO_ENABLED: "0"
           GOOS: windows
           GOARCH: amd64
         run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
-          go build -trimpath -ldflags "-s -w -X main.version=${{ steps.ver.outputs.VERSION }}" -o dist/Ostatki.exe ./cmd/ostatki
-          Get-Item dist/Ostatki.exe | Select-Object Name, Length
+          set +e
+          mkdir -p dist
+          echo "Building version: ${{ steps.ver.outputs.VERSION }}"
+          go build -trimpath -ldflags "-s -w -X main.version=${{ steps.ver.outputs.VERSION }}" -o dist/Ostatki.exe ./cmd/ostatki > build.log 2>&1
+          code=$?
+          cat build.log
+          if [ "$code" -ne 0 ]; then
+            echo "::error::go build exit code $code"
+            sed 's/^/::error::build: /' build.log
+            go version
+            go env GOOS GOARCH CGO_ENABLED GOVERSION
+            exit $code
+          fi
+          ls -l dist/
 
       - name: Smoke test CLI на реальной ведомости из репозитория
         shell: pwsh
