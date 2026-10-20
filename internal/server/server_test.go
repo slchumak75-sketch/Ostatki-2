@@ -85,7 +85,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/upload code=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	// 7. GET / (проверка удаления 4 полей из интерфейса)
+	// 7. GET / и GET /app.js (проверка удаления лишних полей и наличия только графиков в правой панели)
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -98,6 +98,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"Горизонт планирования",
 		"Анти-выбросы и Радар неликвидов",
 		"Вес свежих лет:",
+		"Дата начала планирования",
+		"inpStartDate",
+		"hintCompleteness",
 		"inpDecay",
 		"kpiRetailValue",
 		"kpiHorizonRange",
@@ -105,6 +108,34 @@ func TestServerAPIEndpoints(t *testing.T) {
 	} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("HTML still contains removed element/label: %q", removed)
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/app.js", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /app.js code=%d", rec.Code)
+	}
+	jsBody := rec.Body.String()
+	for _, removedJS := range []string{
+		"inpStartDate",
+		"hintCompleteness",
+		"ins-head",
+		"ins-metrics",
+		"explain-box",
+		"Обоснование расчёта",
+	} {
+		if strings.Contains(jsBody, removedJS) {
+			t.Fatalf("app.js still contains removed inspector/startDate fragment: %q", removedJS)
+		}
+	}
+	for _, keptChart := range []string{
+		"buildHistoryBarSVG",
+		"buildTwelveMonthSVG",
+	} {
+		if !strings.Contains(jsBody, keptChart) {
+			t.Fatalf("app.js missing required chart function: %q", keptChart)
 		}
 	}
 }

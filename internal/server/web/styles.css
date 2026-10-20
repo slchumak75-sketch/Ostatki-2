@@ -861,8 +861,14 @@ html, body {
   margin-bottom: 12px;
 }
 
+.inspector-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .chart-block {
-  margin-top: 12px;
+  margin: 0;
 }
 
 .chart-block h4 {
