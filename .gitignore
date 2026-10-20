@@ -1,7 +1,8 @@
 # Сборка Go
 *.exe
 /dist/
-ostatki
+# ВНИМАНИЕ: только корень (/ostatki = собранный бинарь), иначе игнорируется cmd/ostatki/ !
+/ostatki
 
 # Python (tools/)
 __pycache__/
