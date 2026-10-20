@@ -10,11 +10,11 @@
 
 ## Скачивание готовых Windows `.exe` сборок (GitHub Releases)
 
-| Сборка | Прямая ссылка на страницу релиза | Готовый `.exe` | Полный `.zip`-архив |
+| Сборка | Страница релиза | Прямое скачивание `.exe` | Полный `.zip`-архив |
 | :--- | :--- | :--- | :--- |
-| **Вариант 3 (`Latest`)** | [`releases/tag/variant-3`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-3) | `OstatkiZakupki_Вариант_3.exe` | `Вариант_3_Windows_x64.zip` |
-| **Вариант 2** | [`releases/tag/variant-2`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-2) | `OstatkiZakupki_Вариант_2.exe` | `Вариант_2_Windows_x64.zip` |
-| **Вариант 1** | [`releases/tag/variant-1`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-1) | `OstatkiZakupki_Вариант_1.exe` | `Вариант_1_Windows_x64.zip` |
+| **Вариант 3 (`Latest`)** | [`Вариант 3`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-3) | [`OstatkiZakupki_Variant_3.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-3/OstatkiZakupki_Variant_3.exe) | [`Variant_3_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-3/Variant_3_Windows_x64.zip) |
+| **Вариант 2** | [`Вариант 2`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-2) | [`OstatkiZakupki_Variant_2.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-2/OstatkiZakupki_Variant_2.exe) | [`Variant_2_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-2/Variant_2_Windows_x64.zip) |
+| **Вариант 1** | [`Вариант 1`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-1) | [`OstatkiZakupki_Variant_1.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-1/OstatkiZakupki_Variant_1.exe) | [`Variant_1_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-1/Variant_1_Windows_x64.zip) |
 
 При каждом `push` / `pull_request` workflow [`.github/workflows/build.yml`](.github/workflows/build.yml) также параллельно тестирует и публикует все три артефакта (**`Вариант 1`**, **`Вариант 2`**, **`Вариант 3`**).
 

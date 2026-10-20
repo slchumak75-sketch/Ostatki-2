@@ -54,7 +54,8 @@ jobs:
           cp "Ведомость с периодом ОК (Вариант 1).xlsx" "dist/Вариант 1/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 1/"
 
-          (cd "dist/Вариант 1" && zip -r ../Вариант_1_Windows_x64.zip .)
+          cp "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" "dist/OstatkiZakupki_Variant_1.exe"
+          (cd "dist/Вариант 1" && zip -r ../Variant_1_Windows_x64.zip .)
 
       - name: Публикация артефакта «Вариант 1»
         uses: actions/upload-artifact@v4
@@ -70,18 +71,21 @@ jobs:
         run: |
           NOTES_V1="Сохранённая эталонная сборка «Вариант 1» (Windows x64 GUI + CLI + заполненная ведомость 8 525,23 руб.)."
           if gh release view variant-1 >/dev/null 2>&1; then
+            for old in $(gh release view variant-1 --json assets --jq '.assets[].name'); do
+              gh release delete-asset variant-1 "$old" -y || true
+            done
             gh release edit variant-1 --latest=false --title "Вариант 1" --notes "$NOTES_V1"
             gh release upload variant-1 \
-              "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" \
-              "dist/Вариант_1_Windows_x64.zip" --clobber
+              "dist/OstatkiZakupki_Variant_1.exe#OstatkiZakupki_Variant_1.exe (Вариант 1 — Windows x64 GUI)" \
+              "dist/Variant_1_Windows_x64.zip#Variant_1_Windows_x64.zip (Полный архив Вариант 1)" --clobber
           else
             gh release create variant-1 \
               --target "${{ github.sha }}" \
               --latest=false \
               --title "Вариант 1" \
               --notes "$NOTES_V1" \
-              "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" \
-              "dist/Вариант_1_Windows_x64.zip"
+              "dist/OstatkiZakupki_Variant_1.exe#OstatkiZakupki_Variant_1.exe (Вариант 1 — Windows x64 GUI)" \
+              "dist/Variant_1_Windows_x64.zip#Variant_1_Windows_x64.zip (Полный архив Вариант 1)"
           fi
 
   build-variant-2:
@@ -132,7 +136,8 @@ jobs:
           cp "Ведомость с периодом ОК (Вариант 2).xlsx" "dist/Вариант 2/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 2/"
 
-          (cd "dist/Вариант 2" && zip -r ../Вариант_2_Windows_x64.zip .)
+          cp "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" "dist/OstatkiZakupki_Variant_2.exe"
+          (cd "dist/Вариант 2" && zip -r ../Variant_2_Windows_x64.zip .)
 
       - name: Публикация артефакта «Вариант 2»
         uses: actions/upload-artifact@v4
@@ -148,18 +153,21 @@ jobs:
         run: |
           NOTES_V2="Сохранённая сборка «Вариант 2» (первичная версия PRO SCM с аналитикой ABC×XYZ, фильтром выбросов и 5-листовым отчётом)."
           if gh release view variant-2 >/dev/null 2>&1; then
+            for old in $(gh release view variant-2 --json assets --jq '.assets[].name'); do
+              gh release delete-asset variant-2 "$old" -y || true
+            done
             gh release edit variant-2 --latest=false --title "Вариант 2" --notes "$NOTES_V2"
             gh release upload variant-2 \
-              "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
-              "dist/Вариант_2_Windows_x64.zip" --clobber
+              "dist/OstatkiZakupki_Variant_2.exe#OstatkiZakupki_Variant_2.exe (Вариант 2 — Windows x64 GUI)" \
+              "dist/Variant_2_Windows_x64.zip#Variant_2_Windows_x64.zip (Полный архив Вариант 2)" --clobber
           else
             gh release create variant-2 \
               --target "${{ github.sha }}" \
               --latest=false \
               --title "Вариант 2" \
               --notes "$NOTES_V2" \
-              "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
-              "dist/Вариант_2_Windows_x64.zip"
+              "dist/OstatkiZakupki_Variant_2.exe#OstatkiZakupki_Variant_2.exe (Вариант 2 — Windows x64 GUI)" \
+              "dist/Variant_2_Windows_x64.zip#Variant_2_Windows_x64.zip (Полный архив Вариант 2)"
           fi
 
   build-variant-3:
@@ -212,7 +220,8 @@ jobs:
           cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 3/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 3/"
 
-          (cd "dist/Вариант 3" && zip -r ../Вариант_3_Windows_x64.zip .)
+          cp "dist/Вариант 3/OstatkiZakupki_Вариант_3.exe" "dist/OstatkiZakupki_Variant_3.exe"
+          (cd "dist/Вариант 3" && zip -r ../Variant_3_Windows_x64.zip .)
 
           # Smoke-проверка пакетной обработки свежесобранным бинарником Варианта 3
           go build -trimpath -ldflags="-s -w" -o dist/ostatki-v3-linux ./cmd/ostatki
@@ -232,16 +241,19 @@ jobs:
         run: |
           NOTES_V3="Сохранённая актуальная сборка «Вариант 3» (PRO SCM): раздельные столбцы Склад / Группа / Артикул, чистое наименование Номенклатуры, поле ввода без стрелок, игнорирование красных полей 1С, ABC×XYZ, Croston/SBA, анти-выброс и 4-листовый отчёт (7 102,89 руб.)."
           if gh release view variant-3 >/dev/null 2>&1; then
+            for old in $(gh release view variant-3 --json assets --jq '.assets[].name'); do
+              gh release delete-asset variant-3 "$old" -y || true
+            done
             gh release edit variant-3 --latest --title "Вариант 3" --notes "$NOTES_V3"
             gh release upload variant-3 \
-              "dist/Вариант 3/OstatkiZakupki_Вариант_3.exe" \
-              "dist/Вариант_3_Windows_x64.zip" --clobber
+              "dist/OstatkiZakupki_Variant_3.exe#OstatkiZakupki_Variant_3.exe (Вариант 3 — Windows x64 GUI)" \
+              "dist/Variant_3_Windows_x64.zip#Variant_3_Windows_x64.zip (Полный архив Вариант 3)" --clobber
           else
             gh release create variant-3 \
               --target "${{ github.sha }}" \
               --latest \
               --title "Вариант 3" \
               --notes "$NOTES_V3" \
-              "dist/Вариант 3/OstatkiZakupki_Вариант_3.exe" \
-              "dist/Вариант_3_Windows_x64.zip"
+              "dist/OstatkiZakupki_Variant_3.exe#OstatkiZakupki_Variant_3.exe (Вариант 3 — Windows x64 GUI)" \
+              "dist/Variant_3_Windows_x64.zip#Variant_3_Windows_x64.zip (Полный архив Вариант 3)"
           fi
