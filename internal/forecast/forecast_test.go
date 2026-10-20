@@ -20,7 +20,7 @@ func makeMonths(startYear, startMonth, n int) []model.Month {
 	return out
 }
 
-func fp(v float64) *float64 { return &v }
+// fp определён в forecast.go (тот же пакет) — здесь не дублировать!
 
 func baseItem(name string, sales []float64, stock float64) model.Item {
 	return model.Item{
