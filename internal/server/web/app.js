@@ -47,6 +47,25 @@
       .replace(/"/g, '&quot;');
   }
 
+  function formatTwoLines(raw) {
+    const s = String(raw ?? '').trim().replace(/\s+/g, ' ');
+    if (!s) return '';
+    const words = s.split(' ');
+    if (words.length === 1) return esc(words[0]);
+    let bestIdx = 1;
+    let bestMax = Infinity;
+    for (let i = 1; i < words.length; i++) {
+      const l1 = words.slice(0, i).join(' ');
+      const l2 = words.slice(i).join(' ');
+      const curMax = Math.max(l1.length, l2.length);
+      if (curMax < bestMax) {
+        bestMax = curMax;
+        bestIdx = i;
+      }
+    }
+    return `${esc(words.slice(0, bestIdx).join(' '))}<br>${esc(words.slice(bestIdx).join(' '))}`;
+  }
+
   let toastTimer = null;
   function showToast(msg) {
     const t = el('toast');
@@ -263,8 +282,8 @@
       ].filter(Boolean).join(' ');
 
       return `<tr data-row="${it.excelRow}" class="${isSelected ? 'selected-row' : ''}">
-        <td class="wh-cell">${esc(it.warehouse)}</td>
-        <td class="grp-cell">${esc(it.group)}</td>
+        <td class="wh-cell" title="${esc(it.warehouse)}"><span class="cell-2lines">${formatTwoLines(it.warehouse)}</span></td>
+        <td class="grp-cell" title="${esc(it.group)}"><span class="cell-2lines">${formatTwoLines(it.group)}</span></td>
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
         <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 5px">${esc(it.abcxyz)}</span></td>
@@ -523,10 +542,10 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Склад</th>
-              <th>Группа</th>
+              <th class="wh-col">Склад</th>
+              <th class="grp-col">Группа</th>
               <th>Артикул</th>
-              <th>Номенклатура</th>
+              <th class="col-name">Номенклатура</th>
               <th>Поставщик</th>
               <th class="num-col col-5digits">Остаток</th>
               <th class="num-col col-5digits">Продажи</th>
@@ -536,8 +555,8 @@
           </thead>
           <tbody>
             ${over.slice(0, 150).map((it) => `<tr data-jump-row="${it.excelRow}">
-              <td class="wh-cell">${esc(it.warehouse)}</td>
-              <td class="grp-cell">${esc(it.group)}</td>
+              <td class="wh-cell" title="${esc(it.warehouse)}"><span class="cell-2lines">${formatTwoLines(it.warehouse)}</span></td>
+              <td class="grp-cell" title="${esc(it.group)}"><span class="cell-2lines">${formatTwoLines(it.group)}</span></td>
               <td class="sku-cell">${esc(it.sku)}</td>
               <td class="name-cell">${esc(it.name)}</td>
               <td>${esc(it.supplier || '')}</td>
