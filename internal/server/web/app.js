@@ -320,7 +320,7 @@
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
         <td class="unit-cell">шт.</td>
-        <td class="seg-cell seg-${segNum}" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${esc(segLabel)}</span></td>
+        <td class="seg-cell seg-${segNum}" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${segNum}</span></td>
         <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
         <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
         <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
@@ -831,14 +831,20 @@
     });
 
     const topbarEl = document.querySelector('.topbar');
+    const toolbarEl = document.querySelector('#view-table .toolbar');
     const syncStickyHeaderOffset = () => {
-      if (!topbarEl) return;
-      const h = Math.round(topbarEl.getBoundingClientRect().height);
-      document.documentElement.style.setProperty('--sticky-head-top', `${h}px`);
+      const topbarH = topbarEl ? Math.round(topbarEl.getBoundingClientRect().height) : 39;
+      const toolbarH = toolbarEl ? Math.round(toolbarEl.getBoundingClientRect().height) : 0;
+      document.documentElement.style.setProperty('--sticky-head-top', `${topbarH}px`);
+      document.documentElement.style.setProperty('--sticky-toolbar-top', `${topbarH}px`);
+      const tableHeadTop = toolbarH > 0 ? topbarH + toolbarH + 5 : topbarH;
+      document.documentElement.style.setProperty('--sticky-table-head-top', `${tableHeadTop}px`);
     };
     syncStickyHeaderOffset();
-    if (topbarEl && typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(syncStickyHeaderOffset).observe(topbarEl);
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(syncStickyHeaderOffset);
+      if (topbarEl) ro.observe(topbarEl);
+      if (toolbarEl) ro.observe(toolbarEl);
     } else {
       window.addEventListener('resize', syncStickyHeaderOffset);
     }
