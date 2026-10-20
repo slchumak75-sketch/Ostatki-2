@@ -208,7 +208,7 @@
       if (status === 'manual' && it.manualOverride == null) return false;
 
       if (q) {
-        const hay = `${it.excelRow} ${it.name} ${it.sku} ${it.supplier} ${it.group} ${it.warehouse} ${it.abcxyz}`.toLowerCase();
+        const hay = `${it.name} ${it.sku} ${it.supplier} ${it.group} ${it.warehouse} ${it.abcxyz}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -248,7 +248,7 @@
     el('btnNextPage').disabled = state.page >= maxPage;
 
     if (slice.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
       return;
     }
 
@@ -263,23 +263,22 @@
       ].filter(Boolean).join(' ');
 
       return `<tr data-row="${it.excelRow}" class="${isSelected ? 'selected-row' : ''}">
-        <td class="num-col" style="color:var(--text-muted)">${it.excelRow}</td>
         <td class="wh-cell">${esc(it.warehouse)}</td>
         <td class="grp-cell">${esc(it.group)}</td>
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
         <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 5px">${esc(it.abcxyz)}</span></td>
-        <td class="num-col">${fmtInt(it.sumSalesLast12M)}</td>
-        <td class="num-col ${it.closingStock <= 0 ? 'stock-crit' : ''}">${fmtInt(it.closingStock)}</td>
-        <td class="num-col order-cell" onclick="event.stopPropagation()">
+        <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
+        <td class="num-col col-5digits ${it.closingStock <= 0 ? 'stock-crit' : ''}">${fmtInt(it.closingStock)}</td>
+        <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
           <div class="qty-editor">
-            ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${it.autoOrderQty})">↺</button>` : ''}
-            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="${qtyCls}" value="${it.finalOrderQty}" data-qty-row="${it.excelRow}" />
+            ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
+            <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
           </div>
         </td>
         <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
         <td class="num-col" style="font-weight:${it.orderCost > 0 ? '700' : '400'}">${it.orderCost > 0 ? fmtMoney(it.orderCost) : '—'}</td>
-        <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
+        <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
       </tr>`;
     }).join('');
   }
@@ -524,28 +523,26 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th class="num-col">Стр.</th>
               <th>Склад</th>
               <th>Группа</th>
               <th>Артикул</th>
               <th>Номенклатура</th>
               <th>Поставщик</th>
-              <th class="num-col">Остаток</th>
-              <th class="num-col">Продажи 12м</th>
+              <th class="num-col col-5digits">Остаток</th>
+              <th class="num-col col-5digits">Продажи</th>
               <th class="num-col">Цена зак.</th>
               <th class="num-col">Заморожено сверх года</th>
             </tr>
           </thead>
           <tbody>
             ${over.slice(0, 150).map((it) => `<tr data-jump-row="${it.excelRow}">
-              <td class="num-col">${it.excelRow}</td>
               <td class="wh-cell">${esc(it.warehouse)}</td>
               <td class="grp-cell">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
               <td class="name-cell">${esc(it.name)}</td>
               <td>${esc(it.supplier || '')}</td>
-              <td class="num-col"><strong>${fmtInt(it.closingStock)} ${esc(it.unit)}</strong></td>
-              <td class="num-col">${fmtInt(it.sumSalesLast12M)}</td>
+              <td class="num-col col-5digits"><strong>${fmtInt(it.closingStock)}</strong></td>
+              <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
               <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
               <td class="num-col" style="color:var(--warn);font-weight:700">${fmtMoney(it.overstockValue)} руб.</td>
             </tr>`).join('')}
@@ -739,7 +736,7 @@
         const rowNum = Number(resetBtn.dataset.reset);
         const env = await apiPost('api/override', { excelRow: rowNum, clear: true });
         applyEnvelope(env);
-        showToast(`Строка #${rowNum}: возвращён авторасчёт`);
+        showToast('Возвращён авторасчёт заказа');
         return;
       }
       const tr = e.target.closest('tr[data-row]');
@@ -753,8 +750,9 @@
     el('tableBody').addEventListener('input', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
-      const cleaned = inp.value.replace(/[^\d]/g, '');
-      if (inp.value !== cleaned) inp.value = cleaned;
+      const digits = inp.value.replace(/[^\d]/g, '');
+      const formatted = digits === '' ? '' : Number(digits).toLocaleString('ru-RU');
+      if (inp.value !== formatted) inp.value = formatted;
     });
 
     el('tableBody').addEventListener('keydown', (e) => {
@@ -770,11 +768,12 @@
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
       const rowNum = Number(inp.dataset.qtyRow);
-      const val = Math.max(0, Math.round(Number(inp.value) || 0));
+      const digits = inp.value.replace(/[^\d]/g, '');
+      const val = Math.max(0, Math.round(Number(digits) || 0));
       state.selectedExcelRow = rowNum;
       const env = await apiPost('api/override', { excelRow: rowNum, value: val });
       applyEnvelope(env);
-      showToast(`Строка Excel #${rowNum}: столбец 8 = ${val}`);
+      showToast(`Заказ обновлён: ${fmtInt(val)}`);
     });
 
     el('btnClearOverrides').addEventListener('click', async () => {
@@ -798,9 +797,15 @@
       if (jumpRow) {
         const rNum = Number(jumpRow.dataset.jumpRow);
         state.selectedExcelRow = rNum;
-        el('inpSearch').value = String(rNum);
-        state.page = 1;
+        el('inpSearch').value = '';
+        el('fltWarehouse').value = '';
+        el('fltGroup').value = '';
+        el('fltSupplier').value = '';
+        el('fltABCXYZ').value = '';
+        el('fltStatus').value = 'all';
         recomputeFilteredList();
+        const idx = state.filteredItems.findIndex((x) => x.excelRow === rNum);
+        state.page = idx >= 0 ? Math.floor(idx / state.pageSize) + 1 : 1;
         renderTable();
         renderInspector();
         document.querySelector('.tab-btn[data-tab="table"]').click();
