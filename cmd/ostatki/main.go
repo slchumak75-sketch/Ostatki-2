@@ -70,12 +70,12 @@ func main() {
 	flag.StringVar(&rounding, "rounding", string(def.Rounding), "Округление: nearest | ceil | floor")
 	flag.BoolVar(&writeZeros, "write-zeros", def.WriteZeroValues, "Записывать 0 в пустые ячейки столбца 8")
 	flag.StringVar(&headerText, "header", def.ColumnHeader, "Заголовок столбца 8 в ячейке H7")
-	flag.BoolVar(&outlierFilter, "outlier-filter", def.OutlierFilter, "Вариант 2: фильтр разовых оптовых выбросов (Winsorization)")
-	flag.BoolVar(&useCrostonZ, "croston-z", def.UseCrostonZ, "Вариант 2: метод Croston/SBA для редких Z-товаров")
-	flag.BoolVar(&adaptiveSLA, "adaptive-sla", def.AdaptiveSafetySLA, "Вариант 2: адаптивный SLA страхового запаса по матрице ABC-XYZ")
-	flag.Float64Var(&budgetCap, "budget", def.BudgetCap, "Вариант 2: лимит бюджета закупки в руб. (0 = без ограничения)")
-	flag.Float64Var(&minSupOrder, "min-supplier", def.MinSupplierOrder, "Вариант 2: порог минимального заказа поставщику (руб.)")
-	flag.IntVar(&packMultiple, "pack", def.PackMultiple, "Вариант 2: минимальная кратность упаковки (шт.)")
+	flag.BoolVar(&outlierFilter, "outlier-filter", def.OutlierFilter, "Вариант 3: фильтр разовых оптовых выбросов (Winsorization)")
+	flag.BoolVar(&useCrostonZ, "croston-z", def.UseCrostonZ, "Вариант 3: метод Croston/SBA для редких Z-товаров")
+	flag.BoolVar(&adaptiveSLA, "adaptive-sla", def.AdaptiveSafetySLA, "Вариант 3: адаптивный SLA страхового запаса по матрице ABC-XYZ")
+	flag.Float64Var(&budgetCap, "budget", def.BudgetCap, "Вариант 3: лимит бюджета закупки в руб. (0 = без ограничения)")
+	flag.Float64Var(&minSupOrder, "min-supplier", def.MinSupplierOrder, "Вариант 3: порог минимального заказа поставщику (руб.)")
+	flag.IntVar(&packMultiple, "pack", def.PackMultiple, "Вариант 3: минимальная кратность упаковки (шт.)")
 	flag.Parse()
 
 	if inputPath == "" && flag.NArg() > 0 {
@@ -119,7 +119,7 @@ func main() {
 		if err := app.LoadWorkbookFromPath(inputPath); err != nil {
 			log.Printf("Предупреждение: не удалось предзагрузить %s: %v", inputPath, err)
 		} else {
-			log.Printf("Загружена ведомость (Вариант 2): %s", inputPath)
+			log.Printf("Загружена ведомость (Вариант 3): %s", inputPath)
 		}
 	}
 
@@ -138,7 +138,7 @@ func main() {
 
 	actualPort := ln.Addr().(*net.TCPAddr).Port
 	localURL := fmt.Sprintf("http://127.0.0.1:%d", actualPort)
-	log.Printf("Интерфейс «Остатки 2 — Вариант 2» запущен: %s (слушает %s)", localURL, ln.Addr().String())
+	log.Printf("Интерфейс «Остатки 2 — Вариант 3» запущен: %s (слушает %s)", localURL, ln.Addr().String())
 
 	httpSrv := &http.Server{
 		Handler:           app.Handler(),
@@ -200,7 +200,7 @@ func runHeadless(inputPath, outputPath, ordersOutput string, inPlace bool, param
 	} else if targetOut == "" {
 		ext := filepath.Ext(inputPath)
 		base := strings.TrimSuffix(inputPath, ext)
-		targetOut = base + " (К закупкам — Вариант 2)" + ext
+		targetOut = base + " (К закупкам — Вариант 3)" + ext
 	}
 
 	if err := xlsx.SaveOrderColumnToFile(
@@ -225,7 +225,7 @@ func runHeadless(inputPath, outputPath, ordersOutput string, inPlace bool, param
 		}
 	}
 
-	fmt.Printf("=== Обработка ведомости завершена успешно (Сборка: Вариант 2) ===\n")
+	fmt.Printf("=== Обработка ведомости завершена успешно (Сборка: Вариант 3) ===\n")
 	fmt.Printf("Входной файл:        %s\n", inputPath)
 	fmt.Printf("Выходной файл:       %s\n", targetOut)
 	fmt.Printf("Период планирования: %s .. %s (%d+%d дн.)\n",
@@ -271,7 +271,7 @@ func discoverDefaultWorkbook() string {
 			if !strings.HasSuffix(lower, ".xlsx") || strings.HasPrefix(name, "~$") {
 				continue
 			}
-			if strings.HasPrefix(lower, "заявки поставщикам") || strings.Contains(lower, "(вариант 1)") {
+			if strings.HasPrefix(lower, "заявки поставщикам") || strings.Contains(lower, "(вариант ") || strings.Contains(lower, "(к закупкам") {
 				continue
 			}
 			candidates = append(candidates, filepath.Join(dir, name))

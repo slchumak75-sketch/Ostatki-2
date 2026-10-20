@@ -428,7 +428,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 	if err := addFile("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
-    <sheet name="К закупкам (Вариант 2)" sheetId="1" r:id="rId1"/>
+    <sheet name="К закупкам (Вариант 3)" sheetId="1" r:id="rId1"/>
     <sheet name="По поставщикам" sheetId="2" r:id="rId2"/>
     <sheet name="Сезонность и ABC-XYZ" sheetId="3" r:id="rId3"/>
     <sheet name="Неликвиды и избыток" sheetId="4" r:id="rId4"/>
