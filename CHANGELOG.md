@@ -19,5 +19,5 @@
   - `cmd/ostatki`: поддержка десктопного GUI, пакетного CLI (`-headless`) для интеграции с 1С и сетевого `-server` режима.
 
 ### Автоматическая сборка в GitHub Actions и документация
-- Настроен CI/CD workflow [`.github/workflows/build.yml`](.github/workflows/build.yml): автозапуск `go vet` + `go test -v -race ./...`, кросс-компиляция `OstatkiZakupki.exe` (`-H=windowsgui`) и `OstatkiZakupki-cli.exe`, сборка Windows-архива с `.bat`-скриптами и загрузка артефактов на GitHub Actions.
+- Настроен и проверен в бою CI/CD workflow [`.github/workflows/build.yml`](.github/workflows/build.yml) (проверенный зелёный запуск: [`actions/runs/39408587951`](https://github.com/slchumak75-sketch/Ostatki-2/actions/runs/39408587951)): автозапуск `go vet` + `go test -v -race ./...`, кросс-компиляция `OstatkiZakupki.exe` (`-H=windowsgui`) и `OstatkiZakupki-cli.exe`, сборка Windows-комплекта с `.bat`-скриптами и загрузка артефактов `OstatkiZakupki-Windows-x64-exe` и `Ostatki-2-Windows-x64-Bundle`.
 - Подготовлена полная документация (`README.md`, `AGENTS.md`, `CHANGELOG.md`).
