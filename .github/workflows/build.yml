@@ -54,12 +54,32 @@ jobs:
           cp "Ведомость с периодом ОК (Вариант 1).xlsx" "dist/Вариант 1/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 1/"
 
-      - name: Публикация сборки «Вариант 1»
+          (cd "dist/Вариант 1" && zip -r ../Вариант_1_Windows_x64.zip .)
+
+      - name: Публикация артефакта «Вариант 1»
         uses: actions/upload-artifact@v4
         with:
           name: Вариант 1
           path: dist/Вариант 1/*
           if-no-files-found: error
+
+      - name: Публикация релиза GitHub «Вариант 1»
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view variant-1 >/dev/null 2>&1; then
+            gh release upload variant-1 \
+              "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" \
+              "dist/Вариант_1_Windows_x64.zip" --clobber
+          else
+            gh release create variant-1 \
+              --target "${{ github.sha }}" \
+              --title "Вариант 1" \
+              --notes "Сохранённая эталонная сборка «Вариант 1» (Windows x64 GUI + CLI + заполненная ведомость 8 525,23 руб.)." \
+              "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" \
+              "dist/Вариант_1_Windows_x64.zip"
+          fi
 
   build-variant-2:
     name: Вариант 2 (модернизированная сборка PRO SCM)
@@ -110,13 +130,34 @@ jobs:
           cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 2/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 2/"
 
+          (cd "dist/Вариант 2" && zip -r ../Вариант_2_Windows_x64.zip .)
+
           # Smoke-проверка пакетной обработки свежесобранным бинарником
           go build -trimpath -ldflags="-s -w" -o dist/ostatki-v2-linux ./cmd/ostatki
           ./dist/ostatki-v2-linux -headless -input "Ведомость с периодом ОК (1).xlsx" -output dist/verified_v2.xlsx
 
-      - name: Публикация сборки «Вариант 2»
+      - name: Публикация артефакта «Вариант 2»
         uses: actions/upload-artifact@v4
         with:
           name: Вариант 2
           path: dist/Вариант 2/*
           if-no-files-found: error
+
+      - name: Публикация релиза GitHub «Вариант 2»
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view variant-2 >/dev/null 2>&1; then
+            gh release upload variant-2 \
+              "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
+              "dist/Вариант_2_Windows_x64.zip" --clobber
+          else
+            gh release create variant-2 \
+              --target "${{ github.sha }}" \
+              --latest \
+              --title "Вариант 2" \
+              --notes "Модернизированная сборка «Вариант 2» PRO SCM: анти-выброс (Winsorization), ABC×XYZ, Croston/SBA, оптимизатор лимита бюджета, радар неликвидов и 5-листовый отчёт (7 102,89 руб. — экономия 1 422,34 руб. к Варианту 1)." \
+              "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
+              "dist/Вариант_2_Windows_x64.zip"
+          fi
