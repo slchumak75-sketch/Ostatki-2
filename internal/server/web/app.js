@@ -148,13 +148,11 @@
     el('selSeasonMode').value = p.seasonMode;
     el('selPackMultiple').value = String(p.packMultiple || 1);
     el('selMinDisplay').value = String(p.minDisplayStock || 0);
-    el('selRounding').value = p.rounding;
     el('chkOutlierFilter').checked = Boolean(p.outlierFilter);
     el('chkCrostonZ').checked = Boolean(p.useCrostonZ);
     el('chkAdaptiveSLA').checked = Boolean(p.adaptiveSafetySLA);
     el('chkNormalizeLast').checked = Boolean(p.normalizePartialLast);
     el('chkWriteZeros').checked = Boolean(p.writeZeroValues);
-    el('inpHeaderName').value = p.columnHeader || 'К закупкам';
 
     el('hintBudget').textContent = p.budgetCap > 0
       ? `Срезано лимитом: ${fmtInt(rep.budgetTrimmedUnits)} ед. (без лимита: ${fmtMoney(rep.uncappedOrderCost)} р.)`
@@ -212,11 +210,7 @@
     const firstP = rep.periods[0]?.label || '';
     const lastP = rep.periods[rep.periods.length - 1]?.label || '';
     el('fileMetaLine').textContent =
-      `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)}`;
-
-    el('kpiOrderUnits').textContent = `${fmtInt(rep.totalOrderUnits)} ед.`;
-    const pct = rep.totalItems ? ((rep.orderItemsCount / rep.totalItems) * 100).toFixed(1) : '0.0';
-    el('kpiOrderItems').textContent = `К закупке: ${fmtInt(rep.orderItemsCount)} из ${fmtInt(rep.totalItems)} SKU (${pct}%)`;
+      `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)`;
 
     el('kpiOrderCost').textContent = `${fmtMoney(rep.totalOrderCost)} руб.`;
     const activeSups = rep.suppliers.filter((s) => s.orderItems > 0).length;
@@ -277,24 +271,24 @@
 
     state.filteredItems = list;
     el('cntTabTable').textContent = list.length;
-
-    const maxPage = Math.max(1, Math.ceil(list.length / state.pageSize));
-    if (state.page > maxPage) state.page = maxPage;
   }
 
   function renderTable() {
     const tbody = el('tableBody');
     const total = state.filteredItems.length;
-    const maxPage = Math.max(1, Math.ceil(total / state.pageSize));
-    const start = (state.page - 1) * state.pageSize;
-    const slice = state.filteredItems.slice(start, start + state.pageSize);
+    const allTotal = state.report?.totalItems ?? total;
+    const slice = state.filteredItems;
+
+    // Сохраняем позицию скролла и активное поле ввода, если пользователь перешёл в соседнюю строку
+    const prevScrollY = window.scrollY;
+    const activeEl = document.activeElement;
+    const activeQtyRow = activeEl?.dataset?.qtyRow ? Number(activeEl.dataset.qtyRow) : null;
+    const activeFresh = activeEl?.dataset?.freshEdit;
+    const activeDraft = activeEl?.dataset?.qtyRow ? activeEl.value : null;
 
     el('paginationInfo').textContent = total === 0
       ? 'Нет строк по выбранным фильтрам'
-      : `Показаны строки ${start + 1}–${start + slice.length} из ${fmtInt(total)}`;
-    el('lblPageNum').textContent = `${state.page} / ${maxPage}`;
-    el('btnPrevPage').disabled = state.page <= 1;
-    el('btnNextPage').disabled = state.page >= maxPage;
+      : `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)}`;
 
     if (slice.length === 0) {
       tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
@@ -340,6 +334,23 @@
         <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
       </tr>`;
     }).join('');
+
+    if (activeQtyRow != null) {
+      const nextInp = tbody.querySelector(`input[data-qty-row="${activeQtyRow}"]`);
+      if (nextInp) {
+        nextInp.focus({ preventScroll: true });
+        if (activeFresh === '0' && activeDraft !== null) {
+          nextInp.value = activeDraft;
+          nextInp.dataset.freshEdit = '0';
+          nextInp.setSelectionRange(nextInp.value.length, nextInp.value.length);
+        } else {
+          nextInp.select();
+        }
+      }
+    }
+    if (window.scrollY !== prevScrollY) {
+      window.scrollTo(0, prevScrollY);
+    }
   }
 
   function renderSuppliersView(rep) {
@@ -401,7 +412,7 @@
     el('overstockContainer').innerHTML = `
       <h3>Радар замороженного капитала и неликвидов (&gt; 365 дней продаж или 0 продаж за 12 мес.)</h3>
       <p class="muted">Выявлено <strong>${over.length} позиций</strong> со сверхнормативным запасом на сумму <strong style="color:var(--warn)">${fmtMoney(rep.overstockFrozenCost)} руб.</strong> (в закупочных ценах сверх годовой потребности). Рекомендуется промо-выкладка, скидка или межскладской обмен.</p>
-      <div style="overflow-x:auto">
+      <div>
         <table class="data-table">
           <thead>
             <tr>
@@ -418,7 +429,7 @@
             </tr>
           </thead>
           <tbody>
-            ${over.slice(0, 150).map((it) => `<tr data-jump-row="${it.excelRow}">
+            ${over.map((it) => `<tr data-jump-row="${it.excelRow}">
               <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
               <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
@@ -450,9 +461,9 @@
       recencyDecay: state.report?.params?.recencyDecay ?? 0.65,
       shrinkageK: 12,
       minDisplayStock: Number(el('selMinDisplay').value) || 0,
-      rounding: el('selRounding').value,
+      rounding: state.report?.params?.rounding || 'nearest',
       writeZeroValues: el('chkWriteZeros').checked,
-      columnHeader: el('inpHeaderName').value.trim() || 'К закупкам',
+      columnHeader: state.report?.params?.columnHeader || 'К закупкам',
       outlierFilter: el('chkOutlierFilter').checked,
       useCrostonZ: el('chkCrostonZ').checked,
       adaptiveSafetySLA: el('chkAdaptiveSLA').checked,
@@ -550,8 +561,8 @@
     [
       'inpHorizon', 'inpLeadTime', 'inpSafety',
       'inpBudgetCap', 'inpMinSupplier', 'selSeasonMode',
-      'selPackMultiple', 'selMinDisplay', 'selRounding', 'chkOutlierFilter',
-      'chkCrostonZ', 'chkAdaptiveSLA', 'chkNormalizeLast', 'chkWriteZeros', 'inpHeaderName',
+      'selPackMultiple', 'selMinDisplay', 'chkOutlierFilter',
+      'chkCrostonZ', 'chkAdaptiveSLA', 'chkNormalizeLast', 'chkWriteZeros',
     ].forEach((id) => {
       const node = el(id);
       node.addEventListener('change', scheduleRecalculate);
@@ -630,16 +641,36 @@
       const tr = e.target.closest('tr[data-row]');
       if (tr) {
         state.selectedExcelRow = Number(tr.dataset.row);
-        renderTable();
+        el('tableBody').querySelector('tr.selected-row')?.classList.remove('selected-row');
+        tr.classList.add('selected-row');
       }
     });
 
-    el('tableBody').addEventListener('input', (e) => {
+    // Автоматическое удаление старого значения в поле «Заказ» при начале ввода новых данных
+    el('tableBody').addEventListener('focusin', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
-      const digits = inp.value.replace(/[^\d]/g, '');
-      const formatted = digits === '' ? '' : Number(digits).toLocaleString('ru-RU');
-      if (inp.value !== formatted) inp.value = formatted;
+      inp.dataset.origVal = inp.value;
+      inp.dataset.freshEdit = '1';
+      inp.select();
+    });
+
+    el('tableBody').addEventListener('mouseup', (e) => {
+      const inp = e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      if (inp.dataset.freshEdit === '1') {
+        e.preventDefault();
+        inp.select();
+      }
+    });
+
+    el('tableBody').addEventListener('paste', (e) => {
+      const inp = e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      if (inp.dataset.freshEdit === '1') {
+        inp.value = '';
+        inp.dataset.freshEdit = '0';
+      }
     });
 
     el('tableBody').addEventListener('keydown', (e) => {
@@ -648,12 +679,40 @@
       if (e.key === 'Enter') {
         e.preventDefault();
         inp.blur();
+        return;
       }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        inp.value = inp.dataset.origVal ?? inp.value;
+        inp.dataset.freshEdit = '1';
+        inp.blur();
+        return;
+      }
+      if (inp.dataset.freshEdit === '1' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (/^\d$/.test(e.key)) {
+          inp.value = '';
+          inp.dataset.freshEdit = '0';
+        } else if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault();
+          inp.value = '';
+          inp.dataset.freshEdit = '0';
+        }
+      }
+    });
+
+    el('tableBody').addEventListener('input', (e) => {
+      const inp = e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      inp.dataset.freshEdit = '0';
+      const digits = inp.value.replace(/[^\d]/g, '');
+      const formatted = digits === '' ? '' : Number(digits).toLocaleString('ru-RU');
+      if (inp.value !== formatted) inp.value = formatted;
     });
 
     el('tableBody').addEventListener('change', async (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
+      if (inp.dataset.freshEdit === '1') return;
       const rowNum = Number(inp.dataset.qtyRow);
       const digits = inp.value.replace(/[^\d]/g, '');
       const val = Math.max(0, Math.round(Number(digits) || 0));
@@ -682,10 +741,11 @@
         el('fltABCXYZ').value = '';
         el('fltStatus').value = 'all';
         recomputeFilteredList();
-        const idx = state.filteredItems.findIndex((x) => x.excelRow === rNum);
-        state.page = idx >= 0 ? Math.floor(idx / state.pageSize) + 1 : 1;
         renderTable();
         document.querySelector('.tab-btn[data-tab="table"]').click();
+        requestAnimationFrame(() => {
+          el('tableBody').querySelector(`tr[data-row="${rNum}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
       }
     });
 
@@ -694,23 +754,9 @@
       if (!btn) return;
       el('fltSupplier').value = btn.dataset.filterSup;
       el('fltWarehouse').value = btn.dataset.filterWh || '';
-      state.page = 1;
       recomputeFilteredList();
       renderTable();
       document.querySelector('.tab-btn[data-tab="table"]').click();
-    });
-
-    el('selPageSize').addEventListener('change', () => {
-      state.pageSize = Number(el('selPageSize').value) || 100;
-      state.page = 1;
-      renderTable();
-    });
-    el('btnPrevPage').addEventListener('click', () => {
-      if (state.page > 1) { state.page--; renderTable(); }
-    });
-    el('btnNextPage').addEventListener('click', () => {
-      state.page++;
-      renderTable();
     });
 
     el('btnUpload').addEventListener('click', () => el('fileInput').click());
@@ -735,9 +781,6 @@
 
     el('btnPrintOrder').addEventListener('click', () => {
       el('fltStatus').value = 'order';
-      state.pageSize = 2000;
-      el('selPageSize').value = '2000';
-      state.page = 1;
       recomputeFilteredList();
       renderTable();
       document.querySelector('.tab-btn[data-tab="table"]').click();
@@ -785,6 +828,19 @@
       document.documentElement.dataset.theme = next;
       localStorage.setItem('ostatki2_theme', next);
     });
+
+    const topbarEl = document.querySelector('.topbar');
+    const syncStickyHeaderOffset = () => {
+      if (!topbarEl) return;
+      const h = Math.round(topbarEl.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--sticky-head-top', `${h}px`);
+    };
+    syncStickyHeaderOffset();
+    if (topbarEl && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(syncStickyHeaderOffset).observe(topbarEl);
+    } else {
+      window.addEventListener('resize', syncStickyHeaderOffset);
+    }
 
     setInterval(() => {
       fetch('api/heartbeat', { method: 'POST', keepalive: true }).catch(() => {});
