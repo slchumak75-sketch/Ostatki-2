@@ -496,7 +496,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
   <col min="9" max="9" width="14" customWidth="1"/>
   <col min="10" max="10" width="14" customWidth="1"/>
   <col min="11" max="11" width="15" customWidth="1"/>
-  <col min="12" max="12" width="10" customWidth="1"/>
+  <col min="12" max="12" width="18" customWidth="1"/>
   <col min="13" max="13" width="48" customWidth="1"/>
 </cols><sheetData>`)
 
@@ -507,7 +507,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 	headers1 := []string{
 		"Стр. Excel", "Склад", "Поставщик", "Группа номенклатуры", "Артикул",
 		"Номенклатура", "Ед.", "Остаток", "К закупкам", "Цена закуп.",
-		"Сумма заказа", "ABC-XYZ", "Обоснование расчёта",
+		"Сумма заказа", "Сегмент продаж", "Обоснование расчёта",
 	}
 	s1.WriteString(`<row r="3" ht="28" customHeight="1">`)
 	for i, h := range headers1 {
@@ -534,7 +534,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 		s1.WriteString(numCell("I"+rs, 3, float64(it.FinalOrderQty)))
 		s1.WriteString(numCell("J"+rs, 4, it.PurchasePrice))
 		s1.WriteString(numCell("K"+rs, 4, it.OrderCost))
-		s1.WriteString(inlineStrCell("L"+rs, 2, it.ABCXYZ))
+		s1.WriteString(inlineStrCell("L"+rs, 2, it.SalesSegmentLabel))
 		s1.WriteString(inlineStrCell("M"+rs, 2, it.Explanation))
 		s1.WriteString(`</row>`)
 	}

@@ -122,18 +122,39 @@ type MatrixCell struct {
 	OrderCost  float64 `json:"orderCost"`  // Сумма закупки (руб.)
 }
 
+// SalesSegmentLabelByCode возвращает каноническое название сегмента продаж (0..5).
+func SalesSegmentLabelByCode(seg int) string {
+	switch seg {
+	case 5:
+		return "5-Высокий"
+	case 4:
+		return "4-Выше среднего"
+	case 3:
+		return "3-Средний"
+	case 2:
+		return "2-Ниже среднего"
+	case 1:
+		return "1-Низкий"
+	default:
+		return "0-Нет продаж"
+	}
+}
+
 // CalculatedItem содержит все расчётные показатели «Варианта 4» по одной строке ведомости.
 type CalculatedItem struct {
 	RawItem
 	ABCClass          string      `json:"abcClass"`          // A, B, C или D (без продаж)
 	XYZClass          string      `json:"xyzClass"`          // X (стабильный), Y (колеблющийся), Z (эпизодический), D
 	ABCXYZ            string      `json:"abcxyz"`            // Комбинированный класс AX..CZ / DD
+	SalesSegment      int         `json:"salesSegment"`      // Сегмент продаж 0..5 (0 = нет продаж за 6 мес., 1..5 = Низкий..Высокий)
+	SalesSegmentLabel string      `json:"salesSegmentLabel"` // Параметр сегмента продаж ("5-Высокий" .. "0-Нет продаж")
 	CV                float64     `json:"cv"`                // Коэффициент вариации спроса
 	NonZeroMonths     int         `json:"nonZeroMonths"`     // Месяцев с продажами > 0
 	OutlierMonths     int         `json:"outlierMonths"`     // Месяцев со сглаженными разовыми оптовыми выбросами
 	CappedSales       []float64   `json:"cappedSales"`       // Очищенный от аномалий ряд продаж
 	SumSalesAll       float64     `json:"sumSalesAll"`       // Сумма продаж за все 37 мес.
 	SumSalesLast12M   float64     `json:"sumSalesLast12M"`   // Продажи за последние 12 мес.
+	SumSalesLast6M    float64     `json:"sumSalesLast6M"`    // Продажи за последние 6 мес.
 	ActiveMonths      int         `json:"activeMonths"`      // Длительность активной истории SKU (мес.)
 	BaseMonthlyRate   float64     `json:"baseMonthlyRate"`   // Десезонализированный базовый спрос (ед./мес.)
 	HorizonSeasonIdx  float64     `json:"horizonSeasonIdx"`  // Эффективный сезонный индекс на выбранный горизонт

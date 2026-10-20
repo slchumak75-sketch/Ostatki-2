@@ -220,18 +220,14 @@
           <option value="">Все поставщики</option>
         </select>
 
-        <select id="fltABCXYZ" aria-label="Сегмент ABC-XYZ">
-          <option value="">ABC-XYZ: Все</option>
-          <option value="AX">AX — Золотой хит (стабильный)</option>
-          <option value="AY">AY — Хит сезонный</option>
-          <option value="AZ">AZ — Хит эпизодический</option>
-          <option value="BX">BX — Средний стабильный</option>
-          <option value="BY">BY — Средний сезонный</option>
-          <option value="BZ">BZ — Средний редкий</option>
-          <option value="CX">CX — Малый стабильный</option>
-          <option value="CY">CY — Малый сезонный</option>
-          <option value="CZ">CZ — Разовый / штучный</option>
-          <option value="DD">DD — Без продаж (0 за 3 года)</option>
+        <select id="fltABCXYZ" aria-label="Сегмент продаж" title="Параметр сегментов продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+          <option value="">Сегмент: Все</option>
+          <option value="5">5-Высокий</option>
+          <option value="4">4-Выше среднего</option>
+          <option value="3">3-Средний</option>
+          <option value="2">2-Ниже среднего</option>
+          <option value="1">1-Низкий</option>
+          <option value="0">0-Нет продаж</option>
         </select>
 
         <select id="fltStatus" aria-label="Статус закупки">
@@ -254,7 +250,7 @@
               <th data-sort="group" class="grp-col">Группа</th>
               <th data-sort="sku">Артикул</th>
               <th data-sort="name" class="col-name">Номенклатура</th>
-              <th data-sort="abcxyz" class="center-col" title="Матрица оборачиваемости (A/B/C) и стабильности спроса (X/Y/Z)">Сегм.</th>
+              <th data-sort="salesSegment" class="seg-col" title="Параметр сегментов продаж: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют в течение 6 месяцев)">Сегм.</th>
               <th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
               <th data-sort="closingStock" class="num-col col-5digits">Остаток</th>
               <th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>
@@ -340,8 +336,8 @@
             Разовые оптовые отгрузки строительным бригадам/ЖКХ (например, строка <code>#1351 Петля гаражная</code> — разовая продажа <code>1 100 шт.</code> при обычных <code>2–18 шт./мес.</code>) автоматически сглаживаются, чтобы не раздувать розничный заказ.
           </li>
           <li>
-            <strong>Матрица <code>ABC × XYZ</code> и метод Croston / SBA:</strong>
-            Все 1 850 позиций классифицируются на 9 сегментов (<code>AX..CZ</code>). Для штучных позиций с прерывистым спросом (<code>Z</code>) применяется аппроксимация Синтетоса–Бойлана (SBA), а страховой запас адаптируется под класс важности товара.
+            <strong>Сегменты продаж (<code>5..0</code>) и метод Croston / SBA:</strong>
+            Все позиции классифицируются по интенсивности продаж на 6 сегментов: <code>5-Высокий</code>, <code>4-Выше среднего</code>, <code>3-Средний</code>, <code>2-Ниже среднего</code>, <code>1-Низкий</code> и <code>0-Нет продаж</code> (продажи отсутствуют в течение 6 месяцев). Строки номенклатуры с установленным автоматическим заказом подсвечиваются светло-салатовым цветом.
           </li>
           <li>
             <strong>Оптимизатор лимита бюджета и радар неликвидов:</strong>
