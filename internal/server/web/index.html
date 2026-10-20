@@ -208,7 +208,7 @@
       <div class="toolbar">
         <div class="search-box">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" id="inpSearch" placeholder="Поиск по номенклатуре, артикулу, поставщику или № строки…" />
+          <input type="search" id="inpSearch" placeholder="Поиск по номенклатуре, артикулу, группе или поставщику…" />
         </div>
 
         <select id="fltWarehouse" aria-label="Фильтр по складу">
@@ -239,7 +239,7 @@
 
         <select id="fltStatus" aria-label="Статус закупки">
           <option value="all">Показать все строки</option>
-          <option value="order">Только К закупкам &gt; 0</option>
+          <option value="order">Только Заказ &gt; 0</option>
           <option value="outliers">⚡ Подавленные опт-выбросы</option>
           <option value="overstock">Неликвиды / избыток (&gt;365 дн.)</option>
           <option value="zero">Нулевой остаток</option>
@@ -254,15 +254,14 @@
           <table class="data-table" id="itemsTable">
             <thead>
               <tr>
-                <th data-sort="excelRow" class="num-col" title="Номер строки в файле Excel">Стр.</th>
                 <th data-sort="warehouse">Склад</th>
                 <th data-sort="group">Группа</th>
                 <th data-sort="sku">Артикул</th>
-                <th data-sort="name">Номенклатура</th>
+                <th data-sort="name" class="col-name">Номенклатура</th>
                 <th data-sort="abcxyz" class="center-col" title="Матрица оборачиваемости (A/B/C) и стабильности спроса (X/Y/Z)">Сегм.</th>
-                <th data-sort="sumSalesLast12M" class="num-col">Прод. 12м</th>
-                <th data-sort="closingStock" class="num-col">Остаток</th>
-                <th data-sort="finalOrderQty" class="num-col order-col-head">Столбец 8: К закупкам ↓</th>
+                <th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
+                <th data-sort="closingStock" class="num-col col-5digits">Остаток</th>
+                <th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>
                 <th data-sort="purchasePrice" class="num-col">Цена</th>
                 <th data-sort="orderCost" class="num-col">Сумма</th>
                 <th data-sort="supplier">Поставщик</th>

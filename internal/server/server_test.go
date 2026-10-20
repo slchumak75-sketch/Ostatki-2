@@ -99,6 +99,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"Анти-выбросы и Радар неликвидов",
 		"Вес свежих лет:",
 		"Дата начала планирования",
+		">Стр.<",
+		"Прод. 12м",
+		"Столбец 8: К закупкам",
 		"inpStartDate",
 		"hintCompleteness",
 		"inpDecay",
@@ -108,6 +111,28 @@ func TestServerAPIEndpoints(t *testing.T) {
 	} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("HTML still contains removed element/label: %q", removed)
+		}
+	}
+	for _, mustHaveHTML := range []string{
+		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
+		`<th data-sort="closingStock" class="num-col col-5digits">Остаток</th>`,
+		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
+	} {
+		if !strings.Contains(htmlBody, mustHaveHTML) {
+			t.Fatalf("HTML missing expected column header: %q", mustHaveHTML)
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/styles.css", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /styles.css code=%d", rec.Code)
+	}
+	cssBody := rec.Body.String()
+	for _, mustHaveCSS := range []string{".col-5digits", "calc(6ch"} {
+		if !strings.Contains(cssBody, mustHaveCSS) {
+			t.Fatalf("styles.css missing 5-digit column width rule: %q", mustHaveCSS)
 		}
 	}
 
@@ -125,9 +150,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"ins-metrics",
 		"explain-box",
 		"Обоснование расчёта",
+		">Стр.<",
+		"Продажи 12м",
 	} {
 		if strings.Contains(jsBody, removedJS) {
-			t.Fatalf("app.js still contains removed inspector/startDate fragment: %q", removedJS)
+			t.Fatalf("app.js still contains removed fragment: %q", removedJS)
 		}
 	}
 	for _, keptChart := range []string{
