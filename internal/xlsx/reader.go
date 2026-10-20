@@ -54,7 +54,7 @@ func ReadFile(filePath string) (*model.WorkbookData, []byte, error) {
 	return wb, raw, nil
 }
 
-// ParseBytes разбирает .xlsx архив из памяти.
+// ParseBytes разбирает .xlsx архив из памяти, полностью игнорируя цветовую заливку (в т.ч. красные поля) 1С.
 func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
@@ -76,7 +76,6 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 		return nil, err
 	}
 
-	redStyleIDs := detectCriticalStyleIDs(files["xl/styles.xml"])
 	createdDate, modifiedDate := readCoreDates(files["docProps/core.xml"])
 
 	sheetFile, ok := files[sheetPath]
@@ -198,7 +197,7 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 		return nil, fmt.Errorf("в строке %d не найдены столбцы помесячной статистики продаж", headerRowNum)
 	}
 
-	// Чтение товарных строк ниже шапки
+	// Чтение товарных строк ниже шапки (читаются только фактические значения ячеек)
 	for _, r := range rows {
 		if r.num <= headerRowNum {
 			continue
@@ -242,7 +241,6 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 			RetailPrice:   ParseFlexibleFloat(retailRaw),
 			RetailRaw:     retailRaw,
 			Supplier:      strings.TrimSpace(r.cells[colSupplier].val),
-			IsCritical1C:  redStyleIDs[stockCell.style],
 			MonthlySales:  sales,
 		})
 	}
@@ -256,7 +254,6 @@ func ParseFlexibleFloat(raw string) float64 {
 	if s == "" || s == "-" {
 		return 0
 	}
-	// Быстрый путь для стандартных чисел без переносов строк
 	if !strings.ContainsAny(s, " \n\r\t") {
 		if v, err := strconv.ParseFloat(strings.ReplaceAll(s, ",", "."), 64); err == nil {
 			return v
@@ -267,7 +264,6 @@ func ParseFlexibleFloat(raw string) float64 {
 	if len(matches) == 0 {
 		return 0
 	}
-	// В 1С при нескольких партиях последняя строка содержит наиболее свежую цену партии
 	last := strings.ReplaceAll(matches[len(matches)-1], ",", ".")
 	v, err := strconv.ParseFloat(last, 64)
 	if err != nil {
@@ -336,8 +332,7 @@ func LettersToColIndex(cellRef string) int {
 }
 
 type parsedCell struct {
-	val   string
-	style int
+	val string
 }
 
 type parsedRow struct {
@@ -357,7 +352,6 @@ func parseWorksheetRows(zf *zip.File, shared []string) ([]parsedRow, error) {
 	var curRow *parsedRow
 	var curCol int
 	var curType string
-	var curStyle int
 	inValue := false
 	inInlineT := false
 	var valBuf strings.Builder
@@ -384,7 +378,6 @@ func parseWorksheetRows(zf *zip.File, shared []string) ([]parsedRow, error) {
 			case "c":
 				curCol = 0
 				curType = ""
-				curStyle = 0
 				valBuf.Reset()
 				for _, a := range se.Attr {
 					switch a.Name.Local {
@@ -392,8 +385,6 @@ func parseWorksheetRows(zf *zip.File, shared []string) ([]parsedRow, error) {
 						curCol = LettersToColIndex(a.Value)
 					case "t":
 						curType = a.Value
-					case "s":
-						curStyle, _ = strconv.Atoi(a.Value)
 					}
 				}
 			case "v":
@@ -421,7 +412,7 @@ func parseWorksheetRows(zf *zip.File, shared []string) ([]parsedRow, error) {
 							rawVal = shared[idx]
 						}
 					}
-					curRow.cells[curCol] = parsedCell{val: rawVal, style: curStyle}
+					curRow.cells[curCol] = parsedCell{val: rawVal}
 					curCol = 0
 				}
 			case "row":
@@ -469,7 +460,8 @@ func readSharedStrings(zf *zip.File) ([]string, error) {
 			}
 		case xml.CharData:
 			if inSI && inT {
-				buf.Write(se)
+				valBuf := se
+				buf.Write(valBuf)
 			}
 		case xml.EndElement:
 			if se.Name.Local == "t" {
@@ -574,53 +566,4 @@ func readCoreDates(zf *zip.File) (created string, modified string) {
 		}
 	}
 	return created, modified
-}
-
-// detectCriticalStyleIDs находит индексы cellXfs с красной заливкой (напр. 1С подсветка минимального остатка).
-func detectCriticalStyleIDs(zf *zip.File) map[int]bool {
-	res := make(map[int]bool)
-	if zf == nil {
-		return res
-	}
-	rc, err := zf.Open()
-	if err != nil {
-		return res
-	}
-	defer rc.Close()
-
-	type colorNode struct {
-		Indexed *int   `xml:"indexed,attr"`
-		RGB     string `xml:"rgb,attr"`
-	}
-	type patternFill struct {
-		PatternType string    `xml:"patternType,attr"`
-		FgColor     colorNode `xml:"fgColor"`
-	}
-	type fillNode struct {
-		Pattern patternFill `xml:"patternFill"`
-	}
-	type xfNode struct {
-		FillID int `xml:"fillId,attr"`
-	}
-	type stylesDoc struct {
-		Fills []fillNode `xml:"fills>fill"`
-		Xfs   []xfNode   `xml:"cellXfs>xf"`
-	}
-	var doc stylesDoc
-	if xml.NewDecoder(rc).Decode(&doc) != nil {
-		return res
-	}
-	redFills := make(map[int]bool)
-	for i, f := range doc.Fills {
-		rgb := strings.ToUpper(f.Pattern.FgColor.RGB)
-		if rgb == "FFFF0000" || rgb == "00FF0000" || (f.Pattern.FgColor.Indexed != nil && (*f.Pattern.FgColor.Indexed == 2 || *f.Pattern.FgColor.Indexed == 10)) {
-			redFills[i] = true
-		}
-	}
-	for i, xf := range doc.Xfs {
-		if redFills[xf.FillID] {
-			res[i] = true
-		}
-	}
-	return res
 }

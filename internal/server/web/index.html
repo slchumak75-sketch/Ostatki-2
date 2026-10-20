@@ -16,7 +16,7 @@
         <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
       <h2>Отпустите файл Excel (.xlsx) для расчёта в «Варианте 2»</h2>
-      <p>Автоматически выполнятся ABC-XYZ сегментация, очистка разовых оптовых выбросов и расчёт столбца 8</p>
+      <p>Автоматически выполнятся ABC-XYZ сегментация, очистка разовых оптовых выбросов и расчёт столбца 8 (цветовая заливка ячеек 1С игнорируется)</p>
     </div>
   </div>
 
@@ -45,14 +45,14 @@
       <button class="btn btn-secondary hidden" id="btnSaveInPlace" title="Записать столбец 8 прямо в исходный файл на диске">
         Сохранить в файл
       </button>
-      <button class="btn btn-primary" id="btnDownloadXlsx" title="Скачать оригинальную ведомость с заполненным столбцом 8 (100% сохранение стилей 1С)">
+      <button class="btn btn-primary" id="btnDownloadXlsx" title="Скачать оригинальную ведомость с заполненным столбцом 8 (100% сохранение структуры 1С)">
         Скачать Ведомость (.xlsx)
       </button>
-      <button class="btn btn-success" id="btnDownloadOrders" title="Скачать 5-листовый управленческий отчёт Excel (Заявки + Поставщики + ABC-XYZ + Неликвиды + Сравнение с Вариантом 1)">
+      <button class="btn btn-success" id="btnDownloadOrders" title="Скачать 4-листовый управленческий отчёт Excel (Заявки + Поставщики + ABC-XYZ + Неликвиды)">
         Отчёт и заявки (.xlsx)
       </button>
       <button class="btn btn-ghost" id="btnPrintOrder" title="Печатный бланк заявки на закупку (Печать / PDF)">Печать</button>
-      <button class="btn btn-ghost" id="btnHelp" title="Описание улучшений Варианта 2">О Варианте 2</button>
+      <button class="btn btn-ghost" id="btnHelp" title="Описание алгоритма расчёта «Варианта 2»">Алгоритм</button>
       <button class="btn btn-ghost icon-only" id="btnTheme" title="Переключить светлую / тёмную тему" aria-label="Тема">◐</button>
     </div>
   </header>
@@ -61,14 +61,14 @@
     <!-- Сводные KPI карточки -->
     <section class="kpi-grid" id="kpiGrid">
       <div class="kpi-card highlight">
-        <div class="kpi-label">Столбец 8 «К закупкам» (Вариант 2)</div>
+        <div class="kpi-label">Столбец 8 «К закупкам»</div>
         <div class="kpi-value" id="kpiOrderUnits">—</div>
         <div class="kpi-sub" id="kpiOrderItems">—</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Бюджет закупки и эффект к Варианту 1</div>
+        <div class="kpi-label">Бюджет закупки</div>
         <div class="kpi-value" id="kpiOrderCost">—</div>
-        <div class="kpi-sub" id="kpiV1Diff">—</div>
+        <div class="kpi-sub" id="kpiBudgetInfo">—</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Ожидаемая розница и маржа</div>
@@ -76,7 +76,7 @@
         <div class="kpi-sub" id="kpiMarginValue">—</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Горизонт и чистая сезонность</div>
+        <div class="kpi-label">Горизонт планирования</div>
         <div class="kpi-value kpi-value-sm" id="kpiHorizonRange">—</div>
         <div class="kpi-sub" id="kpiSeasonSummary">—</div>
       </div>
@@ -93,11 +93,10 @@
         <div class="presets-bar">
           <span class="presets-title">Режим планирования:</span>
           <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
-          <button class="preset-chip active" data-preset="standard">Вариант 2 Стандарт (30+7 дн.)</button>
+          <button class="preset-chip active" data-preset="standard">Стандарт (30+7 дн.)</button>
           <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
           <button class="preset-chip" data-preset="twomonths">На 2 месяца (60 дн.)</button>
           <button class="preset-chip" data-preset="spring">Подготовка к весне (Март–Апр)</button>
-          <button class="preset-chip" data-preset="emulate_v1" title="Отключить фильтры Варианта 2 и повторить формулу Варианта 1">Эмуляция Варианта 1</button>
         </div>
         <button class="btn-link" id="btnToggleAdvanced">Параметры PRO SCM ▾</button>
       </div>
@@ -209,19 +208,16 @@
               <input type="checkbox" id="chkWriteZeros" checked />
               <span>Записывать <code>0</code> в пустые строки столбца 8</span>
             </label>
-            <button class="btn btn-secondary btn-sm" id="btnResetParams">Сброс к стандарту v2</button>
+            <button class="btn btn-secondary btn-sm" id="btnResetParams">Сброс настроек</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Навигация по 5 вкладкам Варианта 2 -->
+    <!-- Навигация по 4 вкладкам -->
     <nav class="tabs-bar" role="tablist">
       <button class="tab-btn active" data-tab="table" role="tab">
         Ведомость и Столбец 8 <span class="tab-counter" id="cntTabTable">0</span>
-      </button>
-      <button class="tab-btn" data-tab="diff" role="tab">
-        Вариант 2 vs Вариант 1 <span class="tab-counter" id="cntTabDiff">0</span>
       </button>
       <button class="tab-btn" data-tab="seasonality" role="tab">
         Матрица ABC×XYZ и Сезонность
@@ -272,9 +268,7 @@
           <option value="all">Показать все строки</option>
           <option value="order">Только К закупкам &gt; 0</option>
           <option value="outliers">⚡ Подавленные опт-выбросы</option>
-          <option value="diff_v1">Отличаются от Варианта 1</option>
           <option value="overstock">Неликвиды / избыток (&gt;365 дн.)</option>
-          <option value="critical">Красная метка 1С</option>
           <option value="zero">Нулевой остаток</option>
           <option value="manual">Изменённые вручную</option>
         </select>
@@ -292,11 +286,8 @@
                 <th data-sort="name">Номенклатура</th>
                 <th data-sort="abcxyz" class="center-col" title="Матрица оборачиваемости (A/B/C) и стабильности спроса (X/Y/Z)">Сегм.</th>
                 <th data-sort="sumSalesLast12M" class="num-col">Прод. 12м</th>
-                <th data-sort="horizonSeasonIdx" class="num-col">Сезон</th>
-                <th data-sort="targetStock" class="num-col">Цель</th>
                 <th data-sort="closingStock" class="num-col">Остаток</th>
                 <th data-sort="finalOrderQty" class="num-col order-col-head">Столбец 8: К закупкам ↓</th>
-                <th data-sort="variant1OrderQty" class="num-col" title="Значение в сборке Вариант 1">Вар. 1</th>
                 <th data-sort="purchasePrice" class="num-col">Цена</th>
                 <th data-sort="orderCost" class="num-col">Сумма</th>
                 <th data-sort="supplier">Поставщик</th>
@@ -323,28 +314,23 @@
           </footer>
         </div>
 
-        <!-- Детальная панель сезонности выбранного товара -->
+        <!-- Детальная панель выбранного товара -->
         <aside class="inspector-drawer" id="inspectorDrawer">
           <div class="inspector-placeholder" id="inspectorPlaceholder">
-            <h3>Карточка SKU (Вариант 2)</h3>
-            <p>Выберите позицию в таблице слева для просмотра 37-месячного ряда, порога фильтрации выбросов и расчёта столбца 8.</p>
+            <h3>Карточка SKU</h3>
+            <p>Выберите позицию в таблице слева для просмотра 37-месячного ряда продаж, порога фильтрации выбросов и расчёта столбца 8.</p>
           </div>
           <div class="inspector-content hidden" id="inspectorContent"></div>
         </aside>
       </div>
     </section>
 
-    <!-- ВКЛАДКА 2: ПРЯМОЕ СРАВНЕНИЕ ВАРИАНТ 2 VS ВАРИАНТ 1 -->
-    <section class="tab-view" id="view-diff">
-      <div class="card-block" id="diffSummaryBlock"></div>
-    </section>
-
-    <!-- ВКЛАДКА 3: МАТРИЦА ABC-XYZ И СЕЗОННАЯ АНАЛИТИКА -->
+    <!-- ВКЛАДКА 2: МАТРИЦА ABC-XYZ И СЕЗОННАЯ АНАЛИТИКА -->
     <section class="tab-view" id="view-seasonality">
       <div class="analytics-grid" id="seasonalityContainer"></div>
     </section>
 
-    <!-- ВКЛАДКА 4: ПОСТАВЩИКИ И СКЛАДЫ -->
+    <!-- ВКЛАДКА 3: ПОСТАВЩИКИ И СКЛАДЫ -->
     <section class="tab-view" id="view-suppliers">
       <div class="warehouses-strip" id="warehousesContainer"></div>
       <div class="card-block">
@@ -374,36 +360,36 @@
       </div>
     </section>
 
-    <!-- ВКЛАДКА 5: РАДАР НЕЛИКВИДОВ И ЗАМОРОЖЕННОГО КАПИТАЛА -->
+    <!-- ВКЛАДКА 4: РАДАР НЕЛИКВИДОВ И ЗАМОРОЖЕННОГО КАПИТАЛА -->
     <section class="tab-view" id="view-overstock">
       <div class="card-block" id="overstockContainer"></div>
     </section>
   </main>
 
-  <!-- Модальное окно описания Варианта 2 -->
+  <!-- Модальное окно описания алгоритма -->
   <div class="modal-backdrop hidden" id="helpModal">
     <div class="modal-card">
       <div class="modal-head">
-        <h2>Что модернизировано в сборке «Вариант 2» по сравнению с «Вариантом 1»</h2>
+        <h2>Алгоритм расчёта «Варианта 2» (PRO SCM)</h2>
         <button class="btn btn-ghost icon-only" id="btnCloseHelp">✕</button>
       </div>
       <div class="modal-body">
         <ol class="formula-steps">
           <li>
-            <strong>Фильтрация разовых оптовых выбросов (Winsorization):</strong>
-            В реальной статистике магазинов встречаются разовые оптовые закупки строительных бригад/ЖКХ (например, строка <code>#1351 Петля гаражная</code> — разовая продажа <code>1 100 шт.</code> при обычных <code>2–18 шт./мес.</code>, или <code>#1081 Замок почтовый 50 шт.</code>). «Вариант 2» автоматически распознаёт такие пики, не давая им раздувать розничный заказ и искажать сезонный индекс всей группы.
+            <strong>Чтение данных без цветовых искажений 1С:</strong>
+            При загрузке ведомости учитываются только фактические числовые остатки и помесячная статистика продаж — любая старая цветовая раскраска (красные поля) в выгрузке 1С полностью игнорируется.
           </li>
           <li>
-            <strong>Матрица <code>ABC × XYZ</code> и метод Croston / SBA для редкого спроса:</strong>
+            <strong>Фильтрация разовых оптовых выбросов (Winsorization):</strong>
+            Разовые оптовые отгрузки строительным бригадам/ЖКХ (например, строка <code>#1351 Петля гаражная</code> — разовая продажа <code>1 100 шт.</code> при обычных <code>2–18 шт./мес.</code>) автоматически сглаживаются, чтобы не раздувать розничный заказ.
+          </li>
+          <li>
+            <strong>Матрица <code>ABC × XYZ</code> и метод Croston / SBA:</strong>
             Все 1 850 позиций классифицируются на 9 сегментов (<code>AX..CZ</code>). Для штучных позиций с прерывистым спросом (<code>Z</code>) применяется аппроксимация Синтетоса–Бойлана (SBA), а страховой запас адаптируется под класс важности товара.
           </li>
           <li>
-            <strong>Оптимизатор лимита бюджета (Задача о рюкзаке):</strong>
-            Достаточно ввести максимальный бюджет недели (например, <code>5 000 руб.</code>), и алгоритм отберёт в столбец 8 позиции с наивысшей срочностью, оборачиваемостью и маржой ровно в пределах выделенной суммы.
-          </li>
-          <li>
-            <strong>Радар неликвидов и 5-листовый управленческий отчёт Excel:</strong>
-            Автоматический поиск замороженного капитала со сверхнормативным запасом (&gt; 365 дней продаж) и встроенное сравнение «Вариант 2 vs Вариант 1».
+            <strong>Оптимизатор лимита бюджета и радар неликвидов:</strong>
+            Поддержка ограничения недельного бюджета закупки (задача о рюкзаке) и поиск замороженного капитала со сверхнормативным запасом (&gt; 365 дней продаж).
           </li>
         </ol>
       </div>
