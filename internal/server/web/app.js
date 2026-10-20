@@ -269,7 +269,7 @@
     el('btnNextPage').disabled = state.page >= maxPage;
 
     if (slice.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
       return;
     }
 
@@ -283,33 +283,24 @@
         isManual ? 'is-manual' : '',
       ].filter(Boolean).join(' ');
 
-      const badges = [
-        it.outlierMonths > 0 ? `<span class="badge badge-warn" title="Подавлен разовый оптовый выброс в истории продаж (${it.outlierMonths} мес.)">⚡ опт</span>` : '',
-        it.budgetTrimmedQty > 0 ? `<span class="badge badge-accent" title="Сокращено лимитом бюджета на ${it.budgetTrimmedQty} ед.">лимит</span>` : '',
-      ].filter(Boolean).join(' ');
-
       return `<tr data-row="${it.excelRow}" class="${isSelected ? 'selected-row' : ''}">
         <td class="num-col" style="color:var(--text-muted)">${it.excelRow}</td>
-        <td>
-          <div class="wh-line">${esc(it.warehouse)}</div>
-          <div class="grp-line">${esc(it.group)}</div>
-        </td>
-        <td>
-          <div class="item-title">${badges ? badges + ' ' : ''}${esc(it.name)}</div>
-          <div class="item-sub">${it.sku ? `Арт: ${esc(it.sku)} • ` : ''}${esc(it.unit)} • 3г: ${fmtInt(it.sumSalesAll)} • Приоритет: ${it.priorityScore.toFixed(0)}</div>
-        </td>
+        <td class="wh-cell">${esc(it.warehouse)}</td>
+        <td class="grp-cell">${esc(it.group)}</td>
+        <td class="sku-cell">${esc(it.sku)}</td>
+        <td class="name-cell">${esc(it.name)}</td>
         <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 5px">${esc(it.abcxyz)}</span></td>
         <td class="num-col">${fmtInt(it.sumSalesLast12M)}</td>
         <td class="num-col ${it.closingStock <= 0 ? 'stock-crit' : ''}">${fmtInt(it.closingStock)}</td>
         <td class="num-col order-cell" onclick="event.stopPropagation()">
           <div class="qty-editor">
             ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${it.autoOrderQty})">↺</button>` : ''}
-            <input type="number" min="0" step="1" class="${qtyCls}" value="${it.finalOrderQty}" data-qty-row="${it.excelRow}" />
+            <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="${qtyCls}" value="${it.finalOrderQty}" data-qty-row="${it.excelRow}" />
           </div>
         </td>
         <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
         <td class="num-col" style="font-weight:${it.orderCost > 0 ? '700' : '400'}">${it.orderCost > 0 ? fmtMoney(it.orderCost) : '—'}</td>
-        <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.supplier)}">${esc(it.supplier || '—')}</td>
+        <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
       </tr>`;
     }).join('');
   }
@@ -337,7 +328,7 @@
           <span class="badge badge-v2">Сегмент ${esc(item.abcxyz)} • SLA ${item.effectiveSafety.toFixed(0)}%</span>
         </div>
         <h3>${esc(item.name)}</h3>
-        <div class="item-sub">${esc(item.warehouse)} • ${esc(item.group)} • Поставщик: <strong>${esc(item.supplier || 'не указан')}</strong></div>
+        <div class="item-sub" style="font-size:11.5px;color:var(--text-muted)">${item.sku ? `Арт.: <strong>${esc(item.sku)}</strong> • ` : ''}${esc(item.warehouse)} • ${esc(item.group)} • Поставщик: <strong>${esc(item.supplier || 'не указан')}</strong></div>
       </div>
 
       <div class="ins-metrics">
@@ -588,6 +579,8 @@
             <tr>
               <th class="num-col">Стр.</th>
               <th>Склад</th>
+              <th>Группа</th>
+              <th>Артикул</th>
               <th>Номенклатура</th>
               <th>Поставщик</th>
               <th class="num-col">Остаток</th>
@@ -599,9 +592,11 @@
           <tbody>
             ${over.slice(0, 150).map((it) => `<tr data-jump-row="${it.excelRow}">
               <td class="num-col">${it.excelRow}</td>
-              <td>${esc(it.warehouse)}</td>
-              <td><strong>${esc(it.name)}</strong></td>
-              <td>${esc(it.supplier || '—')}</td>
+              <td class="wh-cell">${esc(it.warehouse)}</td>
+              <td class="grp-cell">${esc(it.group)}</td>
+              <td class="sku-cell">${esc(it.sku)}</td>
+              <td class="name-cell">${esc(it.name)}</td>
+              <td>${esc(it.supplier || '')}</td>
               <td class="num-col"><strong>${fmtInt(it.closingStock)} ${esc(it.unit)}</strong></td>
               <td class="num-col">${fmtInt(it.sumSalesLast12M)}</td>
               <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
@@ -805,6 +800,22 @@
         state.selectedExcelRow = Number(tr.dataset.row);
         renderTable();
         renderInspector();
+      }
+    });
+
+    el('tableBody').addEventListener('input', (e) => {
+      const inp = e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      const cleaned = inp.value.replace(/[^\d]/g, '');
+      if (inp.value !== cleaned) inp.value = cleaned;
+    });
+
+    el('tableBody').addEventListener('keydown', (e) => {
+      const inp = e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        inp.blur();
       }
     });
 

@@ -617,12 +617,13 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <cols>
   <col min="1" max="1" width="9" customWidth="1"/>
-  <col min="2" max="3" width="24" customWidth="1"/>
-  <col min="4" max="4" width="44" customWidth="1"/>
-  <col min="5" max="8" width="16" customWidth="1"/>
+  <col min="2" max="4" width="22" customWidth="1"/>
+  <col min="5" max="5" width="14" customWidth="1"/>
+  <col min="6" max="6" width="44" customWidth="1"/>
+  <col min="7" max="10" width="16" customWidth="1"/>
 </cols><sheetData>`)
 	s4.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, h := range []string{"Стр. Excel", "Склад", "Поставщик", "Номенклатура", "Остаток", "Продажи 12м", "Запас (дней)", "Заморожено (руб.)"} {
+	for i, h := range []string{"Стр. Excel", "Склад", "Поставщик", "Группа номенклатуры", "Артикул", "Номенклатура", "Остаток", "Продажи 12м", "Запас (дней)", "Заморожено (руб.)"} {
 		s4.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s4.WriteString(`</row>`)
@@ -640,11 +641,13 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 		s4.WriteString(numCell("A"+rs, 6, float64(it.ExcelRow)))
 		s4.WriteString(inlineStrCell("B"+rs, 2, it.Warehouse))
 		s4.WriteString(inlineStrCell("C"+rs, 2, it.Supplier))
-		s4.WriteString(inlineStrCell("D"+rs, 2, it.Name))
-		s4.WriteString(numCell("E"+rs, 6, it.ClosingStock))
-		s4.WriteString(numCell("F"+rs, 6, it.SumSalesLast12M))
-		s4.WriteString(numCell("G"+rs, 4, it.DaysOfSupply))
-		s4.WriteString(numCell("H"+rs, 4, it.OverstockValue))
+		s4.WriteString(inlineStrCell("D"+rs, 2, it.Group))
+		s4.WriteString(inlineStrCell("E"+rs, 2, it.SKU))
+		s4.WriteString(inlineStrCell("F"+rs, 2, it.Name))
+		s4.WriteString(numCell("G"+rs, 6, it.ClosingStock))
+		s4.WriteString(numCell("H"+rs, 6, it.SumSalesLast12M))
+		s4.WriteString(numCell("I"+rs, 4, it.DaysOfSupply))
+		s4.WriteString(numCell("J"+rs, 4, it.OverstockValue))
 		s4.WriteString(`</row>`)
 	}
 	s4.WriteString(`</sheetData></worksheet>`)
