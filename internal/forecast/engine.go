@@ -70,7 +70,7 @@ func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 	return p
 }
 
-// Calculate выполняет полный расчёт сборки «Вариант 2» (с одновременным эталонным сравнением с «Вариантом 1»).
+// Calculate выполняет полный расчёт сборки «Вариант 2».
 func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int) *model.CalculationReport {
 	params := NormalizeParams(rawParams)
 	periods := make([]model.PeriodColumn, len(wb.Periods))
@@ -99,7 +99,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		}
 	}
 
-	// 1. Расчёт как очищенных сезонных индексов групп (Вариант 2), так и сырых индексов (эталон Варианта 1)
+	// 1. Расчёт очищенных сезонных индексов групп
 	periodTotals := make([]float64, T)
 	groupRawTotals := make(map[string][]float64)
 	groupCleanTotals := make(map[string][]float64)
@@ -121,8 +121,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	}
 
 	groupDecay := math.Max(0.5, params.RecencyDecay)
-	groupIndicesV2 := buildGroupIndices(groupCleanTotals, periods, groupDecay)
-	groupIndicesV1 := buildGroupIndices(groupRawTotals, periods, groupDecay)
+	groupIndices := buildGroupIndices(groupCleanTotals, periods, groupDecay)
 
 	// 2. Классификация ABC, медианная наценка по группам и дневная сетка горизонта
 	abcClasses := computeABCClasses(wb.Items, periods)
@@ -168,8 +167,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	for i, item := range wb.Items {
 		rawSales := item.MonthlySales
 		cleanSales := cleanedSeries[i]
-		gIdxV2 := groupIndicesV2[item.Group]
-		gIdxV1 := groupIndicesV1[item.Group]
+		gIdx := groupIndices[item.Group]
 
 		if outlierCounts[i] > 0 {
 			report.OutlierItemsCount++
@@ -205,7 +203,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		activeMonths := T - activeStart
 
 		// Расчёт XYZ и коэффициента вариации на активном интервале
-		xyz, cv := classifyXYZ(cleanSales[activeStart:], gIdxV2, periods[activeStart:], sumAll)
+		xyz, cv := classifyXYZ(cleanSales[activeStart:], gIdx, periods[activeStart:], sumAll)
 		abc := abcClasses[i]
 		abcxyz := abc + xyz
 		if abc == "D" {
@@ -213,28 +211,21 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			abcxyz = "DD"
 		}
 
-		// --- Эталонный расчёт «Вариант 1» (на сырых данных без SBA/SLA/OutlierCap) ---
-		v1MonthForecast, _, flatRateV1 := forecastItem12Months(rawSales, activeStart, periods, gIdxV1, params.RecencyDecay, 12.0, model.SeasonHybrid)
-		v1Demand := 0.0
+		// --- Расчёт потребности «Вариант 2» ---
+		v2MonthForecast, baseRate, flatRate := forecastItem12Months(cleanSales, activeStart, periods, gIdx, params.RecencyDecay, params.ShrinkageK, params.SeasonMode)
+
 		flatDemand := 0.0
 		for _, st := range steps {
-			v1Demand += v1MonthForecast[st.monthIdx] / st.daysInMon
-			flatDemand += flatRateV1 / st.daysInMon
+			flatDemand += flatRate / st.daysInMon
 		}
-		v1Target := v1Demand * (1.0 + params.SafetyStockPct/100.0)
-		v1Qty := roundOrderQty(math.Max(0, v1Target-item.ClosingStock), model.RoundNearest)
 		flatTarget := flatDemand * (1.0 + params.SafetyStockPct/100.0)
 		flatQty := roundOrderQty(math.Max(0, flatTarget-item.ClosingStock), params.Rounding)
-
-		// --- Модернизированный расчёт «Вариант 2» ---
-		v2MonthForecast, baseRate, _ := forecastItem12Months(cleanSales, activeStart, periods, gIdxV2, params.RecencyDecay, params.ShrinkageK, params.SeasonMode)
 
 		// Для редких позиций класса Z при включённом UseCrostonZ применяем демпфирование Syntetos–Boylan (SBA)
 		if params.UseCrostonZ && xyz == "Z" && sumAll > 0 {
 			sbaMonthly := computeCrostonSBARate(cleanSales[activeStart:], periods[activeStart:])
-			// Мягко ограничиваем сверху завышенные оценки единичных эпизодических продаж
 			for m := 0; m < 12; m++ {
-				seasonalSBA := sbaMonthly * (0.5 + 0.5*gIdxV2[m])
+				seasonalSBA := sbaMonthly * (0.5 + 0.5*gIdx[m])
 				if v2MonthForecast[m] > seasonalSBA*1.25 {
 					v2MonthForecast[m] = 0.55*seasonalSBA + 0.45*v2MonthForecast[m]
 				}
@@ -245,7 +236,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		groupWeightedIdxSum := 0.0
 		for _, st := range steps {
 			demand += v2MonthForecast[st.monthIdx] / st.daysInMon
-			groupWeightedIdxSum += gIdxV2[st.monthIdx]
+			groupWeightedIdxSum += gIdx[st.monthIdx]
 		}
 
 		effSeasonIdx := 1.0
@@ -369,8 +360,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			AutoOrderQty:      autoQty,
 			FinalOrderQty:     finalQty,
 			ManualOverride:    overridePtr,
-			Variant1OrderQty:  v1Qty,
-			DeltaFromV1:       finalQty - v1Qty,
 			FlatComparisonQty: flatQty,
 			PriorityScore:     roundTo(prio, 1),
 			OrderCost:         roundTo(float64(finalQty)*item.PurchasePrice, 2),
@@ -383,8 +372,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		}
 
 		report.UncappedOrderCost += float64(finalQty) * item.PurchasePrice
-		report.Variant1OrderUnits += v1Qty
-		report.Variant1OrderCost += float64(v1Qty) * item.PurchasePrice
 		report.FlatOrderUnits += flatQty
 		report.FlatOrderCost += float64(flatQty) * item.PurchasePrice
 	}
@@ -393,7 +380,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 
 	// 4. Оптимизатор лимита бюджета (BudgetCap > 0): сохраняет самые приоритетные единицы в пределах выделенной суммы
 	if params.BudgetCap > 0 && report.UncappedOrderCost > params.BudgetCap+1e-6 {
-		applyBudgetCapOptimizer(calcItems, params.BudgetCap, groupMarkup)
+		applyBudgetCapOptimizer(calcItems, params.BudgetCap, groupMarkup, totalSpanDays)
 	}
 
 	// 5. Подсчёт финальных сводок по отчёту, матрице ABC-XYZ, группам, складам и поставщикам
@@ -406,14 +393,10 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 
 	for i := range calcItems {
 		it := &calcItems[i]
-		it.DeltaFromV1 = it.FinalOrderQty - it.Variant1OrderQty
 		report.BudgetTrimmedUnits += it.BudgetTrimmedQty
 
 		if it.ClosingStock <= 0 {
 			report.ZeroStockCount++
-		}
-		if it.IsCritical1C {
-			report.Critical1CCount++
 		}
 		if it.IsOverstock {
 			report.OverstockItemsCount++
@@ -430,7 +413,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			grpOrderCost[it.Group] += it.OrderCost
 		}
 
-		// Ячейка матрицы ABC x XYZ
 		if rIdx, cIdx, ok := matrixCoords(it.ABCClass, it.XYZClass); ok {
 			cell := &report.MatrixABCXYZ[rIdx][cIdx]
 			cell.ItemCount++
@@ -441,7 +423,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			}
 		}
 
-		// По складам
 		ws, ok := whMap[it.Warehouse]
 		if !ok {
 			ws = &model.WarehouseSummary{Warehouse: it.Warehouse}
@@ -450,9 +431,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		ws.TotalItems++
 		if it.ClosingStock <= 0 {
 			ws.ZeroStockItems++
-		}
-		if it.IsCritical1C {
-			ws.Critical1C++
 		}
 		if it.IsOverstock {
 			ws.OverstockItems++
@@ -465,7 +443,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			ws.TotalRetailVal += it.OrderRetailValue
 		}
 
-		// По поставщикам
 		supName := it.Supplier
 		if supName == "" {
 			supName = "(Поставщик не указан)"
@@ -487,7 +464,6 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	report.TotalOrderCost = roundTo(report.TotalOrderCost, 2)
 	report.TotalRetailValue = roundTo(report.TotalRetailValue, 2)
 	report.ExpectedMargin = roundTo(report.TotalRetailValue-report.TotalOrderCost, 2)
-	report.Variant1OrderCost = roundTo(report.Variant1OrderCost, 2)
 	report.FlatOrderCost = roundTo(report.FlatOrderCost, 2)
 	report.OverstockFrozenCost = roundTo(report.OverstockFrozenCost, 2)
 	report.Items = calcItems
@@ -498,7 +474,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	}
 	sort.Strings(gNames)
 	for _, g := range gNames {
-		gIdx := groupIndicesV2[g]
+		gIdx := groupIndices[g]
 		var roundedIdx [12]float64
 		for m := 0; m < 12; m++ {
 			roundedIdx[m] = roundTo(gIdx[m], 3)
@@ -697,7 +673,6 @@ func winsorizeItemSales(sales []float64) ([]float64, int) {
 	med := withoutMax[len(withoutMax)/2]
 	secondMax := withoutMax[len(withoutMax)-1]
 
-	// Выбросом считаем только резкий скачок >= 8 ед., превышающий и 3.8× медиану, и 1.75× второй максимум истории
 	capThreshold := math.Max(8.0, math.Max(med*3.8, secondMax*1.75))
 	cappedCount := 0
 	for i, v := range out {
@@ -787,7 +762,6 @@ func computeCrostonSBARate(activeSales []float64, activePeriods []model.PeriodCo
 	if !initialized {
 		return 0
 	}
-	// Учитываем прошедшее «молчание» в хвосте временного ряда (если товар давно не продавался)
 	if sinceLast > intervalEst {
 		intervalEst = 0.5*intervalEst + 0.5*sinceLast
 	}
@@ -855,7 +829,7 @@ func computePriorityScore(abc, xyz string, stock, daysSupply, price, retail, sea
 	return math.Min(100.0, math.Max(1.0, abcBase+xyzBonus+urgency+marginBonus+seasonBonus))
 }
 
-func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, groupMarkup map[string]float64) {
+func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, groupMarkup map[string]float64, totalSpanDays int) {
 	type unitSlot struct {
 		itemIdx   int
 		unitScore float64
@@ -863,7 +837,6 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 	}
 
 	remaining := budgetCap
-	// 1. Сначала резервируем ручные корректировки пользователя
 	for i := range items {
 		if items[i].ManualOverride != nil {
 			remaining -= float64(items[i].FinalOrderQty) * items[i].PurchasePrice
@@ -873,7 +846,6 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 		remaining = 0
 	}
 
-	// 2. Разбиваем автозаказы на единичные слоты с убывающей предельной полезностью для последующих штук одного SKU
 	var slots []unitSlot
 	autoInitial := make([]int, len(items))
 	for i := range items {
@@ -883,7 +855,6 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 		}
 		autoInitial[i] = it.FinalOrderQty
 		if it.PurchasePrice <= 0 {
-			// Позиции с нулевой ценой не расходуют бюджет
 			continue
 		}
 		for u := 0; u < it.FinalOrderQty; u++ {
@@ -909,7 +880,6 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 		}
 	}
 
-	// 3. Обновляем стоимости и пояснения обрезанных позиций
 	for i := range items {
 		it := &items[i]
 		if autoInitial[i] > 0 && it.FinalOrderQty < autoInitial[i] {
@@ -926,7 +896,7 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 			it.OrderRetailValue = roundTo(float64(it.FinalOrderQty)*effectiveRetail, 2)
 			it.Explanation = buildExplanationV2(
 				it.ABCXYZ, it.BaseMonthlyRate, it.HorizonSeasonIdx,
-				int(math.Round(it.ForecastDemand/math.Max(0.0001, it.ForecastDemand))), // placeholder replaced below
+				totalSpanDays,
 				it.ForecastDemand, it.EffectiveSafety, it.TargetStock, it.ClosingStock,
 				it.AutoOrderQty, it.OutlierMonths, it.ManualOverride, false, it.BudgetTrimmedQty,
 			)
@@ -1093,7 +1063,7 @@ func buildExplanationV2(
 	budgetTrimmed int,
 ) string {
 	var parts []string
-	parts = append(parts, fmt.Sprintf("[%s] База %.2f/мес. × сезон %.2f", abcxyz, baseRate, seasonIdx))
+	parts = append(parts, fmt.Sprintf("[%s] База %.2f/мес. (×%.2f)", abcxyz, baseRate, seasonIdx))
 	if outliers > 0 {
 		parts = append(parts, fmt.Sprintf("(сглажено опт-выбросов: %d)", outliers))
 	}
@@ -1102,7 +1072,7 @@ func buildExplanationV2(
 	} else {
 		parts = append(parts, fmt.Sprintf("→ спрос: %.2f", demand))
 	}
-	parts = append(parts, fmt.Sprintf("+ SLA %.0f%% = цель %.2f", safetyPct, targetStock))
+	parts = append(parts, fmt.Sprintf("+ SLA %.0f%% → запас %.2f", safetyPct, targetStock))
 	if minDisplay {
 		parts = append(parts, "(витрина)")
 	}

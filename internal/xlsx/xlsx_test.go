@@ -46,16 +46,6 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		t.Fatalf("expected CreatedDate=2026-10-19, got %q", wb.CreatedDate)
 	}
 
-	critCount := 0
-	for _, it := range wb.Items {
-		if it.IsCritical1C {
-			critCount++
-		}
-	}
-	if critCount != 842 {
-		t.Fatalf("expected 842 red critical 1C cells, got %d", critCount)
-	}
-
 	rep := forecast.Calculate(wb, model.DefaultParams(), map[int]int{8: 15})
 	orders := forecast.ExtractOrdersMap(rep)
 
@@ -81,7 +71,6 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		}
 	}
 
-	// Идемпотентная повторная перезапись уже заполненного файла
 	writtenTwice, err := xlsx.WriteOrderColumnLossless(written, reRead.HeaderRow, reRead.OrderCol, "К закупкам", orders, false)
 	if err != nil {
 		t.Fatalf("second WriteOrderColumnLossless failed: %v", err)
@@ -100,9 +89,18 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		t.Fatalf("expected xl/drawings/drawing1.xml (1C buttons) to be preserved lossless")
 	}
 
-	// Проверка генерации многолистового отчёта поставщикам
+	// Проверка генерации 4-листового отчёта поставщикам (без листа сравнения с Вариантом 1)
 	supReport, err := xlsx.GenerateSupplierOrdersXLSX(rep, "", "")
 	if err != nil || len(supReport) < 1000 {
 		t.Fatalf("GenerateSupplierOrdersXLSX failed: err=%v size=%d", err, len(supReport))
+	}
+	szr, err := zip.NewReader(bytes.NewReader(supReport), int64(len(supReport)))
+	if err != nil {
+		t.Fatalf("zip read supReport failed: %v", err)
+	}
+	for _, f := range szr.File {
+		if f.Name == "xl/worksheets/sheet5.xml" {
+			t.Fatalf("sheet5.xml (Variant 1 comparison) must be excluded from Variant 2 workbook")
+		}
 	}
 }

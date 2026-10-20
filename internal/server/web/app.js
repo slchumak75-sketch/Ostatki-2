@@ -92,7 +92,6 @@
 
     renderTable();
     renderInspector();
-    renderDiffView(state.report);
     renderSeasonalityView(state.report);
     renderSuppliersView(state.report);
     renderOverstockView(state.report);
@@ -179,13 +178,11 @@
     el('kpiOrderItems').textContent = `К закупке: ${fmtInt(rep.orderItemsCount)} из ${fmtInt(rep.totalItems)} SKU (${pct}%)`;
 
     el('kpiOrderCost').textContent = `${fmtMoney(rep.totalOrderCost)} руб.`;
-    const savedVsV1 = rep.variant1OrderCost - rep.totalOrderCost;
-    if (Math.abs(savedVsV1) < 1) {
-      el('kpiV1Diff').textContent = `Совпадает со сборкой «Вариант 1»`;
-    } else if (savedVsV1 > 0) {
-      el('kpiV1Diff').innerHTML = `<span style="color:var(--success);font-weight:700">−${fmtMoney(savedVsV1)} руб.</span> к «Варианту 1» (${fmtMoney(rep.variant1OrderCost)} р.)`;
+    const activeSups = rep.suppliers.filter((s) => s.orderItems > 0).length;
+    if (rep.params.budgetCap > 0) {
+      el('kpiBudgetInfo').textContent = `Лимит: ${fmtMoney(rep.params.budgetCap)} р. • Поставщиков: ${activeSups}`;
     } else {
-      el('kpiV1Diff').innerHTML = `<span style="color:var(--warn);font-weight:700">+${fmtMoney(Math.abs(savedVsV1))} руб.</span> к «Варианту 1»`;
+      el('kpiBudgetInfo').textContent = `Активных поставщиков: ${activeSups} из ${rep.suppliers.length}`;
     }
 
     el('kpiRetailValue').textContent = `${fmtMoney(rep.totalRetailValue)} руб.`;
@@ -202,9 +199,8 @@
     el('kpiOutlierInfo').textContent = `Сглажено опт-выбросов: ${rep.outlierItemsCount} SKU • Ручных правок: ${rep.manualOverrideCount}`;
 
     el('btnClearOverrides').classList.toggle('hidden', rep.manualOverrideCount === 0);
-    el('cntTabSuppliers').textContent = rep.suppliers.filter((s) => s.orderItems > 0).length;
+    el('cntTabSuppliers').textContent = activeSups;
     el('cntTabOverstock').textContent = rep.overstockItemsCount;
-    el('cntTabDiff').textContent = rep.items.filter((x) => x.deltaFromV1 !== 0).length;
   }
 
   function recomputeFilteredList() {
@@ -228,9 +224,7 @@
 
       if (status === 'order' && it.finalOrderQty <= 0) return false;
       if (status === 'outliers' && it.outlierMonths <= 0) return false;
-      if (status === 'diff_v1' && it.deltaFromV1 === 0) return false;
       if (status === 'overstock' && !it.isOverstock) return false;
-      if (status === 'critical' && !it.isCritical1C) return false;
       if (status === 'zero' && it.closingStock > 0) return false;
       if (status === 'manual' && it.manualOverride == null) return false;
 
@@ -275,15 +269,13 @@
     el('btnNextPage').disabled = state.page >= maxPage;
 
     if (slice.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
       return;
     }
 
     tbody.innerHTML = slice.map((it) => {
       const isSelected = it.excelRow === state.selectedExcelRow;
       const isManual = it.manualOverride != null;
-      const seasonClass = it.horizonSeasonIdx >= 1.15 ? 'season-high'
-        : it.horizonSeasonIdx <= 0.75 ? 'season-low' : 'season-mid';
 
       const qtyCls = [
         'qty-input',
@@ -292,13 +284,9 @@
       ].filter(Boolean).join(' ');
 
       const badges = [
-        it.isCritical1C ? `<span class="badge badge-red" title="Красная ячейка дефицита 1С">1С</span>` : '',
         it.outlierMonths > 0 ? `<span class="badge badge-warn" title="Подавлен разовый оптовый выброс в истории продаж (${it.outlierMonths} мес.)">⚡ опт</span>` : '',
         it.budgetTrimmedQty > 0 ? `<span class="badge badge-accent" title="Сокращено лимитом бюджета на ${it.budgetTrimmedQty} ед.">лимит</span>` : '',
       ].filter(Boolean).join(' ');
-
-      const v1DiffStyle = it.deltaFromV1 < 0 ? 'color:var(--success);font-weight:600'
-        : it.deltaFromV1 > 0 ? 'color:var(--warn);font-weight:600' : 'color:var(--text-muted)';
 
       return `<tr data-row="${it.excelRow}" class="${isSelected ? 'selected-row' : ''}">
         <td class="num-col" style="color:var(--text-muted)">${it.excelRow}</td>
@@ -312,19 +300,16 @@
         </td>
         <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 5px">${esc(it.abcxyz)}</span></td>
         <td class="num-col">${fmtInt(it.sumSalesLast12M)}</td>
-        <td class="num-col"><span class="season-tag ${seasonClass}">×${it.horizonSeasonIdx.toFixed(2)}</span></td>
-        <td class="num-col">${fmtNum(it.targetStock, 1)}</td>
         <td class="num-col ${it.closingStock <= 0 ? 'stock-crit' : ''}">${fmtInt(it.closingStock)}</td>
         <td class="num-col order-cell" onclick="event.stopPropagation()">
           <div class="qty-editor">
-            ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт Варианта 2 (${it.autoOrderQty})">↺</button>` : ''}
+            ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${it.autoOrderQty})">↺</button>` : ''}
             <input type="number" min="0" step="1" class="${qtyCls}" value="${it.finalOrderQty}" data-qty-row="${it.excelRow}" />
           </div>
         </td>
-        <td class="num-col" style="${v1DiffStyle}" title="Разница Вариант 2 − Вариант 1: ${it.deltaFromV1 > 0 ? '+' : ''}${it.deltaFromV1} ед.">${fmtInt(it.variant1OrderQty)}</td>
         <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
         <td class="num-col" style="font-weight:${it.orderCost > 0 ? '700' : '400'}">${it.orderCost > 0 ? fmtMoney(it.orderCost) : '—'}</td>
-        <td style="max-width:175px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.supplier)}">${esc(it.supplier || '—')}</td>
+        <td style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.supplier)}">${esc(it.supplier || '—')}</td>
       </tr>`;
     }).join('');
   }
@@ -357,12 +342,12 @@
 
       <div class="ins-metrics">
         <div class="ins-metric">
-          <span>Вариант 2 «К закупкам»</span>
+          <span>Столбец 8 «К закупкам»</span>
           <strong style="color:var(--primary);font-size:19px">${fmtInt(item.finalOrderQty)} ${esc(item.unit)}</strong>
         </div>
         <div class="ins-metric">
-          <span>Сравнение с Вариантом 1</span>
-          <strong>${fmtInt(item.variant1OrderQty)} ${esc(item.unit)} (${item.deltaFromV1 >= 0 ? '+' : ''}${item.deltaFromV1})</strong>
+          <span>Средний темп / Спрос</span>
+          <strong>${fmtNum(item.baseMonthlyRate, 2)}/мес. (${fmtNum(item.forecastDemand, 1)} ${esc(item.unit)})</strong>
         </div>
         <div class="ins-metric">
           <span>Остаток / Запас в днях</span>
@@ -375,7 +360,7 @@
       </div>
 
       <div class="explain-box">
-        <strong>Расчёт Варианта 2:</strong> ${esc(item.explanation)}
+        <strong>Обоснование расчёта:</strong> ${esc(item.explanation)}
       </div>
 
       <div class="chart-block">
@@ -384,7 +369,7 @@
       </div>
 
       <div class="chart-block">
-        <h4>Прогноз спроса Варианта 2 по 12 месяцам года (ед./мес.)</h4>
+        <h4>Прогноз спроса по 12 месяцам года (ед./мес.)</h4>
         ${buildTwelveMonthSVG(item.monthlyForecast12, groupIndices)}
       </div>
     `;
@@ -476,60 +461,6 @@
     </svg>`;
   }
 
-  function renderDiffView(rep) {
-    const diffs = rep.items
-      .filter((it) => it.deltaFromV1 !== 0)
-      .sort((a, b) => Math.abs(b.deltaFromV1 * b.purchasePrice) - Math.abs(a.deltaFromV1 * a.purchasePrice));
-
-    const savedRub = rep.variant1OrderCost - rep.totalOrderCost;
-    el('diffSummaryBlock').innerHTML = `
-      <h3>Прямое сравнение сборок: «Вариант 2 (PRO SCM)» vs «Вариант 1»</h3>
-      <p class="muted">«Вариант 1» сохранён в репозитории и GitHub Actions как отдельный эталонный дистрибутив. Ниже показано, как фильтрация разовых оптовых сделок, метод Croston/SBA для редких позиций и адаптивный SLA уточнили заказ по <strong>${diffs.length}</strong> строкам (экономия оборотных средств: <strong style="color:var(--success)">${fmtMoney(savedRub)} руб.</strong>, с ${fmtMoney(rep.variant1OrderCost)} до ${fmtMoney(rep.totalOrderCost)} руб.).</p>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th class="num-col">Стр.</th>
-              <th>Склад</th>
-              <th>Номенклатура</th>
-              <th class="center-col">ABC-XYZ</th>
-              <th class="num-col">Вариант 1</th>
-              <th class="num-col">Вариант 2</th>
-              <th class="num-col">Разница</th>
-              <th class="num-col">Эффект (руб.)</th>
-              <th>Причина корректировки</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${diffs.slice(0, 120).map((it) => {
-              const effRub = it.deltaFromV1 * it.purchasePrice;
-              const reason = it.outlierMonths > 0
-                ? `Подавлен разовый оптовый выброс (${it.outlierMonths} мес.)`
-                : it.budgetTrimmedQty > 0
-                  ? `Оптимизация под лимит бюджета (−${it.budgetTrimmedQty} ед.)`
-                  : it.xyzClass === 'Z' && it.deltaFromV1 < 0
-                    ? `Эпизодический спрос Z (демпфирование Croston/SBA)`
-                    : it.deltaFromV1 > 0
-                      ? `Усиление страхового SLA ходового сегмента ${it.abcxyz}`
-                      : `Снижение избыточного SLA для сегмента ${it.abcxyz}`;
-              return `<tr data-jump-row="${it.excelRow}">
-                <td class="num-col">${it.excelRow}</td>
-                <td>${esc(it.warehouse)}</td>
-                <td><strong>${esc(it.name)}</strong></td>
-                <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 5px">${esc(it.abcxyz)}</span></td>
-                <td class="num-col">${fmtInt(it.variant1OrderQty)}</td>
-                <td class="num-col"><strong>${fmtInt(it.finalOrderQty)}</strong></td>
-                <td class="num-col" style="font-weight:700;color:${it.deltaFromV1 < 0 ? 'var(--success)' : 'var(--warn)'}">${it.deltaFromV1 > 0 ? '+' : ''}${it.deltaFromV1}</td>
-                <td class="num-col" style="font-weight:700;color:${effRub < 0 ? 'var(--success)' : 'var(--warn)'}">${effRub > 0 ? '+' : ''}${fmtMoney(effRub)} р.</td>
-                <td>${esc(reason)}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
   function renderSeasonalityView(rep) {
     const container = el('seasonalityContainer');
     const matrixDesc = {
@@ -580,7 +511,7 @@
 
       <div class="card-block">
         <h3>Очищенная от оптовых выбросов матрица сезонных индексов групп (среднегодовой = ×1.00)</h3>
-        <p class="muted">В «Варианте 2» разовые оптовые аномалии больше не искажают сезонные коэффициенты группы (например, индекс ноября по фурнитуре очищен от разовой партии 1 100 гаражных петель).</p>
+        <p class="muted">Разовые оптовые аномалии сглажены и не искажают сезонные коэффициенты группы (например, индекс ноября по фурнитуре очищен от разовой партии 1 100 гаражных петель).</p>
         <div style="overflow-x:auto">
           <table class="season-matrix">
             <thead>
@@ -588,7 +519,7 @@
                 <th>Группа номенклатуры</th>
                 ${MONTH_SHORT.map((m) => `<th>${m}</th>`).join('')}
                 <th>Горизонт</th>
-                <th>Бюджет v2</th>
+                <th>Бюджет</th>
               </tr>
             </thead>
             <tbody>${matrixRows}</tbody>
@@ -730,7 +661,7 @@
       state.selectedExcelRow = null;
       state.page = 1;
       applyEnvelope(env);
-      showToast(`Готово! Столбец 8 рассчитан (Вариант 2) для ${fmtInt(env.report.totalItems)} позиций`);
+      showToast(`Готово! Столбец 8 рассчитан для ${fmtInt(env.report.totalItems)} позиций`);
     } catch (err) {
       showToast(err.message);
     }
@@ -781,14 +712,6 @@
           el('inpHorizon').value = 60;
           el('inpLeadTime').value = 10;
           el('inpSafety').value = 25;
-        } else if (preset === 'emulate_v1') {
-          el('inpHorizon').value = 30;
-          el('inpLeadTime').value = 7;
-          el('inpSafety').value = 20;
-          el('inpStartDate').value = '';
-          el('chkOutlierFilter').checked = false;
-          el('chkCrostonZ').checked = false;
-          el('chkAdaptiveSLA').checked = false;
         }
         el('selSeasonMode').value = 'hybrid';
         scheduleRecalculate();
@@ -838,7 +761,7 @@
         packMultiple: 1,
       });
       applyEnvelope(env);
-      showToast('Восстановлены оптимальные настройки «Варианта 2»');
+      showToast('Восстановлены настройки по умолчанию');
     });
 
     el('inpSearch').addEventListener('input', () => {
@@ -874,7 +797,7 @@
         const rowNum = Number(resetBtn.dataset.reset);
         const env = await apiPost('api/override', { excelRow: rowNum, clear: true });
         applyEnvelope(env);
-        showToast(`Строка #${rowNum}: возвращён авторасчёт Варианта 2`);
+        showToast(`Строка #${rowNum}: возвращён авторасчёт`);
         return;
       }
       const tr = e.target.closest('tr[data-row]');
@@ -902,7 +825,7 @@
       showToast('Все ручные корректировки сброшены');
     });
 
-    // Переход по клику на ячейку ABC-XYZ или строку в Diff/Overstock вкладках
+    // Переход по клику на ячейку ABC-XYZ или строку в Overstock вкладке
     document.body.addEventListener('click', (e) => {
       const segCard = e.target.closest('[data-matrix-seg]');
       if (segCard) {

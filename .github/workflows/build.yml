@@ -148,7 +148,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          NOTES_V2="Модернизированная сборка «Вариант 2» PRO SCM: анти-выброс (Winsorization), ABC×XYZ, Croston/SBA, оптимизатор лимита бюджета, радар неликвидов, игнорирование цветовой заливки 1С и 4-листовый отчёт (7 102,89 руб.)."
           if gh release view variant-2 >/dev/null 2>&1; then
+            gh release edit variant-2 --title "Вариант 2" --notes "$NOTES_V2"
             gh release upload variant-2 \
               "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
               "dist/Вариант_2_Windows_x64.zip" --clobber
@@ -157,7 +159,7 @@ jobs:
               --target "${{ github.sha }}" \
               --latest \
               --title "Вариант 2" \
-              --notes "Модернизированная сборка «Вариант 2» PRO SCM: анти-выброс (Winsorization), ABC×XYZ, Croston/SBA, оптимизатор лимита бюджета, радар неликвидов и 5-листовый отчёт (7 102,89 руб. — экономия 1 422,34 руб. к Варианту 1)." \
+              --notes "$NOTES_V2" \
               "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
               "dist/Вариант_2_Windows_x64.zip"
           fi

@@ -54,7 +54,7 @@ func main() {
 
 	flag.StringVar(&inputPath, "input", "", "Путь к входному файлу Excel (.xlsx)")
 	flag.StringVar(&outputPath, "output", "", "Путь для сохранения заполненного Excel (.xlsx) в пакетном режиме")
-	flag.StringVar(&ordersOutput, "orders-output", "", "Необязательный путь для сохранения 5-листового отчёта и заявок поставщикам (.xlsx)")
+	flag.StringVar(&ordersOutput, "orders-output", "", "Необязательный путь для сохранения 4-листового отчёта и заявок поставщикам (.xlsx)")
 	flag.BoolVar(&inPlace, "inplace", false, "Перезаписать столбец 8 непосредственно во входном файле Excel")
 	flag.BoolVar(&headless, "headless", false, "Пакетная обработка без запуска графического интерфейса")
 	flag.BoolVar(&serverMode, "server", false, "Серверный режим (без автозавершения при закрытии окна)")
@@ -234,9 +234,8 @@ func runHeadless(inputPath, outputPath, ordersOutput string, inPlace bool, param
 	fmt.Printf("Всего позиций:       %d (сглажено опт-выбросов: %d SKU; неликвидов: %d SKU на %.2f руб.)\n",
 		report.TotalItems, report.OutlierItemsCount, report.OverstockItemsCount, report.OverstockFrozenCost)
 	fmt.Printf("Позиций к закупке:   %d (%.1f%%)\n", report.OrderItemsCount, float64(report.OrderItemsCount)*100/mathMax1(report.TotalItems))
-	fmt.Printf("Единиц к закупке:    %d ед. (для сравнения Вариант 1: %d ед.)\n", report.TotalOrderUnits, report.Variant1OrderUnits)
-	fmt.Printf("Сумма закупки:       %.2f руб. (Вариант 1: %.2f руб., экономия: %.2f руб.)\n",
-		report.TotalOrderCost, report.Variant1OrderCost, report.Variant1OrderCost-report.TotalOrderCost)
+	fmt.Printf("Единиц к закупке:    %d ед.\n", report.TotalOrderUnits)
+	fmt.Printf("Сумма закупки:       %.2f руб.\n", report.TotalOrderCost)
 	fmt.Printf("Оценка в рознице:    %.2f руб. (маржа: +%.2f руб.)\n", report.TotalRetailValue, report.ExpectedMargin)
 	return nil
 }

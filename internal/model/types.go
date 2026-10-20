@@ -11,6 +11,7 @@ type PeriodColumn struct {
 }
 
 // RawItem представляет исходную строку номенклатуры из Excel-ведомости 1С.
+// Цветовая заливка ячеек 1С (в т.ч. красные поля) полностью игнорируется — учитываются только значения ячеек.
 type RawItem struct {
 	ExcelRow      int       `json:"excelRow"`      // Номер строки в листе Excel (начиная с 8)
 	Warehouse     string    `json:"warehouse"`     // Столбец 1 (A): Склад
@@ -25,7 +26,6 @@ type RawItem struct {
 	RetailPrice   float64   `json:"retailPrice"`   // Столбец 10 (J): Розничная цена
 	RetailRaw     string    `json:"retailRaw"`     // Исходная строка розничной цены (для многострочных партий 1С)
 	Supplier      string    `json:"supplier"`      // Столбец 11 (K): Последний поставщик
-	IsCritical1C  bool      `json:"isCritical1C"`  // Красная заливка остатка из 1С (style="14" в столбце G)
 	MonthlySales  []float64 `json:"monthlySales"`  // Помесячные продажи по столбцам PeriodColumn
 }
 
@@ -51,7 +51,7 @@ const (
 	SeasonHybrid     SeasonMode = "hybrid" // Эмпирический Байес: сезонный индекс группы + индивидуальный профиль SKU
 	SeasonGroupOnly  SeasonMode = "group"  // Только сезонный индекс товарной группы
 	SeasonItemOnly   SeasonMode = "item"   // Только индивидуальная сезонность SKU по одноимённым месяцам
-	SeasonFlatSimple SeasonMode = "flat"   // Без сезонности (среднемесячный темп — для наглядного сравнения)
+	SeasonFlatSimple SeasonMode = "flat"   // Без сезонности (среднемесячный темп)
 )
 
 // RoundingMode определяет правило округления дробной потребности до целых единиц закупки.
@@ -145,8 +145,6 @@ type CalculatedItem struct {
 	AutoOrderQty      int         `json:"autoOrderQty"`      // Автоматически рассчитанное значение «Вариант 2»
 	FinalOrderQty     int         `json:"finalOrderQty"`     // Итоговое «К закупкам» (с учётом бюджета и ручных правок)
 	ManualOverride    *int        `json:"manualOverride"`    // Ручная правка пользователя (nil если авто)
-	Variant1OrderQty  int         `json:"variant1OrderQty"`  // Эталонный расчёт «Варианта 1» для прямого сравнения
-	DeltaFromV1       int         `json:"deltaFromV1"`       // Разница (FinalOrderQty − Variant1OrderQty)
 	FlatComparisonQty int         `json:"flatComparisonQty"` // Сколько было бы заказано БЕЗ учёта сезонности
 	BudgetTrimmedQty  int         `json:"budgetTrimmedQty"`  // Сокращено оптимизатором лимита бюджета (ед.)
 	PriorityScore     float64     `json:"priorityScore"`     // Приоритет позиции для бюджета (0..100)
@@ -161,15 +159,15 @@ type CalculatedItem struct {
 
 // GroupSeasonality описывает сезонный профиль товарной группы.
 type GroupSeasonality struct {
-	Group           string      `json:"group"`
-	ItemCount       int         `json:"itemCount"`
-	OrderItemCount  int         `json:"orderItemCount"`
-	TotalUnits      int         `json:"totalUnits"`
-	TotalCost       float64     `json:"totalCost"`
-	MonthlyIndices  [12]float64 `json:"monthlyIndices"` // Индексы сезонности Янв(0)..Дек(11), среднее = 1.0
-	PeriodTotals    []float64   `json:"periodTotals"`   // Фактические продажи группы по всем 37 периодам
-	HorizonIndex    float64     `json:"horizonIndex"`   // Средний индекс группы на выбранный горизонт
-	OverstockCost   float64     `json:"overstockCost"`  // Сумма неликвидов в группе
+	Group          string      `json:"group"`
+	ItemCount      int         `json:"itemCount"`
+	OrderItemCount int         `json:"orderItemCount"`
+	TotalUnits     int         `json:"totalUnits"`
+	TotalCost      float64     `json:"totalCost"`
+	MonthlyIndices [12]float64 `json:"monthlyIndices"` // Индексы сезонности Янв(0)..Дек(11), среднее = 1.0
+	PeriodTotals   []float64   `json:"periodTotals"`   // Фактические продажи группы по всем 37 периодам
+	HorizonIndex   float64     `json:"horizonIndex"`   // Средний индекс группы на выбранный горизонт
+	OverstockCost  float64     `json:"overstockCost"`  // Сумма неликвидов в группе
 }
 
 // WarehouseSummary агрегирует итоги по складу.
@@ -178,7 +176,6 @@ type WarehouseSummary struct {
 	TotalItems     int     `json:"totalItems"`
 	OrderItems     int     `json:"orderItems"`
 	ZeroStockItems int     `json:"zeroStockItems"`
-	Critical1C     int     `json:"critical1C"`
 	TotalOrderQty  int     `json:"totalOrderQty"`
 	TotalOrderCost float64 `json:"totalOrderCost"`
 	TotalRetailVal float64 `json:"totalRetailVal"`
@@ -213,7 +210,6 @@ type CalculationReport struct {
 	TotalItems            int                `json:"totalItems"`
 	OrderItemsCount       int                `json:"orderItemsCount"`
 	ZeroStockCount        int                `json:"zeroStockCount"`
-	Critical1CCount       int                `json:"critical1CCount"`
 	ManualOverrideCount   int                `json:"manualOverrideCount"`
 	OutlierItemsCount     int                `json:"outlierItemsCount"`
 	OverstockItemsCount   int                `json:"overstockItemsCount"`
@@ -224,8 +220,6 @@ type CalculationReport struct {
 	TotalOrderCost        float64            `json:"totalOrderCost"`
 	TotalRetailValue      float64            `json:"totalRetailValue"`
 	ExpectedMargin        float64            `json:"expectedMargin"`
-	Variant1OrderUnits    int                `json:"variant1OrderUnits"`
-	Variant1OrderCost     float64            `json:"variant1OrderCost"`
 	FlatOrderUnits        int                `json:"flatOrderUnits"`
 	FlatOrderCost         float64            `json:"flatOrderCost"`
 	MatrixABCXYZ          [3][3]MatrixCell   `json:"matrixABCXYZ"`
