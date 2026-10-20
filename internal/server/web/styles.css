@@ -72,8 +72,8 @@ html, body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 20px;
+  gap: 8px;
+  padding: 5px 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow);
@@ -82,13 +82,13 @@ html, body {
 .brand-block {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .app-logo {
-  width: 38px;
-  height: 38px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   background: linear-gradient(135deg, #0f766e, var(--primary));
   color: #fff;
   display: flex;
@@ -108,21 +108,22 @@ html, body {
 }
 
 .param-field input[type="number"] {
-  height: 32px;
-  padding: 0 9px;
-  border-radius: 6px;
+  height: 25px;
+  padding: 0 7px;
+  border-radius: 5px;
   border: 1px solid var(--border-strong);
   background: var(--surface-alt);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.checks-two-col {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 7px 14px;
+.checks-inline-bar {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 4px 12px;
+  font-size: 11.5px;
 }
 
 .matrix-grid-3x3 {
@@ -164,27 +165,28 @@ html, body {
 .brand-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .brand-title-row h1 {
   margin: 0;
-  font-size: 16.5px;
+  font-size: 14.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .file-meta {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 0;
+  line-height: 1.2;
 }
 
 .topbar-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
 }
 
 /* Buttons */
@@ -192,12 +194,12 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 13px;
-  font-size: 13px;
+  gap: 5px;
+  height: 27px;
+  padding: 0 10px;
+  font-size: 12px;
   font-weight: 600;
-  border-radius: 7px;
+  border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
   transition: background 0.14s ease, border-color 0.14s ease, transform 0.08s ease;
@@ -209,15 +211,15 @@ html, body {
 }
 
 .btn-sm {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
+  height: 23px;
+  padding: 0 8px;
+  font-size: 11.5px;
 }
 
 .icon-only {
-  width: 34px;
+  width: 27px;
   padding: 0;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .btn-primary {
@@ -298,17 +300,17 @@ html, body {
 .workspace {
   max-width: 1920px;
   margin: 0 auto;
-  padding: 14px 20px 28px;
+  padding: 6px 12px 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 5px;
 }
 
 /* KPI Grid */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 6px;
 }
 
 @media (max-width: 720px) {
@@ -320,9 +322,14 @@ html, body {
 .kpi-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  border-radius: 7px;
+  padding: 5px 12px;
   box-shadow: var(--shadow);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 3px 12px;
 }
 
 .kpi-card.highlight {
@@ -330,7 +337,7 @@ html, body {
 }
 
 .kpi-label {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -338,29 +345,30 @@ html, body {
 }
 
 .kpi-value {
-  font-size: 23px;
+  font-size: 16.5px;
   font-weight: 700;
-  margin: 5px 0 3px;
+  margin: 0;
   font-variant-numeric: tabular-nums;
 }
 
 .kpi-value-sm {
-  font-size: 17px;
-  margin: 7px 0 4px;
+  font-size: 15px;
+  margin: 0;
 }
 
 .kpi-sub {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  margin-left: auto;
 }
 
 /* Params Panel */
 .params-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
+  border-radius: 7px;
+  padding: 5px 10px;
   box-shadow: var(--shadow);
 }
 
@@ -369,31 +377,31 @@ html, body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .presets-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .presets-title {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted);
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .preset-chip {
-  height: 28px;
-  padding: 0 11px;
+  height: 22px;
+  padding: 0 9px;
   border-radius: 999px;
   border: 1px solid var(--border-strong);
   background: var(--surface-alt);
   color: var(--text);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
 }
@@ -410,36 +418,41 @@ html, body {
 }
 
 .params-body {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
-  gap: 12px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 5px 8px;
+  align-items: end;
 }
 
 .param-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .param-field label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .param-field input[type="date"],
 .param-field input[type="text"],
 .param-field select {
-  height: 32px;
-  padding: 0 9px;
-  border-radius: 6px;
+  height: 25px;
+  padding: 0 7px;
+  border-radius: 5px;
   border: 1px solid var(--border-strong);
   background: var(--surface-alt);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .param-field input[type="range"] {
@@ -453,22 +466,28 @@ html, body {
   color: var(--text-muted);
 }
 
+.param-field .field-hint {
+  display: none;
+}
+
 .param-checkboxes {
+  grid-column: 1 / -1;
   justify-content: center;
-  gap: 8px;
+  padding-top: 2px;
 }
 
 .check-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   cursor: pointer;
   font-weight: 500 !important;
+  font-size: 11.5px;
 }
 
 .inline-row {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
 .inline-row input {
@@ -479,22 +498,22 @@ html, body {
 /* Tabs */
 .tabs-bar {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   border-bottom: 1px solid var(--border);
 }
 
 .tab-btn {
-  padding: 9px 16px;
+  padding: 4px 11px;
   background: transparent;
   border: none;
-  border-bottom: 2.5px solid transparent;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .tab-btn:hover {
@@ -507,9 +526,9 @@ html, body {
 }
 
 .tab-counter {
-  padding: 1px 7px;
+  padding: 0 6px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10.5px;
   background: var(--surface-alt);
   border: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
@@ -522,31 +541,31 @@ html, body {
 .tab-view.active {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 5px;
 }
 
 /* Filter Toolbar */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   background: var(--surface);
-  padding: 10px 12px;
-  border-radius: var(--radius);
+  padding: 5px 8px;
+  border-radius: 7px;
   border: 1px solid var(--border);
 }
 
 .search-box {
-  flex: 1 1 260px;
+  flex: 1 1 240px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  height: 34px;
+  gap: 6px;
+  padding: 0 8px;
+  height: 27px;
   background: var(--surface-alt);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: 5px;
   color: var(--text-muted);
 }
 
@@ -556,18 +575,18 @@ html, body {
   color: var(--text);
   width: 100%;
   outline: none;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .toolbar select {
-  height: 34px;
-  padding: 0 9px;
-  border-radius: 7px;
+  height: 27px;
+  padding: 0 7px;
+  border-radius: 5px;
   border: 1px solid var(--border-strong);
   background: var(--surface-alt);
   color: var(--text);
-  font-size: 12.5px;
-  max-width: 230px;
+  font-size: 12px;
+  max-width: 220px;
 }
 
 /* Main Split View: Table + Inspector */
@@ -604,10 +623,11 @@ html, body {
   z-index: 5;
   background: var(--surface-alt);
   color: var(--text-muted);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   text-align: left;
-  padding: 9px 8px;
+  padding: 4px 6px;
+  line-height: 1.15;
   border-bottom: 1px solid var(--border-strong);
   cursor: pointer;
   user-select: none;
@@ -633,9 +653,11 @@ html, body {
 }
 
 .data-table td {
-  padding: 7px 8px;
+  padding: 1px 6px;
   vertical-align: middle;
-  font-size: 12.5px;
+  font-size: 12px;
+  line-height: 1.15;
+  color: var(--text);
 }
 
 .num-col {
@@ -691,17 +713,19 @@ html, body {
   align-items: center;
   justify-content: flex-end;
   width: calc(6ch + 10px);
+  height: 18px;
 }
 
 .qty-input {
   box-sizing: border-box;
   width: calc(6ch + 10px);
-  height: 26px;
+  height: 18px;
+  line-height: 16px;
   text-align: right;
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 12px;
   padding: 0 4px;
-  border-radius: 5px;
+  border-radius: 3px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
@@ -736,9 +760,9 @@ html, body {
   background: transparent;
   color: var(--warn);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
-  padding: 1px 2px;
+  padding: 0 1px;
   z-index: 2;
 }
 
@@ -755,9 +779,9 @@ html, body {
 .data-table td.wh-cell,
 .data-table td.grp-cell {
   width: 1%;
-  padding: 3px 2px !important;
+  padding: 1px 2px !important;
   font-size: 8px;
-  line-height: 1.15;
+  line-height: 1.05;
   white-space: nowrap;
   border-right: 1px solid var(--border);
 }
@@ -780,34 +804,30 @@ html, body {
 
 .sku-cell {
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
 
 .name-cell {
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.15;
 }
 
 .abc-pill {
   display: inline-block;
   width: 22px;
-  height: 20px;
-  line-height: 20px;
+  height: 15px;
+  line-height: 15px;
+  vertical-align: middle;
   text-align: center;
-  border-radius: 5px;
-  font-size: 11px;
+  border-radius: 3px;
+  font-size: 10px;
   font-weight: 700;
 }
 .abc-A { background: var(--success-soft); color: var(--success); }
 .abc-B { background: var(--primary-soft); color: var(--primary); }
 .abc-C { background: var(--warn-soft); color: var(--warn); }
 .abc-D { background: var(--surface-alt); color: var(--text-muted); }
-
-.stock-crit {
-  color: var(--danger);
-  font-weight: 700;
-}
 
 .season-tag {
   display: inline-block;
@@ -826,38 +846,38 @@ html, body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 5px 10px;
   background: var(--surface-alt);
   border-top: 1px solid var(--border);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .pagination-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .pagination-controls select {
-  height: 28px;
+  height: 23px;
   border-radius: 5px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
-  padding: 0 6px;
+  padding: 0 5px;
 }
 
 /* Inspector Drawer */
 .inspector-drawer {
   position: sticky;
-  top: 68px;
+  top: 46px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: 7px;
+  padding: 10px 12px;
   box-shadow: var(--shadow);
-  min-height: 360px;
+  min-height: 320px;
 }
 
 .inspector-placeholder {

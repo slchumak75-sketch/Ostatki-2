@@ -108,12 +108,19 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"kpiRetailValue",
 		"kpiHorizonRange",
 		"kpiOverstockVal",
+		`type="range"`,
+		"lblHorizon",
+		"lblLeadTime",
+		"lblSafety",
 	} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("HTML still contains removed element/label: %q", removed)
 		}
 	}
 	for _, mustHaveHTML := range []string{
+		`<input type="number" id="inpHorizon"`,
+		`<input type="number" id="inpLeadTime"`,
+		`<input type="number" id="inpSafety"`,
 		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
 		`<th data-sort="group" class="grp-col">Группа</th>`,
 		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
@@ -121,7 +128,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
 	} {
 		if !strings.Contains(htmlBody, mustHaveHTML) {
-			t.Fatalf("HTML missing expected column header: %q", mustHaveHTML)
+			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
 	}
 
@@ -132,9 +139,23 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	for _, mustHaveCSS := range []string{".col-5digits", "calc(6ch", ".wh-col", ".grp-col", ".cell-2lines", "font-size: 8px", "width: 1%"} {
+	if strings.Contains(cssBody, "stock-crit") {
+		t.Fatalf("styles.css still contains stock-crit highlight on closingStock")
+	}
+	for _, mustHaveCSS := range []string{
+		".col-5digits",
+		"calc(6ch",
+		".wh-col",
+		".grp-col",
+		".cell-2lines",
+		"font-size: 8px",
+		"width: 1%",
+		"padding: 1px 6px",
+		"height: 18px",
+		".checks-inline-bar",
+	} {
 		if !strings.Contains(cssBody, mustHaveCSS) {
-			t.Fatalf("styles.css missing required column styling rule: %q", mustHaveCSS)
+			t.Fatalf("styles.css missing required styling rule: %q", mustHaveCSS)
 		}
 	}
 
@@ -154,6 +175,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"Обоснование расчёта",
 		">Стр.<",
 		"Продажи 12м",
+		"stock-crit",
+		"lblHorizon",
+		"lblLeadTime",
+		"lblSafety",
 	} {
 		if strings.Contains(jsBody, removedJS) {
 			t.Fatalf("app.js still contains removed fragment: %q", removedJS)

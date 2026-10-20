@@ -121,11 +121,8 @@
     const p = rep.params;
     state.planStartDate = p.planStartDate || '';
     el('inpHorizon').value = p.horizonDays;
-    el('lblHorizon').textContent = p.horizonDays;
     el('inpLeadTime').value = p.leadTimeDays;
-    el('lblLeadTime').textContent = p.leadTimeDays;
     el('inpSafety').value = p.safetyStockPct;
-    el('lblSafety').textContent = `${p.safetyStockPct}%`;
     el('inpBudgetCap').value = p.budgetCap || 0;
     el('inpMinSupplier').value = p.minSupplierOrder ?? 50;
     el('selSeasonMode').value = p.seasonMode;
@@ -286,9 +283,9 @@
         <td class="grp-cell" title="${esc(it.group)}"><span class="cell-2lines">${formatTwoLines(it.group)}</span></td>
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
-        <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 5px">${esc(it.abcxyz)}</span></td>
+        <td class="center-col"><span class="abc-pill abc-${esc(it.abcClass)}" style="width:auto;padding:0 4px">${esc(it.abcxyz)}</span></td>
         <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
-        <td class="num-col col-5digits ${it.closingStock <= 0 ? 'stock-crit' : ''}">${fmtInt(it.closingStock)}</td>
+        <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
         <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
           <div class="qty-editor">
             ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
@@ -560,7 +557,7 @@
               <td class="sku-cell">${esc(it.sku)}</td>
               <td class="name-cell">${esc(it.name)}</td>
               <td>${esc(it.supplier || '')}</td>
-              <td class="num-col col-5digits"><strong>${fmtInt(it.closingStock)}</strong></td>
+              <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
               <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
               <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
               <td class="num-col" style="color:var(--warn);font-weight:700">${fmtMoney(it.overstockValue)} руб.</td>
@@ -680,20 +677,22 @@
       el('paramsBody').classList.toggle('hidden');
     });
 
-    ['inpHorizon', 'inpLeadTime', 'inpSafety'].forEach((id) => {
-      el(id).addEventListener('input', () => {
-        el('lblHorizon').textContent = el('inpHorizon').value;
-        el('lblLeadTime').textContent = el('inpLeadTime').value;
-        el('lblSafety').textContent = `${el('inpSafety').value}%`;
-        scheduleRecalculate();
-      });
-    });
     [
+      'inpHorizon', 'inpLeadTime', 'inpSafety',
       'inpBudgetCap', 'inpMinSupplier', 'selSeasonMode',
       'selPackMultiple', 'selMinDisplay', 'selRounding', 'chkOutlierFilter',
       'chkCrostonZ', 'chkAdaptiveSLA', 'chkNormalizeLast', 'chkWriteZeros', 'inpHeaderName',
     ].forEach((id) => {
-      el(id).addEventListener('change', scheduleRecalculate);
+      const node = el(id);
+      node.addEventListener('change', scheduleRecalculate);
+      if (node.tagName === 'INPUT' && node.type !== 'checkbox') {
+        node.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            scheduleRecalculate();
+          }
+        });
+      }
     });
 
     el('btnResetParams').addEventListener('click', async () => {
