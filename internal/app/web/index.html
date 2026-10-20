@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ostatki — остатки и закупка с учётом сезонности</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">📦</div>
+    <div>
+      <h1>Ostatki <span id="version" class="version"></span></h1>
+      <p>Остатки ТМЦ · прибыльность · «К закупке» с учётом сезонности</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <label class="btn primary" for="fileInput">📂 Открыть ведомость .xlsx</label>
+    <input type="file" id="fileInput" accept=".xlsx" hidden>
+    <button class="btn" id="btnExportXlsx" disabled>⬇ Excel с «К закупке»</button>
+    <button class="btn" id="btnExportCsv" disabled>⬇ CSV закупки</button>
+    <button class="btn danger" id="btnShutdown">Выход</button>
+  </div>
+</header>
+
+<div id="dropHint">Отпустите файл, чтобы загрузить ведомость</div>
+
+<section id="paramsBar" class="card params">
+  <div class="param"><label>Горизонт закупки, мес. <input type="number" id="pHorizon" min="1" max="12" step="1" value="3"></label></div>
+  <div class="param"><label>Страховой запас, % <input type="number" id="pSafety" min="0" max="300" step="1" value="20"></label></div>
+  <div class="param"><label>Срок поставки, дней <input type="number" id="pLead" min="0" max="180" step="1" value="14"></label></div>
+  <div class="param"><label>Нет продаж N мес. → не закупать <input type="number" id="pDead" min="0" max="60" step="1" value="12"></label></div>
+  <div class="param check"><label><input type="checkbox" id="pPartial" checked> Последний месяц — неполный</label></div>
+  <div class="param check"><label><input type="checkbox" id="pTrend" checked> Учитывать тренд</label></div>
+  <button class="btn primary" id="btnRecalc" disabled>↻ Пересчитать</button>
+  <span id="fileInfo" class="file-info">Файл не загружен. Выберите ведомость «Ведомость по остаткам ТМЦ» (.xlsx) или перетащите её в окно.</span>
+</section>
+
+<div id="warnings"></div>
+<div id="errorBox" class="error hidden"></div>
+
+<section id="kpis" class="kpis hidden"></section>
+
+<nav id="tabs" class="tabs hidden">
+  <button data-tab="table" class="active">📋 Товары и закупка</button>
+  <button data-tab="purchase">🚚 Закупка по поставщикам</button>
+  <button data-tab="analytics">📊 Аналитика и сезонность</button>
+</nav>
+
+<main>
+  <section id="tab-table" class="tab hidden">
+    <div class="card filters">
+      <input type="search" id="fSearch" placeholder="Поиск по названию или артикулу…">
+      <select id="fWarehouse"></select>
+      <select id="fGroup"></select>
+      <select id="fSupplier"></select>
+      <select id="fStatus">
+        <option value="">Все статусы</option>
+        <option value="urgent">🔴 Срочно: нет на остатке</option>
+        <option value="order">🟠 К закупке</option>
+        <option value="ok">🟢 Запаса достаточно</option>
+        <option value="excess">🔵 Избыточный запас</option>
+        <option value="dead">⚪ Нет продаж — не закупать</option>
+      </select>
+      <select id="fAbc">
+        <option value="">ABC: все</option><option>A</option><option>B</option><option>C</option>
+      </select>
+      <label class="check"><input type="checkbox" id="fOnlyOrder"> Только «к закупке»</label>
+      <span id="rowCount" class="muted"></span>
+    </div>
+    <div class="card table-wrap">
+      <table id="mainTable">
+        <thead><tr>
+          <th></th>
+          <th data-sort="name">Номенклатура</th>
+          <th data-sort="stock" class="num">Остаток</th>
+          <th data-sort="sales12" class="num">Продажи<br>12 мес.</th>
+          <th data-sort="forecastTotal" class="num">Прогноз<br>на период</th>
+          <th data-sort="recommend" class="num">К закупке</th>
+          <th data-sort="purchasePrice" class="num">Цена<br>поставщика</th>
+          <th data-sort="retailEffective" class="num">Розница</th>
+          <th data-sort="markupPct" class="num">Наценка, %</th>
+          <th data-sort="orderCost" class="num">Сумма<br>заказа</th>
+          <th data-sort="monthsOfStock" class="num">Запас,<br>мес.</th>
+          <th data-sort="abc">ABC</th>
+          <th data-sort="status">Статус</th>
+          <th data-sort="supplier">Поставщик</th>
+        </tr></thead>
+        <tbody id="mainBody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn" id="pagePrev">← Назад</button>
+      <span id="pageInfo"></span>
+      <button class="btn" id="pageNext">Вперёд →</button>
+    </div>
+  </section>
+
+  <section id="tab-purchase" class="tab hidden"></section>
+
+  <section id="tab-analytics" class="tab hidden">
+    <div class="grid2">
+      <div class="card">
+        <h3>Сезонность продаж (индекс месяца, среднее = 1)</h3>
+        <canvas id="chartSeason" height="240"></canvas>
+        <div id="seasonLegend" class="legend"></div>
+      </div>
+      <div class="card">
+        <h3>Продажи по месяцам, ед. (все товары)</h3>
+        <canvas id="chartSales" height="240"></canvas>
+      </div>
+    </div>
+    <div id="analyticsTables"></div>
+  </section>
+
+  <section id="emptyState" class="card empty">
+    <h2>Как работать</h2>
+    <ol>
+      <li>Выгрузите из 1С «Ведомость по остаткам ТМЦ на складах» с помесячным расходом и сохраните как <b>.xlsx</b>.</li>
+      <li>Откройте файл кнопкой выше или перетащите в окно браузера.</li>
+      <li>Приложение посчитает прибыльность, сезонность и столбец <b>«К закупке»</b> (столбец H исходной ведомости).</li>
+      <li>Настройте горизонт, страховой запас и срок поставки → «Пересчитать».</li>
+      <li>Скачайте <b>Excel с «К закупке»</b> или CSV заказа по поставщикам.</li>
+    </ol>
+    <p class="muted">Методика: прогноз месяца = базовый уровень × индекс сезонности; к закупке = прогноз + спрос за срок поставки + страховой запас − остаток. Товар без продаж за последние 12 месяцев не закупается. Подробнее — docs/ALGORITHM.md в репозитории.</p>
+  </section>
+</main>
+
+<footer>
+  <span>Локальное приложение: данные не покидают этот компьютер (сервер только 127.0.0.1).</span>
+  <span id="forecastInfo"></span>
+</footer>
+
+<div id="overlay" class="hidden"><div class="overlay-box">
+  <h2>Приложение остановлено</h2>
+  <p>Эту вкладку можно закрыть. Для повторного запуска снова запустите Ostatki.exe.</p>
+</div></div>
+
+<script src="app.js"></script>
+</body>
+</html>

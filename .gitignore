@@ -1,0 +1,15 @@
+# Сборка Go
+*.exe
+/dist/
+# ВНИМАНИЕ: только корень (/ostatki = собранный бинарь), иначе игнорируется cmd/ostatki/ !
+/ostatki
+
+# Python (tools/)
+__pycache__/
+*.pyc
+.venv/
+
+# Прочее
+.DS_Store
+Thumbs.db
+*.log

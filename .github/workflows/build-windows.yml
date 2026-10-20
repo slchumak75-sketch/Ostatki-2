@@ -1,0 +1,133 @@
+name: Build Windows
+
+# Автосборка Ostatki.exe: любой push в main или arena/**, каждый PR,
+# ручной запуск (workflow_dispatch) и теги v* (тег дополнительно создаёт Release).
+on:
+  push:
+    branches: [main, "arena/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Test & build (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: false # внешних зависимостей нет (только stdlib), go.sum отсутствует
+
+      - name: gofmt (информационно, сборку не блокирует)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $bad = gofmt -l .
+          if ($bad) { Write-Host "Файлы не в формате gofmt:"; $bad } else { Write-Host "gofmt OK" }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Cross-compile check (linux/darwin/freebsd файлы браузера)
+        shell: pwsh
+        run: |
+          $env:GOOS="linux";   go build ./...
+          if ($LASTEXITCODE -ne 0) { throw "linux build failed" }
+          $env:GOOS="darwin";  go build ./...
+          if ($LASTEXITCODE -ne 0) { throw "darwin build failed" }
+          $env:GOOS="freebsd"; go build ./...
+          if ($LASTEXITCODE -ne 0) { throw "freebsd build failed" }
+          $env:GOOS="windows"
+
+      - name: Version string
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}" }
+          else { $v = "dev-" + "${{ github.sha }}".Substring(0,7) }
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Version: $v"
+
+      - name: Build Ostatki.exe (windows/amd64, CGO off)
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          set +e
+          mkdir -p dist
+          echo "Building version: ${{ steps.ver.outputs.VERSION }}"
+          go build -trimpath -ldflags "-s -w -X main.version=${{ steps.ver.outputs.VERSION }}" -o dist/Ostatki.exe ./cmd/ostatki > build.log 2>&1
+          code=$?
+          cat build.log
+          if [ "$code" -ne 0 ]; then
+            echo "::error::go build exit code $code"
+            sed 's/^/::error::build: /' build.log
+            go version
+            go env GOOS GOARCH CGO_ENABLED GOVERSION
+            exit $code
+          fi
+          ls -l dist/
+
+      - name: Smoke test CLI на реальной ведомости из репозитория
+        shell: pwsh
+        run: |
+          $src = Get-ChildItem -Filter *.xlsx | Select-Object -First 1
+          if ($null -eq $src) { throw "В корне репозитория нет .xlsx для smoke-теста" }
+          $ver = .\dist\Ostatki.exe -version
+          Write-Host "::notice::smoke version: $ver"
+          $out = .\dist\Ostatki.exe -cli -in $src.FullName -out smoke_result.xlsx 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_; Write-Host "::notice::smoke: $_" }
+          if ($code -ne 0) { throw "CLI завершился с ошибкой" }
+          if (-not (Test-Path smoke_result.xlsx)) { throw "Smoke: выходной xlsx не создан" }
+
+      - name: Package zip (exe + README + руководство)
+        shell: pwsh
+        run: |
+          Copy-Item README.md dist/ -Force
+          if (Test-Path docs/USER_GUIDE.md) { Copy-Item docs/USER_GUIDE.md "dist/РУКОВОДСТВО.md" -Force }
+          Compress-Archive -Path dist/* -DestinationPath Ostatki-windows-amd64.zip
+
+      - name: Upload artifact (приложение)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ostatki-windows-amd64
+          path: Ostatki-windows-amd64.zip
+
+      - name: "Upload artifact (smoke: ведомость с К закупке от Go-сборки)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-result-xlsx
+          path: smoke_result.xlsx
+
+  release:
+    name: GitHub Release (только тег v*)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Ostatki-windows-amd64
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Ostatki-windows-amd64.zip
+          generate_release_notes: true
