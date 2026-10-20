@@ -7,6 +7,7 @@
     report: null,
     canSaveInPlace: false,
     desktopMode: false,
+    planStartDate: '',
     filteredItems: [],
     selectedExcelRow: null,
     sortKey: 'finalOrderQty',
@@ -99,7 +100,7 @@
 
   function syncParamsControls(rep) {
     const p = rep.params;
-    el('inpStartDate').value = rep.effectiveStartDate || '';
+    state.planStartDate = p.planStartDate || '';
     el('inpHorizon').value = p.horizonDays;
     el('lblHorizon').textContent = p.horizonDays;
     el('inpLeadTime').value = p.leadTimeDays;
@@ -122,13 +123,6 @@
     el('hintBudget').textContent = p.budgetCap > 0
       ? `Срезано лимитом: ${fmtInt(rep.budgetTrimmedUnits)} ед. (без лимита: ${fmtMoney(rep.uncappedOrderCost)} р.)`
       : '0 — без ограничения бюджета';
-
-    const lastPeriod = rep.periods[rep.periods.length - 1];
-    if (lastPeriod && rep.lastMonthCompleteness < 0.999) {
-      el('hintCompleteness').textContent = `${lastPeriod.label}: учтён неполный месяц (${Math.round(rep.lastMonthCompleteness * 100)}%)`;
-    } else {
-      el('hintCompleteness').textContent = `Срез ведомости: ${rep.createdDate || 'полные месяцы'}`;
-    }
   }
 
   function populateFilterDropdowns(rep) {
@@ -307,40 +301,8 @@
     const groupIndices = groupObj ? groupObj.monthlyIndices : Array(12).fill(1);
 
     box.innerHTML = `
-      <div class="ins-head">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span class="badge badge-accent">Строка Excel #${item.excelRow} (H${item.excelRow})</span>
-          <span class="badge badge-v2">Сегмент ${esc(item.abcxyz)} • SLA ${item.effectiveSafety.toFixed(0)}%</span>
-        </div>
-        <h3>${esc(item.name)}</h3>
-        <div class="item-sub" style="font-size:11.5px;color:var(--text-muted)">${item.sku ? `Арт.: <strong>${esc(item.sku)}</strong> • ` : ''}${esc(item.warehouse)} • ${esc(item.group)} • Поставщик: <strong>${esc(item.supplier || 'не указан')}</strong></div>
-      </div>
-
-      <div class="ins-metrics">
-        <div class="ins-metric">
-          <span>Столбец 8 «К закупкам»</span>
-          <strong style="color:var(--primary);font-size:19px">${fmtInt(item.finalOrderQty)} ${esc(item.unit)}</strong>
-        </div>
-        <div class="ins-metric">
-          <span>Средний темп / Спрос</span>
-          <strong>${fmtNum(item.baseMonthlyRate, 2)}/мес. (${fmtNum(item.forecastDemand, 1)} ${esc(item.unit)})</strong>
-        </div>
-        <div class="ins-metric">
-          <span>Остаток / Запас в днях</span>
-          <strong>${fmtInt(item.closingStock)} ${esc(item.unit)} (${item.daysOfSupply >= 900 ? '365+' : Math.round(item.daysOfSupply)} дн.)</strong>
-        </div>
-        <div class="ins-metric">
-          <span>Сумма закупки (Приоритет ${item.priorityScore.toFixed(0)})</span>
-          <strong>${fmtMoney(item.orderCost)} руб.</strong>
-        </div>
-      </div>
-
-      <div class="explain-box">
-        <strong>Обоснование расчёта:</strong> ${esc(item.explanation)}
-      </div>
-
       <div class="chart-block">
-        <h4>История продаж (${state.report.periods.length} мес.) ${item.outlierMonths > 0 ? '• красная верхушка = отсечённый опт-выброс' : ''}</h4>
+        <h4>История продаж (${state.report.periods.length} мес.)</h4>
         ${buildHistoryBarSVG(item.monthlySales, item.cappedSales, state.report.periods)}
       </div>
 
@@ -352,7 +314,7 @@
   }
 
   function buildHistoryBarSVG(rawSales, cappedSales, periods) {
-    const W = 356, H = 138, padL = 28, padR = 8, padT = 10, padB = 24;
+    const W = 356, H = 166, padL = 28, padR = 8, padT = 10, padB = 24;
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
     const maxV = Math.max(1, ...rawSales);
@@ -407,7 +369,7 @@
   }
 
   function buildTwelveMonthSVG(forecast12, groupIdx12) {
-    const W = 356, H = 126, padL = 28, padR = 8, padT = 14, padB = 22;
+    const W = 356, H = 154, padL = 28, padR = 8, padT = 14, padB = 22;
     const innerW = W - padL - padR;
     const innerH = H - padT - padB;
     const maxV = Math.max(0.5, ...forecast12);
@@ -595,7 +557,7 @@
 
   function collectParamsFromUI() {
     return {
-      planStartDate: el('inpStartDate').value || '',
+      planStartDate: state.planStartDate || '',
       normalizePartialLast: el('chkNormalizeLast').checked,
       lastMonthDaysElapsed: 0,
       horizonDays: Number(el('inpHorizon').value) || 30,
@@ -669,26 +631,26 @@
           el('inpHorizon').value = 14;
           el('inpLeadTime').value = 3;
           el('inpSafety').value = 15;
-          el('inpStartDate').value = '';
+          state.planStartDate = '';
         } else if (preset === 'standard') {
           el('inpHorizon').value = 30;
           el('inpLeadTime').value = 7;
           el('inpSafety').value = 20;
-          el('inpStartDate').value = '';
+          state.planStartDate = '';
         } else if (preset === 'budget5k') {
           el('inpHorizon').value = 30;
           el('inpLeadTime').value = 7;
           el('inpSafety').value = 20;
           el('inpBudgetCap').value = 5000;
-          el('inpStartDate').value = '';
+          state.planStartDate = '';
         } else if (preset === 'twomonths') {
           el('inpHorizon').value = 60;
           el('inpLeadTime').value = 7;
           el('inpSafety').value = 20;
-          el('inpStartDate').value = '';
+          state.planStartDate = '';
         } else if (preset === 'spring') {
           const baseYear = (state.report?.periods?.at(-1)?.year || 2026) + 1;
-          el('inpStartDate').value = `${baseYear}-03-01`;
+          state.planStartDate = `${baseYear}-03-01`;
           el('inpHorizon').value = 60;
           el('inpLeadTime').value = 10;
           el('inpSafety').value = 25;
@@ -711,7 +673,7 @@
       });
     });
     [
-      'inpStartDate', 'inpBudgetCap', 'inpMinSupplier', 'selSeasonMode',
+      'inpBudgetCap', 'inpMinSupplier', 'selSeasonMode',
       'selPackMultiple', 'selMinDisplay', 'selRounding', 'chkOutlierFilter',
       'chkCrostonZ', 'chkAdaptiveSLA', 'chkNormalizeLast', 'chkWriteZeros', 'inpHeaderName',
     ].forEach((id) => {
@@ -719,6 +681,7 @@
     });
 
     el('btnResetParams').addEventListener('click', async () => {
+      state.planStartDate = '';
       const env = await apiPost('api/params', {
         planStartDate: '',
         normalizePartialLast: true,
