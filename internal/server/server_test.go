@@ -138,6 +138,17 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"lblSafety",
 		"ABC-XYZ: Все",
 		"AX — Золотой хит",
+		"Столбец 8 «К закупкам»",
+		"kpiOrderUnits",
+		"kpiOrderItems",
+		"kpiGrid",
+		"Округление и заголовок H7",
+		"selRounding",
+		"inpHeaderName",
+		"selPageSize",
+		"btnPrevPage",
+		"btnNextPage",
+		"lblPageNum",
 	} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("HTML still contains removed element/label: %q", removed)
@@ -155,6 +166,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<option value="2">2-Ниже среднего</option>`,
 		`<option value="1">1-Низкий</option>`,
 		`<option value="0">0-Нет продаж</option>`,
+		`class="budget-inline-card"`,
+		`<span class="kpi-label">Бюджет закупки</span>`,
 		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
 		`<th data-sort="group" class="grp-col">Группа</th>`,
 		`<th data-sort="salesSegment" class="seg-col"`,
@@ -203,6 +216,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".auto-order-row",
 		"--auto-order-bg",
 		".seg-pill",
+		".budget-inline-card",
+		"overflow: visible",
+		"top: var(--sticky-head-top",
 	} {
 		if !strings.Contains(cssBody, mustHaveCSS) {
 			t.Fatalf("styles.css missing required styling rule: %q", mustHaveCSS)
@@ -235,6 +251,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"renderSeasonalityView",
 		"formatTwoLines",
 		"cell-2lines",
+		"selRounding",
+		"inpHeaderName",
+		"kpiOrderUnits",
+		"selPageSize",
 	} {
 		if strings.Contains(jsBody, removedJS) {
 			t.Fatalf("app.js still contains removed fragment: %q", removedJS)
@@ -247,6 +267,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"salesSegmentLabel",
 		"api/export/supplier-order",
 		"formatOrderFileName",
+		"freshEdit",
+		"syncStickyHeaderOffset",
+		"Отображены все строки",
 	} {
 		if !strings.Contains(jsBody, mustHaveJS) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
