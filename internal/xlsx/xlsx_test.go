@@ -46,6 +46,24 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		t.Fatalf("expected CreatedDate=2026-10-19, got %q", wb.CreatedDate)
 	}
 
+	// Проверка точного чтения Склада, Группы, Артикула и чистого Наименования номенклатуры из исходного Excel
+	nonEmptySKU := 0
+	var row13 *model.RawItem
+	for i := range wb.Items {
+		if wb.Items[i].SKU != "" {
+			nonEmptySKU++
+		}
+		if wb.Items[i].ExcelRow == 13 {
+			row13 = &wb.Items[i]
+		}
+	}
+	if nonEmptySKU != 197 {
+		t.Fatalf("expected 197 non-empty SKU values from source Excel, got %d", nonEmptySKU)
+	}
+	if row13 == nil || row13.Warehouse != "Склад Кореличи" || row13.Group != "2 краски растворители" || row13.SKU != "0242345" || row13.Name != "Ацетон техн.1,0л." {
+		t.Fatalf("unexpected row 13 fields: %+v", row13)
+	}
+
 	rep := forecast.Calculate(wb, model.DefaultParams(), map[int]int{8: 15})
 	orders := forecast.ExtractOrdersMap(rep)
 

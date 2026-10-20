@@ -167,7 +167,7 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 			colWarehouse = c
 		case strings.Contains(h, "группа"):
 			colGroup = c
-		case strings.Contains(h, "артикул"):
+		case strings.Contains(h, "артикул") || strings.HasPrefix(h, "арт.") || h == "арт":
 			colSKU = c
 		case h == "номенклатура":
 			colName = c
