@@ -116,13 +116,13 @@ func DefaultParams() ForecastParams {
 // MatrixCell представляет одну ячейку матрицы ABC × XYZ (3×3).
 type MatrixCell struct {
 	Code       string  `json:"code"`       // AX, AY, AZ, BX, BY, BZ, CX, CY, CZ
-	ItemCount  int     `json:"itemCount"`  // Количество SKU в сегменте
+	ItemCount  int     `json:"itemCount"`  // Количество SKU в ячейке матрицы
 	OrderItems int     `json:"orderItems"` // Сколько SKU заказано
 	OrderUnits int     `json:"orderUnits"` // Единиц к закупке
 	OrderCost  float64 `json:"orderCost"`  // Сумма закупки (руб.)
 }
 
-// SalesSegmentLabelByCode возвращает каноническое название сегмента продаж (0..5).
+// SalesSegmentLabelByCode возвращает каноническое название рейтинга продаж (0..5).
 func SalesSegmentLabelByCode(seg int) string {
 	switch seg {
 	case 5:
@@ -146,8 +146,8 @@ type CalculatedItem struct {
 	ABCClass          string      `json:"abcClass"`          // A, B, C или D (без продаж)
 	XYZClass          string      `json:"xyzClass"`          // X (стабильный), Y (колеблющийся), Z (эпизодический), D
 	ABCXYZ            string      `json:"abcxyz"`            // Комбинированный класс AX..CZ / DD
-	SalesSegment      int         `json:"salesSegment"`      // Сегмент продаж 0..5 (0 = нет продаж за 6 мес., 1..5 = Низкий..Высокий)
-	SalesSegmentLabel string      `json:"salesSegmentLabel"` // Параметр сегмента продаж ("5-Высокий" .. "0-Нет продаж")
+	SalesSegment      int         `json:"salesSegment"`      // Рейтинг продаж 0..5 (0 = нет продаж за 6 мес., 1..5 = Низкий..Высокий)
+	SalesSegmentLabel string      `json:"salesSegmentLabel"` // Наименование рейтинга продаж ("5-Высокий" .. "0-Нет продаж")
 	CV                float64     `json:"cv"`                // Коэффициент вариации спроса
 	NonZeroMonths     int         `json:"nonZeroMonths"`     // Месяцев с продажами > 0
 	OutlierMonths     int         `json:"outlierMonths"`     // Месяцев со сглаженными разовыми оптовыми выбросами

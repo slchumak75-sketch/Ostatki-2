@@ -66,7 +66,7 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 		t.Fatalf("expected summer forecast units (%d) > November forecast units (%d)", summerRep.TotalOrderUnits, rep.TotalOrderUnits)
 	}
 
-	// 6. Проверка 6-уровневой шкалы сегментов продаж (0-Нет продаж .. 5-Высокий)
+	// 6. Проверка 6-уровневой шкалы рейтинга продаж (0-Нет продаж .. 5-Высокий)
 	var segCounts [6]int
 	for i := range rep.Items {
 		it := &rep.Items[i]

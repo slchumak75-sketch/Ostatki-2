@@ -149,6 +149,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"btnPrevPage",
 		"btnNextPage",
 		"lblPageNum",
+		"сегмент",
+		"Сегмент",
+		"сегм.",
+		"Сегм.",
 	} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("HTML still contains removed element/label: %q", removed)
@@ -160,6 +164,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
 		`Ведомость <span class="tab-counter" id="cntTabTable">`,
 		`class="param-field param-paired"`,
+		`<option value="">Рейтинг: Все</option>`,
 		`<option value="5">5-Высокий</option>`,
 		`<option value="4">4-Выше среднего</option>`,
 		`<option value="3">3-Средний</option>`,
@@ -170,6 +175,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<span class="kpi-label">Бюджет закупки</span>`,
 		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
 		`<th data-sort="group" class="grp-col">Группа</th>`,
+		`<th data-sort="name" class="col-name">Номенклатура</th>`,
+		`<th data-sort="unit" class="unit-col">Ед.</th>`,
+		`>Рейтинг</th>`,
 		`<th data-sort="salesSegment" class="seg-col"`,
 		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
 		`<th data-sort="closingStock" class="num-col col-5digits">Остаток</th>`,
@@ -180,6 +188,13 @@ func TestServerAPIEndpoints(t *testing.T) {
 		if !strings.Contains(htmlBody, mustHaveHTML) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
+	}
+	// Проверка порядка столбцов: Номенклатура -> Ед. -> Рейтинг, а также Цена -> Розница -> Сумма
+	nameIdx := strings.Index(htmlBody, `<th data-sort="name" class="col-name">Номенклатура</th>`)
+	unitIdx := strings.Index(htmlBody, `<th data-sort="unit" class="unit-col">Ед.</th>`)
+	ratingIdx := strings.Index(htmlBody, `<th data-sort="salesSegment" class="seg-col"`)
+	if !(nameIdx > 0 && unitIdx > nameIdx && ratingIdx > unitIdx) {
+		t.Fatalf("expected column order Номенклатура -> Ед. -> Рейтинг, got indices %d, %d, %d", nameIdx, unitIdx, ratingIdx)
 	}
 	// Проверка, что столбец «Розница» следует сразу после столбца «Цена»
 	priceIdx := strings.Index(htmlBody, `<th data-sort="purchasePrice" class="num-col">Цена</th>`)
@@ -216,6 +231,13 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".auto-order-row",
 		"--auto-order-bg",
 		".seg-pill",
+		"#22c55e",
+		"#a3e635",
+		"#ffeb3b",
+		"#fef9c3",
+		"#f9a8d4",
+		"#ef4444",
+		".unit-col",
 		".budget-inline-card",
 		"overflow: visible",
 		"top: var(--sticky-head-top",
@@ -255,6 +277,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"inpHeaderName",
 		"kpiOrderUnits",
 		"selPageSize",
+		"сегмент",
+		"Сегмент",
+		"сегм.",
+		"Сегм.",
 	} {
 		if strings.Contains(jsBody, removedJS) {
 			t.Fatalf("app.js still contains removed fragment: %q", removedJS)
@@ -265,6 +291,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"auto-order-row",
 		"salesSegment",
 		"salesSegmentLabel",
+		`<td class="unit-cell">шт.</td>`,
 		"api/export/supplier-order",
 		"formatOrderFileName",
 		"freshEdit",

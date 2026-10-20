@@ -508,7 +508,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 	headers1 := []string{
 		"Стр. Excel", "Склад", "Поставщик", "Группа номенклатуры", "Артикул",
 		"Номенклатура", "Ед.", "Остаток", "К закупкам", "Цена закуп.",
-		"Сумма заказа", "Сегмент продаж", "Обоснование расчёта",
+		"Сумма заказа", "Рейтинг", "Обоснование расчёта",
 	}
 	s1.WriteString(`<row r="3" ht="28" customHeight="1">`)
 	for i, h := range headers1 {
@@ -530,7 +530,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 		s1.WriteString(inlineStrCell("D"+rs, 2, it.Group))
 		s1.WriteString(inlineStrCell("E"+rs, 2, it.SKU))
 		s1.WriteString(inlineStrCell("F"+rs, 2, it.Name))
-		s1.WriteString(inlineStrCell("G"+rs, 2, it.Unit))
+		s1.WriteString(inlineStrCell("G"+rs, 2, "шт."))
 		s1.WriteString(numCell("H"+rs, 6, it.ClosingStock))
 		s1.WriteString(numCell("I"+rs, 3, float64(it.FinalOrderQty)))
 		s1.WriteString(numCell("J"+rs, 4, it.PurchasePrice))
@@ -709,11 +709,12 @@ func FormatSupplierOrderFilename(warehouse string, supplier string, orderDate ti
 }
 
 // GenerateSingleSupplierOrderXLSX формирует одностраничную Excel-таблицу заказа поставщику
-// строго из 4 столбцов:
+// без цветовой заливки ячеек строго из 5 столбцов:
 //  1. Наименование склада
 //  2. Артикул
 //  3. Номенклатура
-//  4. Заказ
+//  4. Ед. ("шт.")
+//  5. Заказ
 func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWarehouse string, filterSupplier string) ([]byte, error) {
 	var orderItems []model.CalculatedItem
 	for _, it := range report.Items {
@@ -782,16 +783,13 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
   <numFmts count="1">
     <numFmt numFmtId="165" formatCode="#,##0"/>
   </numFmts>
-  <fonts count="3">
-    <font><sz val="11"/><name val="Calibri"/></font>
-    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
-    <font><b/><sz val="11"/><color rgb="FF0F172A"/><name val="Calibri"/></font>
+  <fonts count="2">
+    <font><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
   </fonts>
-  <fills count="4">
+  <fills count="2">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FF1E3A8A"/></patternFill></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFE2F9DF"/></patternFill></fill>
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
@@ -804,11 +802,12 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
     </border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="4">
+  <cellXfs count="5">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
-    <xf numFmtId="165" fontId="2" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+    <xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
   </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`); err != nil {
@@ -822,11 +821,12 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
   <col min="1" max="1" width="22" customWidth="1"/>
   <col min="2" max="2" width="16" customWidth="1"/>
   <col min="3" max="3" width="54" customWidth="1"/>
-  <col min="4" max="4" width="12" customWidth="1"/>
+  <col min="4" max="4" width="8" customWidth="1"/>
+  <col min="5" max="5" width="12" customWidth="1"/>
 </cols><sheetData>`)
 
 	s1.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, h := range []string{"Наименование склада", "Артикул", "Номенклатура", "Заказ"} {
+	for i, h := range []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Заказ"} {
 		s1.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s1.WriteString(`</row>`)
@@ -837,12 +837,13 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 		s1.WriteString(inlineStrCell("A"+rs, 2, it.Warehouse))
 		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
 		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
-		s1.WriteString(numCell("D"+rs, 3, float64(it.FinalOrderQty)))
+		s1.WriteString(inlineStrCell("D"+rs, 4, "шт."))
+		s1.WriteString(numCell("E"+rs, 3, float64(it.FinalOrderQty)))
 		s1.WriteString(`</row>`)
 	}
 	s1.WriteString(`</sheetData>`)
 	if len(orderItems) > 0 {
-		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:D%d"/>`, len(orderItems)+1))
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:E%d"/>`, len(orderItems)+1))
 	}
 	s1.WriteString(`</worksheet>`)
 	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {

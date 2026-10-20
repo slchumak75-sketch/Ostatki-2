@@ -125,7 +125,7 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		}
 	}
 
-	// Проверка индивидуального заказа поставщику (4 столбца + шаблон имени файла)
+	// Проверка индивидуального заказа поставщику (5 столбцов: Склад, Артикул, Номенклатура, Ед., Заказ — без цветовой заливки)
 	dt := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
 	gotName := xlsx.FormatSupplierOrderFilename("Склад Кореличи", `ООО "ГолдДекор"`, dt)
 	wantName := "Склад Кореличи, ООО «ГолдДекор», 20.10.2026.xlsx"
@@ -142,6 +142,15 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		t.Fatalf("zip read singleOrder failed: %v", err)
 	}
 	for _, f := range ozr.File {
+		if f.Name == "xl/styles.xml" {
+			rc, _ := f.Open()
+			rawXML, _ := io.ReadAll(rc)
+			_ = rc.Close()
+			stylesStr := string(rawXML)
+			if strings.Contains(stylesStr, `patternType="solid"`) || strings.Contains(stylesStr, "<fgColor") {
+				t.Fatalf("single supplier order styles.xml must NOT contain colored cell fills, got: %s", stylesStr)
+			}
+		}
 		if f.Name == "xl/worksheets/sheet1.xml" {
 			rc, _ := f.Open()
 			rawXML, _ := io.ReadAll(rc)
@@ -151,14 +160,16 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 				`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">Наименование склада</t></is></c>`,
 				`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
 				`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
-				`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Заказ</t></is></c>`,
+				`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Ед.</t></is></c>`,
+				`<c r="E1" s="1" t="inlineStr"><is><t xml:space="preserve">Заказ</t></is></c>`,
+				`<c r="D2" s="4" t="inlineStr"><is><t xml:space="preserve">шт.</t></is></c>`,
 			} {
 				if !strings.Contains(xmlStr, colHdr) {
-					t.Fatalf("single supplier order sheet1.xml missing column header: %s", colHdr)
+					t.Fatalf("single supplier order sheet1.xml missing expected cell: %s", colHdr)
 				}
 			}
-			if strings.Contains(xmlStr, `r="E1"`) {
-				t.Fatalf("single supplier order must contain strictly 4 columns (A..D), found E1")
+			if strings.Contains(xmlStr, `r="F1"`) {
+				t.Fatalf("single supplier order must contain strictly 5 columns (A..E), found F1")
 			}
 		}
 	}
