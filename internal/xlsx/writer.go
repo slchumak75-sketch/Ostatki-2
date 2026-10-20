@@ -401,6 +401,8 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet4.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet5.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`); err != nil {
 		return nil, err
@@ -418,7 +420,9 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
   <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>
-  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet4.xml"/>
+  <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet5.xml"/>
+  <Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`); err != nil {
 		return nil, err
 	}
@@ -426,9 +430,11 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 	if err := addFile("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
-    <sheet name="К закупкам (позиции)" sheetId="1" r:id="rId1"/>
+    <sheet name="К закупкам (Вариант 2)" sheetId="1" r:id="rId1"/>
     <sheet name="По поставщикам" sheetId="2" r:id="rId2"/>
-    <sheet name="Сезонность и параметры" sheetId="3" r:id="rId3"/>
+    <sheet name="Сезонность и ABC-XYZ" sheetId="3" r:id="rId3"/>
+    <sheet name="Неликвиды и избыток" sheetId="4" r:id="rId4"/>
+    <sheet name="Сравнение Вариант 2 vs 1" sheetId="5" r:id="rId5"/>
   </sheets>
 </workbook>`); err != nil {
 		return nil, err
@@ -533,7 +539,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 		s1.WriteString(numCell("J"+rs, 4, it.PurchasePrice))
 		s1.WriteString(numCell("K"+rs, 4, it.OrderCost))
 		s1.WriteString(numCell("L"+rs, 4, it.HorizonSeasonIdx))
-		s1.WriteString(inlineStrCell("M"+rs, 2, it.ABCClass))
+		s1.WriteString(inlineStrCell("M"+rs, 2, it.ABCXYZ))
 		s1.WriteString(inlineStrCell("N"+rs, 2, it.Explanation))
 		s1.WriteString(`</row>`)
 	}
@@ -607,6 +613,86 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 	}
 	s3.WriteString(`</sheetData></worksheet>`)
 	if err := addFile("xl/worksheets/sheet3.xml", s3.String()); err != nil {
+		return nil, err
+	}
+
+	// Лист 4: Неликвиды и сверхнормативный остаток (> 365 дней)
+	var s4 strings.Builder
+	s4.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols>
+  <col min="1" max="1" width="9" customWidth="1"/>
+  <col min="2" max="3" width="24" customWidth="1"/>
+  <col min="4" max="4" width="44" customWidth="1"/>
+  <col min="5" max="8" width="16" customWidth="1"/>
+</cols><sheetData>`)
+	s4.WriteString(`<row r="1" ht="26" customHeight="1">`)
+	for i, h := range []string{"Стр. Excel", "Склад", "Поставщик", "Номенклатура", "Остаток", "Продажи 12м", "Запас (дней)", "Заморожено (руб.)"} {
+		s4.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
+	}
+	s4.WriteString(`</row>`)
+	ovRow := 2
+	for _, it := range report.Items {
+		if !it.IsOverstock {
+			continue
+		}
+		if filterWarehouse != "" && it.Warehouse != filterWarehouse {
+			continue
+		}
+		rs := strconv.Itoa(ovRow)
+		ovRow++
+		s4.WriteString(`<row r="` + rs + `" ht="20" customHeight="1">`)
+		s4.WriteString(numCell("A"+rs, 6, float64(it.ExcelRow)))
+		s4.WriteString(inlineStrCell("B"+rs, 2, it.Warehouse))
+		s4.WriteString(inlineStrCell("C"+rs, 2, it.Supplier))
+		s4.WriteString(inlineStrCell("D"+rs, 2, it.Name))
+		s4.WriteString(numCell("E"+rs, 6, it.ClosingStock))
+		s4.WriteString(numCell("F"+rs, 6, it.SumSalesLast12M))
+		s4.WriteString(numCell("G"+rs, 4, it.DaysOfSupply))
+		s4.WriteString(numCell("H"+rs, 4, it.OverstockValue))
+		s4.WriteString(`</row>`)
+	}
+	s4.WriteString(`</sheetData></worksheet>`)
+	if err := addFile("xl/worksheets/sheet4.xml", s4.String()); err != nil {
+		return nil, err
+	}
+
+	// Лист 5: Сравнение сборки «Вариант 2» vs «Вариант 1»
+	var s5 strings.Builder
+	s5.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols>
+  <col min="1" max="1" width="9" customWidth="1"/>
+  <col min="2" max="2" width="18" customWidth="1"/>
+  <col min="3" max="3" width="44" customWidth="1"/>
+  <col min="4" max="9" width="15" customWidth="1"/>
+</cols><sheetData>`)
+	s5.WriteString(`<row r="1" ht="26" customHeight="1">`)
+	for i, h := range []string{"Стр. Excel", "Склад", "Номенклатура", "ABC-XYZ", "Опт-выбросы", "Вариант 1 (ед.)", "Вариант 2 (ед.)", "Разница (ед.)", "Эффект (руб.)"} {
+		s5.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
+	}
+	s5.WriteString(`</row>`)
+	diffRow := 2
+	for _, it := range report.Items {
+		if it.DeltaFromV1 == 0 {
+			continue
+		}
+		rs := strconv.Itoa(diffRow)
+		diffRow++
+		s5.WriteString(`<row r="` + rs + `" ht="20" customHeight="1">`)
+		s5.WriteString(numCell("A"+rs, 6, float64(it.ExcelRow)))
+		s5.WriteString(inlineStrCell("B"+rs, 2, it.Warehouse))
+		s5.WriteString(inlineStrCell("C"+rs, 2, it.Name))
+		s5.WriteString(inlineStrCell("D"+rs, 2, it.ABCXYZ))
+		s5.WriteString(numCell("E"+rs, 6, float64(it.OutlierMonths)))
+		s5.WriteString(numCell("F"+rs, 6, float64(it.Variant1OrderQty)))
+		s5.WriteString(numCell("G"+rs, 3, float64(it.FinalOrderQty)))
+		s5.WriteString(numCell("H"+rs, 6, float64(it.DeltaFromV1)))
+		s5.WriteString(numCell("I"+rs, 4, float64(it.DeltaFromV1)*it.PurchasePrice))
+		s5.WriteString(`</row>`)
+	}
+	s5.WriteString(`</sheetData></worksheet>`)
+	if err := addFile("xl/worksheets/sheet5.xml", s5.String()); err != nil {
 		return nil, err
 	}
 

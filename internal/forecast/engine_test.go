@@ -9,7 +9,7 @@ import (
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 )
 
-func TestSeasonalForecastRealDataset(t *testing.T) {
+func TestSeasonalForecastRealDatasetVariant2(t *testing.T) {
 	wb, _, err := xlsx.ReadFile(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx"))
 	if err != nil {
 		t.Fatalf("failed to load workbook: %v", err)
@@ -18,32 +18,53 @@ func TestSeasonalForecastRealDataset(t *testing.T) {
 	params := model.DefaultParams()
 	rep := forecast.Calculate(wb, params, nil)
 
+	if rep.BuildVariant != "Вариант 2" {
+		t.Fatalf("expected BuildVariant='Вариант 2', got %q", rep.BuildVariant)
+	}
 	if len(rep.Groups) != 2 {
 		t.Fatalf("expected 2 groups, got %d", len(rep.Groups))
 	}
 
-	// Проверка ярко выраженной сезонности в группе «2 краски растворители»: лето >> зимы
-	var paintGroup *model.GroupSeasonality
-	for i := range rep.Groups {
-		if rep.Groups[i].Group == "2 краски растворители" {
-			paintGroup = &rep.Groups[i]
+	// 1. Проверка фильтра разовых оптовых выбросов на реальном кейсе R1351 («Петля гаражная с шар 20*110 б/п»: 1100 шт. в ноябре 2023)
+	var row1351 *model.CalculatedItem
+	for i := range rep.Items {
+		if rep.Items[i].ExcelRow == 1351 {
+			row1351 = &rep.Items[i]
+			break
 		}
 	}
-	if paintGroup == nil {
-		t.Fatalf("paint group not found")
+	if row1351 == nil {
+		t.Fatalf("row 1351 not found")
 	}
-	janIdx := paintGroup.MonthlyIndices[0]
-	julIdx := paintGroup.MonthlyIndices[6]
-	if julIdx <= 1.4 || janIdx >= 0.4 {
-		t.Fatalf("expected strong seasonality in paints (Jul > 1.4, Jan < 0.4), got Jul=%.3f Jan=%.3f", julIdx, janIdx)
+	if row1351.Variant1OrderQty < 150 {
+		t.Fatalf("expected Variant 1 to over-order row 1351 due to 1100 spike, got %d", row1351.Variant1OrderQty)
+	}
+	if row1351.FinalOrderQty >= 20 {
+		t.Fatalf("expected Variant 2 outlier filter to cap row 1351 retail order below 20, got %d", row1351.FinalOrderQty)
 	}
 
-	// Осенью/зимой сезонная модель должна заказывать меньше летних товаров, чем наивное среднее
+	// 2. Вариант 2 должен быть экономичнее Варианта 1 и плоского среднего на осенне-зимнем спаде
+	if rep.TotalOrderCost >= rep.Variant1OrderCost {
+		t.Fatalf("expected Variant 2 cost (%.2f) < Variant 1 cost (%.2f)", rep.TotalOrderCost, rep.Variant1OrderCost)
+	}
 	if rep.TotalOrderCost >= rep.FlatOrderCost {
-		t.Fatalf("expected autumn/winter seasonal budget (%.2f) < naive flat budget (%.2f)", rep.TotalOrderCost, rep.FlatOrderCost)
+		t.Fatalf("expected seasonal budget (%.2f) < naive flat budget (%.2f)", rep.TotalOrderCost, rep.FlatOrderCost)
 	}
 
-	// А при планировании на весенне-летний пик (Май–Июнь) бюджет должен расти!
+	// 3. Проверка радара неликвидов / замороженного капитала
+	if rep.OverstockItemsCount < 10 || rep.OverstockFrozenCost < 1000 {
+		t.Fatalf("expected overstock detection >10 items & >1000 BYN, got %d items / %.2f BYN", rep.OverstockItemsCount, rep.OverstockFrozenCost)
+	}
+
+	// 4. Проверка оптимизатора лимита бюджета (BudgetCap = 3000 руб.)
+	cappedParams := model.DefaultParams()
+	cappedParams.BudgetCap = 3000.0
+	cappedRep := forecast.Calculate(wb, cappedParams, nil)
+	if cappedRep.TotalOrderCost > 3000.01 || cappedRep.TotalOrderCost < 2900.0 {
+		t.Fatalf("expected BudgetCap=3000 to pack budget tightly into [2900..3000], got %.2f", cappedRep.TotalOrderCost)
+	}
+
+	// 5. На весенне-летний пик спрос должен кратно расти
 	summerParams := model.DefaultParams()
 	summerParams.PlanStartDate = "2027-05-01"
 	summerRep := forecast.Calculate(wb, summerParams, nil)

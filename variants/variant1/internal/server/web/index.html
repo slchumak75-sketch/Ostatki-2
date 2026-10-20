@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Остатки 2 (Вариант 1) — Автозаполнение столбца 8 «К закупкам»</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d4ed8'/%3E%3Cpath d='M7 22V14h4v8H7zm7 0V9h4v13h-4zm7 0v-6h4v6h-4z' fill='%23fff'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="dropOverlay" class="drop-overlay hidden">
+    <div class="drop-card">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <h2>Отпустите файл Excel (.xlsx) для расчёта</h2>
+      <p>Ведомость 1С будет разобрана, а столбец 8 «К закупкам» рассчитан автоматически</p>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="app-logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
+          <path d="M3 3v18h18"/><path d="M7 16l4-5 4 3 5-7"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title-row">
+          <h1>Остатки 2 • Вариант 1</h1>
+          <span class="badge badge-accent">Столбец 8 • К закупкам</span>
+        </div>
+        <div class="file-meta" id="fileMetaLine">Загрузка данных ведомости…</div>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <input type="file" id="fileInput" accept=".xlsx" class="hidden" />
+      <button class="btn btn-secondary" id="btnUpload" title="Открыть другой файл Ведомости (.xlsx)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Загрузить .xlsx
+      </button>
+      <button class="btn btn-secondary hidden" id="btnSaveInPlace" title="Записать столбец 8 прямо в исходный файл на диске">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Сохранить в файл
+      </button>
+      <button class="btn btn-primary" id="btnDownloadXlsx" title="Скачать оригинальную ведомость с заполненным столбцом 8 (100% сохранение стилей 1С)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Скачать Ведомость (.xlsx)
+      </button>
+      <button class="btn btn-success" id="btnDownloadOrders" title="Скачать сводные заявки поставщикам (только позиции К закупкам > 0)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Заявки поставщикам
+      </button>
+      <button class="btn btn-ghost" id="btnHelp" title="Описание математической модели сезонности">Формула</button>
+      <button class="btn btn-ghost icon-only" id="btnTheme" title="Переключить светлую / тёмную тему" aria-label="Тема">◐</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- Сводные KPI карточки -->
+    <section class="kpi-grid" id="kpiGrid">
+      <div class="kpi-card highlight">
+        <div class="kpi-label">Итого в Столбец 8 «К закупкам»</div>
+        <div class="kpi-value" id="kpiOrderUnits">—</div>
+        <div class="kpi-sub" id="kpiOrderItems">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Бюджет закупки (цены поставщика)</div>
+        <div class="kpi-value" id="kpiOrderCost">—</div>
+        <div class="kpi-sub" id="kpiFlatDiff">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ожидаемая розница и наценка</div>
+        <div class="kpi-value" id="kpiRetailValue">—</div>
+        <div class="kpi-sub" id="kpiMarginValue">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Горизонт и сезонный режим</div>
+        <div class="kpi-value kpi-value-sm" id="kpiHorizonRange">—</div>
+        <div class="kpi-sub" id="kpiSeasonSummary">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Состояние складских остатков</div>
+        <div class="kpi-value kpi-value-sm" id="kpiStockHealth">—</div>
+        <div class="kpi-sub" id="kpiManualCount">—</div>
+      </div>
+    </section>
+
+    <!-- Панель параметров сезонного алгоритма -->
+    <section class="params-panel" id="paramsPanel">
+      <div class="params-header">
+        <div class="presets-bar">
+          <span class="presets-title">Сценарий закупки:</span>
+          <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
+          <button class="preset-chip active" data-preset="standard">Стандартный (30 + 7 дн.)</button>
+          <button class="preset-chip" data-preset="twomonths">На 2 месяца (60 дн.)</button>
+          <button class="preset-chip" data-preset="quarter">Квартал (90 дн.)</button>
+          <button class="preset-chip" data-preset="spring">Подготовка к весне (Март–Апр)</button>
+        </div>
+        <button class="btn-link" id="btnToggleAdvanced">Настройки модели ▾</button>
+      </div>
+
+      <div class="params-body" id="paramsBody">
+        <div class="param-field">
+          <label for="inpStartDate">Дата начала планирования</label>
+          <input type="date" id="inpStartDate" />
+          <span class="field-hint" id="hintCompleteness">Авто из даты выгрузки 1С</span>
+        </div>
+
+        <div class="param-field">
+          <label for="inpHorizon">Покрытие запаса (дней): <strong id="lblHorizon">30</strong></label>
+          <input type="range" id="inpHorizon" min="7" max="150" step="1" value="30" />
+          <span class="field-hint">На сколько дней хватит товара</span>
+        </div>
+
+        <div class="param-field">
+          <label for="inpLeadTime">Срок поставки (дней): <strong id="lblLeadTime">7</strong></label>
+          <input type="range" id="inpLeadTime" min="0" max="45" step="1" value="7" />
+          <span class="field-hint">Плечо доставки поставщика</span>
+        </div>
+
+        <div class="param-field">
+          <label for="inpSafety">Страховой запас: <strong id="lblSafety">20%</strong></label>
+          <input type="range" id="inpSafety" min="0" max="100" step="5" value="20" />
+          <span class="field-hint">Защита от всплесков спроса</span>
+        </div>
+
+        <div class="param-field">
+          <label for="selSeasonMode">Модель сезонности</label>
+          <select id="selSeasonMode">
+            <option value="hybrid">Гибридная (Группа + SKU Байес)</option>
+            <option value="group">Профиль товарной группы</option>
+            <option value="item">Индивидуально по каждому SKU</option>
+            <option value="flat">Без сезонности (простое среднее)</option>
+          </select>
+          <span class="field-hint">Учёт 37 мес. статистики</span>
+        </div>
+
+        <div class="param-field">
+          <label for="inpDecay">Вес свежих лет: <strong id="lblDecay">0.65</strong></label>
+          <input type="range" id="inpDecay" min="0.30" max="1.00" step="0.05" value="0.65" />
+          <span class="field-hint">Приоритет тренда 2026 г.</span>
+        </div>
+
+        <div class="param-field">
+          <label for="selMinDisplay">Витринный минимум (ABC A/B)</label>
+          <select id="selMinDisplay">
+            <option value="0">0 — строго по прогнозу</option>
+            <option value="1">1 ед. — держать витрину</option>
+            <option value="2">2 ед. — усиленная витрина</option>
+            <option value="3">3 ед. — полный запас полки</option>
+          </select>
+          <span class="field-hint">Для ходовых позиций</span>
+        </div>
+
+        <div class="param-field">
+          <label for="selRounding">Округление столбца 8</label>
+          <select id="selRounding">
+            <option value="nearest">Стандартное (от 0.5 ед.)</option>
+            <option value="ceil">Вверх до целого (гарантия)</option>
+            <option value="floor">Вниз до целого (экономия)</option>
+          </select>
+          <span class="field-hint">Все ед. в ведомости целые</span>
+        </div>
+
+        <div class="param-field param-checkboxes">
+          <label class="check-row">
+            <input type="checkbox" id="chkNormalizeLast" checked />
+            <span>Нормализовать неполный последний месяц</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" id="chkWriteZeros" checked />
+            <span>Записывать <code>0</code> в пустые ячейки столбца 8</span>
+          </label>
+        </div>
+
+        <div class="param-field">
+          <label for="inpHeaderName">Заголовок ячейки H7 в Excel</label>
+          <div class="inline-row">
+            <input type="text" id="inpHeaderName" value="К закупкам" />
+            <button class="btn btn-secondary btn-sm" id="btnResetParams" title="Сбросить настройки к оптимальным">Сброс</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Навигация по вкладкам -->
+    <nav class="tabs-bar" role="tablist">
+      <button class="tab-btn active" data-tab="table" role="tab">
+        Ведомость и Столбец 8 <span class="tab-counter" id="cntTabTable">0</span>
+      </button>
+      <button class="tab-btn" data-tab="seasonality" role="tab">
+        Сезонная аналитика (2023–2026)
+      </button>
+      <button class="tab-btn" data-tab="suppliers" role="tab">
+        Поставщики и склады <span class="tab-counter" id="cntTabSuppliers">0</span>
+      </button>
+    </nav>
+
+    <!-- ВКЛАДКА 1: ОСНОВНАЯ ТАБЛИЦА ВЕДОМОСТИ -->
+    <section class="tab-view active" id="view-table">
+      <div class="toolbar">
+        <div class="search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="search" id="inpSearch" placeholder="Поиск по номенклатуре, артикулу, поставщику или строке…" />
+        </div>
+
+        <select id="fltWarehouse" aria-label="Фильтр по складу">
+          <option value="">Все склады</option>
+        </select>
+
+        <select id="fltGroup" aria-label="Фильтр по группе">
+          <option value="">Все группы номенклатуры</option>
+        </select>
+
+        <select id="fltSupplier" aria-label="Фильтр по поставщику">
+          <option value="">Все поставщики</option>
+        </select>
+
+        <select id="fltABC" aria-label="ABC класс">
+          <option value="">ABC: Все</option>
+          <option value="A">Класс A (80% оборота)</option>
+          <option value="B">Класс B (15% оборота)</option>
+          <option value="C">Класс C (редкие)</option>
+          <option value="D">Класс D (0 продаж)</option>
+        </select>
+
+        <select id="fltStatus" aria-label="Статус закупки">
+          <option value="all">Показать все строки</option>
+          <option value="order">Только К закупкам &gt; 0</option>
+          <option value="critical">Красная метка 1С</option>
+          <option value="zero">Нулевой остаток</option>
+          <option value="manual">Изменённые вручную</option>
+          <option value="saved_by_season">Экономия сезонности (Меньше среднего)</option>
+          <option value="boosted_by_season">Усилено к сезону (Больше среднего)</option>
+        </select>
+
+        <button class="btn btn-ghost btn-sm hidden" id="btnClearOverrides">Сбросить ручные правки</button>
+      </div>
+
+      <div class="table-split-layout">
+        <div class="table-container">
+          <table class="data-table" id="itemsTable">
+            <thead>
+              <tr>
+                <th data-sort="excelRow" class="num-col" title="Номер строки в файле Excel">Стр.</th>
+                <th data-sort="warehouse">Склад / Группа</th>
+                <th data-sort="name">Номенклатура</th>
+                <th data-sort="abcClass" class="center-col">ABC</th>
+                <th data-sort="sumSalesLast12M" class="num-col" title="Продажи за последние 12 мес. / весь период">Прод. 12м</th>
+                <th data-sort="horizonSeasonIdx" class="num-col" title="Сезонный индекс на выбранный горизонт">Сезон</th>
+                <th data-sort="targetStock" class="num-col" title="Целевой запас на горизонт с учётом страхового запаса">Цель</th>
+                <th data-sort="closingStock" class="num-col" title="Столбец 7 (G): Конечный остаток">Остаток</th>
+                <th data-sort="finalOrderQty" class="num-col order-col-head" title="Столбец 8 (H): К закупкам — нажмите на число для ручной корректировки">Столбец 8: К закупкам ↓</th>
+                <th data-sort="purchasePrice" class="num-col">Цена зак.</th>
+                <th data-sort="orderCost" class="num-col">Сумма</th>
+                <th data-sort="supplier">Поставщик</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+
+          <footer class="pagination-bar">
+            <div id="paginationInfo">Показано 0 из 0</div>
+            <div class="pagination-controls">
+              <label>Строк:
+                <select id="selPageSize">
+                  <option value="50">50</option>
+                  <option value="100" selected>100</option>
+                  <option value="250">250</option>
+                  <option value="2000">Все</option>
+                </select>
+              </label>
+              <button class="btn btn-secondary btn-sm" id="btnPrevPage">← Назад</button>
+              <span id="lblPageNum">1 / 1</span>
+              <button class="btn btn-secondary btn-sm" id="btnNextPage">Вперёд →</button>
+            </div>
+          </footer>
+        </div>
+
+        <!-- Детальная панель сезонности выбранного товара -->
+        <aside class="inspector-drawer" id="inspectorDrawer">
+          <div class="inspector-placeholder" id="inspectorPlaceholder">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 15v-4M12 15V8M17 15v-6"/>
+            </svg>
+            <h3>Карточка сезонной статистики SKU</h3>
+            <p>Нажмите на любую строку в таблице слева, чтобы увидеть помесячный график продаж за 2023–2026 гг., сезонный индекс и подробный расчёт столбца 8.</p>
+          </div>
+          <div class="inspector-content hidden" id="inspectorContent"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ВКЛАДКА 2: СЕЗОННАЯ АНАЛИТИКА -->
+    <section class="tab-view" id="view-seasonality">
+      <div class="analytics-grid" id="seasonalityContainer"></div>
+    </section>
+
+    <!-- ВКЛАДКА 3: ПОСТАВЩИКИ И СКЛАДЫ -->
+    <section class="tab-view" id="view-suppliers">
+      <div class="warehouses-strip" id="warehousesContainer"></div>
+      <div class="card-block">
+        <div class="card-block-header">
+          <div>
+            <h3>Реестр заказов по поставщикам (Столбец 11)</h3>
+            <p class="muted">Суммы рассчитаны по столбцу 8 «К закупкам» × столбец 9 «Цена последнего поставщика». По каждому поставщику можно выгрузить персональную заявку Excel.</p>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="suppliersTable">
+            <thead>
+              <tr>
+                <th>Поставщик</th>
+                <th class="num-col">Всего SKU</th>
+                <th class="num-col">SKU к закупке</th>
+                <th class="num-col">Единиц к закупке</th>
+                <th class="num-col">Сумма закупки</th>
+                <th class="num-col">Оценка в рознице</th>
+                <th class="num-col">Доля бюджета</th>
+                <th class="right-col">Действия</th>
+              </tr>
+            </thead>
+            <tbody id="suppliersBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Модальное окно описания алгоритма -->
+  <div class="modal-backdrop hidden" id="helpModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Методика автоматического расчёта столбца 8 «К закупкам»</h2>
+        <button class="btn btn-ghost icon-only" id="btnCloseHelp">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Алгоритм рассчитывает оптимальное количество к закупке для каждой строки ведомости на основе <strong>помесячной статистики продаж (столбцы L..AV)</strong> и <strong>текущего остатка (столбец G)</strong> в 4 этапа:</p>
+        <ol class="formula-steps">
+          <li>
+            <strong>Нормализация неполного последнего месяца:</strong>
+            Из метаданных выгрузки 1С определяется дата отчёта (например, <code>19.10.2026</code> = 19 из 31 дня октября, коэффициент <code>0.613</code>), чтобы незавершённый месяц не занижал оценку осеннего спроса.
+          </li>
+          <li>
+            <strong>Групповые индексы сезонности <code>I(группа, месяц)</code>:</strong>
+            По каждой товарной группе вычисляется профиль сезонности для всех 12 месяцев года с повышенным весом свежих лет (<code>2026 &gt; 2025 &gt; 2024 &gt; 2023</code>). Например, для <em>«2 краски растворители»</em> летний пик составляет <code>×1.66</code>, ноябрь — <code>×0.47</code>, январь — <code>×0.25</code>.
+          </li>
+          <li>
+            <strong>Гибридный прогноз SKU (Empirical Bayes):</strong>
+            Для каждого товара определяется момент ввода в ассортимент, базовый очищенный от сезонности темп продаж <code>B</code> и индивидуальный профиль по одноимённым месяцам прошлых лет. Коэффициент доверия <code>θ = N / (N + K)</code> плавно объединяет личную сезонность ходового товара с надёжным сезонным профилем группы для редких позиций.
+          </li>
+          <li>
+            <strong>Посуточный расчёт на горизонт и вычитание остатка:</strong>
+            Суммируется суточный сезонный спрос на <code>Горизонт покрытия + Срок поставки</code> дней, прибавляется <code>Страховой запас %</code>, вычитается <code>Конечный остаток (столбец G)</code> и выполняется округление до целых единиц упаковки.
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

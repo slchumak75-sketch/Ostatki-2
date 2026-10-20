@@ -48,10 +48,10 @@ type WorkbookData struct {
 type SeasonMode string
 
 const (
-	SeasonHybrid     SeasonMode = "hybrid"     // Эмпирический Байес: сезонный индекс группы + индивидуальный профиль SKU
-	SeasonGroupOnly  SeasonMode = "group"      // Только сезонный индекс товарной группы
-	SeasonItemOnly   SeasonMode = "item"       // Только индивидуальная сезонность SKU по одноимённым месяцам
-	SeasonFlatSimple SeasonMode = "flat"       // Без сезонности (среднемесячный темп — для наглядного сравнения)
+	SeasonHybrid     SeasonMode = "hybrid" // Эмпирический Байес: сезонный индекс группы + индивидуальный профиль SKU
+	SeasonGroupOnly  SeasonMode = "group"  // Только сезонный индекс товарной группы
+	SeasonItemOnly   SeasonMode = "item"   // Только индивидуальная сезонность SKU по одноимённым месяцам
+	SeasonFlatSimple SeasonMode = "flat"   // Без сезонности (среднемесячный темп — для наглядного сравнения)
 )
 
 // RoundingMode определяет правило округления дробной потребности до целых единиц закупки.
@@ -63,29 +63,37 @@ const (
 	RoundFloor   RoundingMode = "floor"   // Экономное округление вниз (только полные единицы >= 1.0)
 )
 
-// ForecastParams задаёт все параметры алгоритма расчёта столбца 8 («К закупкам»).
+// ForecastParams задаёт все параметры алгоритма расчёта столбца 8 («К закупкам») в сборке «Вариант 2».
 type ForecastParams struct {
-	PlanStartDate        string       `json:"planStartDate"`        // Дата начала горизонта планирования YYYY-MM-DD (по умолч. след. день после среза отчёта)
+	PlanStartDate        string       `json:"planStartDate"`        // Дата начала горизонта планирования YYYY-MM-DD
 	NormalizePartialLast bool         `json:"normalizePartialLast"` // Нормализовать неполный последний месяц по дате выгрузки Excel
 	LastMonthDaysElapsed int          `json:"lastMonthDaysElapsed"` // Кол-во прошедших дней в последнем месяце (0 = авто из CreatedDate)
 	HorizonDays          int          `json:"horizonDays"`          // Горизонт покрытия запаса в днях (по умолч. 30)
 	LeadTimeDays         int          `json:"leadTimeDays"`         // Срок поставки в днях (по умолч. 7)
-	SafetyStockPct       float64      `json:"safetyStockPct"`       // Страховой запас в % (по умолч. 20)
+	SafetyStockPct       float64      `json:"safetyStockPct"`       // Базовый страховой запас в % (по умолч. 20)
 	SeasonMode           SeasonMode   `json:"seasonMode"`           // Режим учёта сезонности (hybrid / group / item / flat)
 	RecencyDecay         float64      `json:"recencyDecay"`         // Годовой коэффициент затухания старых лет (0.3..1.0, по умолч. 0.65)
 	ShrinkageK           float64      `json:"shrinkageK"`           // Параметр сглаживания Байеса K (по умолч. 12.0)
 	MinDisplayStock      int          `json:"minDisplayStock"`      // Витринный минимум для ходовых товаров ABC A/B (0 = выкл.)
 	Rounding             RoundingMode `json:"rounding"`             // Режим округления (nearest / ceil / floor)
-	WriteZeroValues      bool         `json:"writeZeroValues"`      // Записывать 0 в пустые ячейки столбца 8 (false = только > 0 или 0 по выбору)
+	WriteZeroValues      bool         `json:"writeZeroValues"`      // Записывать 0 в пустые ячейки столбца 8
 	ColumnHeader         string       `json:"columnHeader"`         // Текст заголовка в ячейке H7 ("К закупкам")
+
+	// Расширения «Варианта 2» (PRO SCM):
+	OutlierFilter     bool    `json:"outlierFilter"`     // Подавление разовых оптовых выбросов (Winsorization)
+	UseCrostonZ       bool    `json:"useCrostonZ"`       // Метод Croston/SBA для редких позиций класса Z
+	AdaptiveSafetySLA bool    `json:"adaptiveSafetySLA"` // Адаптивный страховой запас по матрице ABC-XYZ
+	BudgetCap         float64 `json:"budgetCap"`         // Лимит бюджета закупки в руб. (0 = без ограничения)
+	MinSupplierOrder  float64 `json:"minSupplierOrder"`  // Порог минимального заказа поставщику в руб. (для контроля рентабельности)
+	PackMultiple      int     `json:"packMultiple"`      // Минимальная кратность заказа (1 = поштучно)
 }
 
-// DefaultParams возвращает сбалансированные параметры расчёта по умолчанию.
+// DefaultParams возвращает оптимальные параметры сборки «Вариант 2» по умолчанию.
 func DefaultParams() ForecastParams {
 	return ForecastParams{
-		PlanStartDate:        "", // вычисляется автоматически от даты файла (2026-10-20)
+		PlanStartDate:        "",
 		NormalizePartialLast: true,
-		LastMonthDaysElapsed: 0, // авто = 19 дн. из метаданных 2026-10-19
+		LastMonthDaysElapsed: 0,
 		HorizonDays:          30,
 		LeadTimeDays:         7,
 		SafetyStockPct:       20.0,
@@ -96,43 +104,72 @@ func DefaultParams() ForecastParams {
 		Rounding:             RoundNearest,
 		WriteZeroValues:      true,
 		ColumnHeader:         "К закупкам",
+		OutlierFilter:        true,
+		UseCrostonZ:          true,
+		AdaptiveSafetySLA:    true,
+		BudgetCap:            0,
+		MinSupplierOrder:     50.0,
+		PackMultiple:         1,
 	}
 }
 
-// CalculatedItem содержит все расчётные показатели по одной строке ведомости.
+// MatrixCell представляет одну ячейку матрицы ABC × XYZ (3×3).
+type MatrixCell struct {
+	Code       string  `json:"code"`       // AX, AY, AZ, BX, BY, BZ, CX, CY, CZ
+	ItemCount  int     `json:"itemCount"`  // Количество SKU в сегменте
+	OrderItems int     `json:"orderItems"` // Сколько SKU заказано
+	OrderUnits int     `json:"orderUnits"` // Единиц к закупке
+	OrderCost  float64 `json:"orderCost"`  // Сумма закупки (руб.)
+}
+
+// CalculatedItem содержит все расчётные показатели «Варианта 2» по одной строке ведомости.
 type CalculatedItem struct {
 	RawItem
-	ABCClass          string     `json:"abcClass"`          // A, B, C или D (без продаж)
-	SumSalesAll       float64    `json:"sumSalesAll"`       // Сумма продаж за все 37 мес.
-	SumSalesLast12M   float64    `json:"sumSalesLast12M"`   // Продажи за последние 12 мес.
-	ActiveMonths      int        `json:"activeMonths"`      // Длительность активной истории SKU (мес.)
-	BaseMonthlyRate   float64    `json:"baseMonthlyRate"`   // Десезонализированный базовый спрос (ед./мес.)
-	HorizonSeasonIdx  float64    `json:"horizonSeasonIdx"`  // Эффективный сезонный индекс на выбранный горизонт
-	BayesWeight       float64    `json:"bayesWeight"`       // Доля индивидуальной сезонности SKU theta (0..1)
-	ForecastDemand    float64    `json:"forecastDemand"`    // Ожидаемый спрос за (HorizonDays + LeadTimeDays)
-	SafetyUnits       float64    `json:"safetyUnits"`       // Страховой запас в единицах
-	TargetStock       float64    `json:"targetStock"`       // Целевой запас на горизонт
-	AutoOrderQty      int        `json:"autoOrderQty"`      // Автоматически рассчитанное значение «К закупкам»
-	FinalOrderQty     int        `json:"finalOrderQty"`     // Итоговое «К закупкам» (с учётом ручной корректировки)
-	ManualOverride    *int       `json:"manualOverride"`    // Ручная правка пользователя (nil если авто)
-	FlatComparisonQty int        `json:"flatComparisonQty"` // Сколько было бы заказано БЕЗ учёта сезонности
-	OrderCost         float64    `json:"orderCost"`         // Сумма закупки по позиции (FinalOrderQty * PurchasePrice)
-	OrderRetailValue  float64    `json:"orderRetailValue"`  // Розничная стоимость закупаемой партии
-	DaysOfSupply      float64    `json:"daysOfSupply"`      // На сколько дней хватит текущего остатка по сезонному прогнозу
+	ABCClass          string      `json:"abcClass"`          // A, B, C или D (без продаж)
+	XYZClass          string      `json:"xyzClass"`          // X (стабильный), Y (колеблющийся), Z (эпизодический), D
+	ABCXYZ            string      `json:"abcxyz"`            // Комбинированный класс AX..CZ / DD
+	CV                float64     `json:"cv"`                // Коэффициент вариации спроса
+	NonZeroMonths     int         `json:"nonZeroMonths"`     // Месяцев с продажами > 0
+	OutlierMonths     int         `json:"outlierMonths"`     // Месяцев со сглаженными разовыми оптовыми выбросами
+	CappedSales       []float64   `json:"cappedSales"`       // Очищенный от аномалий ряд продаж
+	SumSalesAll       float64     `json:"sumSalesAll"`       // Сумма продаж за все 37 мес.
+	SumSalesLast12M   float64     `json:"sumSalesLast12M"`   // Продажи за последние 12 мес.
+	ActiveMonths      int         `json:"activeMonths"`      // Длительность активной истории SKU (мес.)
+	BaseMonthlyRate   float64     `json:"baseMonthlyRate"`   // Десезонализированный базовый спрос (ед./мес.)
+	HorizonSeasonIdx  float64     `json:"horizonSeasonIdx"`  // Эффективный сезонный индекс на выбранный горизонт
+	BayesWeight       float64     `json:"bayesWeight"`       // Доля индивидуальной сезонности SKU theta (0..1)
+	EffectiveSafety   float64     `json:"effectiveSafety"`   // Фактический % страхового запаса с учётом ABC-XYZ SLA
+	ForecastDemand    float64     `json:"forecastDemand"`    // Ожидаемый спрос за (HorizonDays + LeadTimeDays)
+	SafetyUnits       float64     `json:"safetyUnits"`       // Страховой запас в единицах
+	TargetStock       float64     `json:"targetStock"`       // Целевой запас на горизонт
+	AutoOrderQty      int         `json:"autoOrderQty"`      // Автоматически рассчитанное значение «Вариант 2»
+	FinalOrderQty     int         `json:"finalOrderQty"`     // Итоговое «К закупкам» (с учётом бюджета и ручных правок)
+	ManualOverride    *int        `json:"manualOverride"`    // Ручная правка пользователя (nil если авто)
+	Variant1OrderQty  int         `json:"variant1OrderQty"`  // Эталонный расчёт «Варианта 1» для прямого сравнения
+	DeltaFromV1       int         `json:"deltaFromV1"`       // Разница (FinalOrderQty − Variant1OrderQty)
+	FlatComparisonQty int         `json:"flatComparisonQty"` // Сколько было бы заказано БЕЗ учёта сезонности
+	BudgetTrimmedQty  int         `json:"budgetTrimmedQty"`  // Сокращено оптимизатором лимита бюджета (ед.)
+	PriorityScore     float64     `json:"priorityScore"`     // Приоритет позиции для бюджета (0..100)
+	OrderCost         float64     `json:"orderCost"`         // Сумма закупки по позиции
+	OrderRetailValue  float64     `json:"orderRetailValue"`  // Розничная стоимость закупаемой партии
+	DaysOfSupply      float64     `json:"daysOfSupply"`      // Запас текущего остатка в днях
+	IsOverstock       bool        `json:"isOverstock"`       // Признак неликвида / замороженного запаса (>365 дн.)
+	OverstockValue    float64     `json:"overstockValue"`    // Замороженный капитал сверх годовой нормы (руб.)
 	MonthlyForecast12 [12]float64 `json:"monthlyForecast12"` // Прогноз спроса SKU для каждого месяца 1..12
-	Explanation       string     `json:"explanation"`       // Человекочитаемое объяснение расчёта
+	Explanation       string      `json:"explanation"`       // Человекочитаемое объяснение расчёта
 }
 
 // GroupSeasonality описывает сезонный профиль товарной группы.
 type GroupSeasonality struct {
-	Group          string      `json:"group"`
-	ItemCount      int         `json:"itemCount"`
-	OrderItemCount int         `json:"orderItemCount"`
-	TotalUnits     int         `json:"totalUnits"`
-	TotalCost      float64     `json:"totalCost"`
-	MonthlyIndices [12]float64 `json:"monthlyIndices"` // Индексы сезонности Янв(0)..Дек(11), среднее = 1.0
-	PeriodTotals   []float64   `json:"periodTotals"`   // Фактические продажи группы по всем 37 периодам
-	HorizonIndex   float64     `json:"horizonIndex"`   // Средний индекс группы на выбранный горизонт
+	Group           string      `json:"group"`
+	ItemCount       int         `json:"itemCount"`
+	OrderItemCount  int         `json:"orderItemCount"`
+	TotalUnits      int         `json:"totalUnits"`
+	TotalCost       float64     `json:"totalCost"`
+	MonthlyIndices  [12]float64 `json:"monthlyIndices"` // Индексы сезонности Янв(0)..Дек(11), среднее = 1.0
+	PeriodTotals    []float64   `json:"periodTotals"`   // Фактические продажи группы по всем 37 периодам
+	HorizonIndex    float64     `json:"horizonIndex"`   // Средний индекс группы на выбранный горизонт
+	OverstockCost   float64     `json:"overstockCost"`  // Сумма неликвидов в группе
 }
 
 // WarehouseSummary агрегирует итоги по складу.
@@ -145,6 +182,8 @@ type WarehouseSummary struct {
 	TotalOrderQty  int     `json:"totalOrderQty"`
 	TotalOrderCost float64 `json:"totalOrderCost"`
 	TotalRetailVal float64 `json:"totalRetailVal"`
+	OverstockItems int     `json:"overstockItems"`
+	OverstockCost  float64 `json:"overstockCost"`
 }
 
 // SupplierSummary агрегирует заказ по поставщику.
@@ -156,32 +195,42 @@ type SupplierSummary struct {
 	TotalOrderCost float64 `json:"totalOrderCost"`
 	TotalRetailVal float64 `json:"totalRetailVal"`
 	ShareOfBudget  float64 `json:"shareOfBudget"`
+	BelowMinOrder  bool    `json:"belowMinOrder"` // Сумма заказа > 0, но ниже порога рентабельной доставки
 }
 
-// CalculationReport объединяет все расчёты для отдачи в UI и экспортёры.
+// CalculationReport объединяет все расчёты сборки «Вариант 2».
 type CalculationReport struct {
-	FileName            string             `json:"fileName"`
-	Title               string             `json:"title"`
-	CreatedDate         string             `json:"createdDate"`
-	EffectiveStartDate  string             `json:"effectiveStartDate"`
-	EffectiveEndDate    string             `json:"effectiveEndDate"`
-	LastMonthCompleteness float64          `json:"lastMonthCompleteness"`
-	Params              ForecastParams     `json:"params"`
-	Periods             []PeriodColumn     `json:"periods"`
-	PeriodTotals        []float64          `json:"periodTotals"`
-	TotalItems          int                `json:"totalItems"`
-	OrderItemsCount     int                `json:"orderItemsCount"`
-	ZeroStockCount      int                `json:"zeroStockCount"`
-	Critical1CCount     int                `json:"critical1CCount"`
-	ManualOverrideCount int                `json:"manualOverrideCount"`
-	TotalOrderUnits     int                `json:"totalOrderUnits"`
-	TotalOrderCost      float64            `json:"totalOrderCost"`
-	TotalRetailValue    float64            `json:"totalRetailValue"`
-	ExpectedMargin      float64            `json:"expectedMargin"`
-	FlatOrderUnits      int                `json:"flatOrderUnits"`
-	FlatOrderCost       float64            `json:"flatOrderCost"`
-	Groups              []GroupSeasonality `json:"groups"`
-	Warehouses          []WarehouseSummary `json:"warehouses"`
-	Suppliers           []SupplierSummary  `json:"suppliers"`
-	Items               []CalculatedItem   `json:"items"`
+	BuildVariant          string             `json:"buildVariant"`
+	FileName              string             `json:"fileName"`
+	Title                 string             `json:"title"`
+	CreatedDate           string             `json:"createdDate"`
+	EffectiveStartDate    string             `json:"effectiveStartDate"`
+	EffectiveEndDate      string             `json:"effectiveEndDate"`
+	LastMonthCompleteness float64            `json:"lastMonthCompleteness"`
+	Params                ForecastParams     `json:"params"`
+	Periods               []PeriodColumn     `json:"periods"`
+	PeriodTotals          []float64          `json:"periodTotals"`
+	TotalItems            int                `json:"totalItems"`
+	OrderItemsCount       int                `json:"orderItemsCount"`
+	ZeroStockCount        int                `json:"zeroStockCount"`
+	Critical1CCount       int                `json:"critical1CCount"`
+	ManualOverrideCount   int                `json:"manualOverrideCount"`
+	OutlierItemsCount     int                `json:"outlierItemsCount"`
+	OverstockItemsCount   int                `json:"overstockItemsCount"`
+	OverstockFrozenCost   float64            `json:"overstockFrozenCost"`
+	UncappedOrderCost     float64            `json:"uncappedOrderCost"`
+	BudgetTrimmedUnits    int                `json:"budgetTrimmedUnits"`
+	TotalOrderUnits       int                `json:"totalOrderUnits"`
+	TotalOrderCost        float64            `json:"totalOrderCost"`
+	TotalRetailValue      float64            `json:"totalRetailValue"`
+	ExpectedMargin        float64            `json:"expectedMargin"`
+	Variant1OrderUnits    int                `json:"variant1OrderUnits"`
+	Variant1OrderCost     float64            `json:"variant1OrderCost"`
+	FlatOrderUnits        int                `json:"flatOrderUnits"`
+	FlatOrderCost         float64            `json:"flatOrderCost"`
+	MatrixABCXYZ          [3][3]MatrixCell   `json:"matrixABCXYZ"`
+	Groups                []GroupSeasonality `json:"groups"`
+	Warehouses            []WarehouseSummary `json:"warehouses"`
+	Suppliers             []SupplierSummary  `json:"suppliers"`
+	Items                 []CalculatedItem   `json:"items"`
 }
