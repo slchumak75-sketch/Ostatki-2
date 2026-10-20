@@ -1,0 +1,14 @@
+# Сборка Go
+*.exe
+/dist/
+ostatki
+
+# Python (tools/)
+__pycache__/
+*.pyc
+.venv/
+
+# Прочее
+.DS_Store
+Thumbs.db
+*.log
