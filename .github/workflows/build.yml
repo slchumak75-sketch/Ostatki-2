@@ -1,0 +1,163 @@
+name: Сборка Windows — Вариант 1 и Вариант 2
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+      - 'variant-*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-variant-1:
+    name: Вариант 1 (сохранённая базовая сборка)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Клонирование репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Автотесты сборки «Вариант 1»
+        run: |
+          go vet ./variants/variant1/...
+          go test -v -race ./variants/variant1/...
+
+      - name: Кросс-компиляция Windows x64 — «Вариант 1»
+        run: |
+          mkdir -p "dist/Вариант 1"
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w -H=windowsgui" \
+            -o "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" ./variants/variant1/cmd/ostatki
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o "dist/Вариант 1/OstatkiZakupki_Вариант_1_cli.exe" ./variants/variant1/cmd/ostatki
+
+          cat << 'BAT1' > "dist/Вариант 1/Запустить_Вариант_1.bat"
+          @echo off
+          chcp 65001 >nul
+          start "" "%~dp0OstatkiZakupki_Вариант_1.exe"
+          BAT1
+
+          cp "Ведомость с периодом ОК (Вариант 1).xlsx" "dist/Вариант 1/"
+          cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 1/"
+
+          (cd "dist/Вариант 1" && zip -r ../Вариант_1_Windows_x64.zip .)
+
+      - name: Публикация артефакта «Вариант 1»
+        uses: actions/upload-artifact@v4
+        with:
+          name: Вариант 1
+          path: dist/Вариант 1/*
+          if-no-files-found: error
+
+      - name: Публикация релиза GitHub «Вариант 1»
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view variant-1 >/dev/null 2>&1; then
+            gh release upload variant-1 \
+              "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" \
+              "dist/Вариант_1_Windows_x64.zip" --clobber
+          else
+            gh release create variant-1 \
+              --target "${{ github.sha }}" \
+              --title "Вариант 1" \
+              --notes "Сохранённая эталонная сборка «Вариант 1» (Windows x64 GUI + CLI + заполненная ведомость 8 525,23 руб.)." \
+              "dist/Вариант 1/OstatkiZakupki_Вариант_1.exe" \
+              "dist/Вариант_1_Windows_x64.zip"
+          fi
+
+  build-variant-2:
+    name: Вариант 2 (модернизированная сборка PRO SCM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Клонирование репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Автотесты сборки «Вариант 2» (включая реальный Excel-файл)
+        run: |
+          go vet ./cmd/... ./internal/...
+          go test -v -race ./internal/...
+
+      - name: Кросс-компиляция Windows x64 — «Вариант 2»
+        run: |
+          mkdir -p "dist/Вариант 2"
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w -H=windowsgui" \
+            -o "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" ./cmd/ostatki
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o "dist/Вариант 2/OstatkiZakupki_Вариант_2_cli.exe" ./cmd/ostatki
+
+          cat << 'BAT1' > "dist/Вариант 2/Запустить_Вариант_2.bat"
+          @echo off
+          chcp 65001 >nul
+          start "" "%~dp0OstatkiZakupki_Вариант_2.exe"
+          BAT1
+
+          cat << 'BAT2' > "dist/Вариант 2/Автозаполнение_без_окна_Вариант_2.bat"
+          @echo off
+          chcp 65001 >nul
+          "%~dp0OstatkiZakupki_Вариант_2_cli.exe" -headless -inplace -orders-output "Заявки поставщикам (авторасчёт).xlsx"
+          echo.
+          pause
+          BAT2
+
+          cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 2/"
+          cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 2/"
+          cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 2/"
+
+          (cd "dist/Вариант 2" && zip -r ../Вариант_2_Windows_x64.zip .)
+
+          # Smoke-проверка пакетной обработки свежесобранным бинарником
+          go build -trimpath -ldflags="-s -w" -o dist/ostatki-v2-linux ./cmd/ostatki
+          ./dist/ostatki-v2-linux -headless -input "Ведомость с периодом ОК (1).xlsx" -output dist/verified_v2.xlsx
+
+      - name: Публикация артефакта «Вариант 2»
+        uses: actions/upload-artifact@v4
+        with:
+          name: Вариант 2
+          path: dist/Вариант 2/*
+          if-no-files-found: error
+
+      - name: Публикация релиза GitHub «Вариант 2»
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view variant-2 >/dev/null 2>&1; then
+            gh release upload variant-2 \
+              "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
+              "dist/Вариант_2_Windows_x64.zip" --clobber
+          else
+            gh release create variant-2 \
+              --target "${{ github.sha }}" \
+              --latest \
+              --title "Вариант 2" \
+              --notes "Модернизированная сборка «Вариант 2» PRO SCM: анти-выброс (Winsorization), ABC×XYZ, Croston/SBA, оптимизатор лимита бюджета, радар неликвидов и 5-листовый отчёт (7 102,89 руб. — экономия 1 422,34 руб. к Варианту 1)." \
+              "dist/Вариант 2/OstatkiZakupki_Вариант_2.exe" \
+              "dist/Вариант_2_Windows_x64.zip"
+          fi

@@ -1,0 +1,15 @@
+# Binaries & build outputs
+*.exe
+*.dll
+*.so
+*.dylib
+/ostatki
+/ostatki-server
+/dist/
+/release/
+
+# Excel temporary lock files & atomic save temps
+~$*.xlsx
+*.xlsx.tmp
+*.bak
+ostatki.log
