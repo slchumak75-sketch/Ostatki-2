@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
@@ -82,5 +83,28 @@ func TestServerAPIEndpoints(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST /api/upload code=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// 7. GET / (проверка удаления 4 полей из интерфейса)
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / code=%d", rec.Code)
+	}
+	htmlBody := rec.Body.String()
+	for _, removed := range []string{
+		"Ожидаемая розница и маржа",
+		"Горизонт планирования",
+		"Анти-выбросы и Радар неликвидов",
+		"Вес свежих лет:",
+		"inpDecay",
+		"kpiRetailValue",
+		"kpiHorizonRange",
+		"kpiOverstockVal",
+	} {
+		if strings.Contains(htmlBody, removed) {
+			t.Fatalf("HTML still contains removed element/label: %q", removed)
+		}
 	}
 }

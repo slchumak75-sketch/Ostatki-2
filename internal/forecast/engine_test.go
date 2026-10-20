@@ -9,7 +9,7 @@ import (
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 )
 
-func TestSeasonalForecastRealDatasetVariant3(t *testing.T) {
+func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 	wb, _, err := xlsx.ReadFile(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx"))
 	if err != nil {
 		t.Fatalf("failed to load workbook: %v", err)
@@ -18,8 +18,8 @@ func TestSeasonalForecastRealDatasetVariant3(t *testing.T) {
 	params := model.DefaultParams()
 	rep := forecast.Calculate(wb, params, nil)
 
-	if rep.BuildVariant != "Вариант 3" {
-		t.Fatalf("expected BuildVariant='Вариант 3', got %q", rep.BuildVariant)
+	if rep.BuildVariant != "Вариант 4" {
+		t.Fatalf("expected BuildVariant='Вариант 4', got %q", rep.BuildVariant)
 	}
 	if len(rep.Groups) != 2 {
 		t.Fatalf("expected 2 groups, got %d", len(rep.Groups))

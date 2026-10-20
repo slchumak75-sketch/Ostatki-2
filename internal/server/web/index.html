@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Остатки 2 (Вариант 3 PRO) — Автозаполнение столбца 8 «К закупкам» • ABC-XYZ • Анти-выброс</title>
+  <title>Остатки 2 (Вариант 4 PRO) — Автозаполнение столбца 8 «К закупкам» • ABC-XYZ • SBA</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M6 23V15h4v8H6zm6 0V9h4v14h-4zm6 0v-9h4v9h-4zm6 0V6h2v17h-2z' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -15,7 +15,7 @@
         <polyline points="17 8 12 3 7 8"/>
         <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
-      <h2>Отпустите файл Excel (.xlsx) для расчёта в «Варианте 3»</h2>
+      <h2>Отпустите файл Excel (.xlsx) для расчёта в «Варианте 4»</h2>
       <p>Автоматически выполнятся ABC-XYZ сегментация, очистка разовых оптовых выбросов и расчёт столбца 8 (цветовая заливка ячеек 1С игнорируется)</p>
     </div>
   </div>
@@ -30,7 +30,7 @@
       <div>
         <div class="brand-title-row">
           <h1>Остатки 2</h1>
-          <span class="badge badge-v2">Сборка: Вариант 3 • PRO SCM</span>
+          <span class="badge badge-v2">Сборка: Вариант 4 • PRO SCM</span>
           <span class="badge badge-accent">Столбец 8 • ABC-XYZ • SBA</span>
         </div>
         <div class="file-meta" id="fileMetaLine">Загрузка ведомости…</div>
@@ -52,7 +52,7 @@
         Отчёт и заявки (.xlsx)
       </button>
       <button class="btn btn-ghost" id="btnPrintOrder" title="Печатный бланк заявки на закупку (Печать / PDF)">Печать</button>
-      <button class="btn btn-ghost" id="btnHelp" title="Описание алгоритма расчёта «Варианта 3»">Алгоритм</button>
+      <button class="btn btn-ghost" id="btnHelp" title="Описание алгоритма расчёта «Варианта 4»">Алгоритм</button>
       <button class="btn btn-ghost icon-only" id="btnTheme" title="Переключить светлую / тёмную тему" aria-label="Тема">◐</button>
     </div>
   </header>
@@ -70,24 +70,9 @@
         <div class="kpi-value" id="kpiOrderCost">—</div>
         <div class="kpi-sub" id="kpiBudgetInfo">—</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Ожидаемая розница и маржа</div>
-        <div class="kpi-value" id="kpiRetailValue">—</div>
-        <div class="kpi-sub" id="kpiMarginValue">—</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Горизонт планирования</div>
-        <div class="kpi-value kpi-value-sm" id="kpiHorizonRange">—</div>
-        <div class="kpi-sub" id="kpiSeasonSummary">—</div>
-      </div>
-      <div class="kpi-card warn-border">
-        <div class="kpi-label">Анти-выбросы и Радар неликвидов</div>
-        <div class="kpi-value kpi-value-sm" id="kpiOverstockVal">—</div>
-        <div class="kpi-sub" id="kpiOutlierInfo">—</div>
-      </div>
     </section>
 
-    <!-- Панель параметров сезонного алгоритма Вариант 3 -->
+    <!-- Панель параметров сезонного алгоритма Вариант 4 -->
     <section class="params-panel" id="paramsPanel">
       <div class="params-header">
         <div class="presets-bar">
@@ -147,12 +132,6 @@
             <option value="flat">Без сезонности (плоское среднее)</option>
           </select>
           <span class="field-hint">37 мес. статистики продаж</span>
-        </div>
-
-        <div class="param-field">
-          <label for="inpDecay">Вес свежих лет: <strong id="lblDecay">0.65</strong></label>
-          <input type="range" id="inpDecay" min="0.30" max="1.00" step="0.05" value="0.65" />
-          <span class="field-hint">Приоритет тренда 2026 г.</span>
         </div>
 
         <div class="param-field">
@@ -372,7 +351,7 @@
   <div class="modal-backdrop hidden" id="helpModal">
     <div class="modal-card">
       <div class="modal-head">
-        <h2>Алгоритм расчёта «Варианта 3» (PRO SCM)</h2>
+        <h2>Алгоритм расчёта «Варианта 4» (PRO SCM)</h2>
         <button class="btn btn-ghost icon-only" id="btnCloseHelp">✕</button>
       </div>
       <div class="modal-body">
