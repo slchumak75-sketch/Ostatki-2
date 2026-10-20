@@ -900,39 +900,32 @@ html, body {
 }
 
 .seg-pill {
-  display: inline-block;
-  height: 15px;
-  line-height: 15px;
-  padding: 0 2px;
-  border-radius: 2px;
-  font-size: 10.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
   vertical-align: middle;
-  background: transparent;
-  color: inherit;
+  color: #000000 !important;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  box-sizing: border-box;
 }
 
-/* Цвета столбца «Рейтинг»:
+/* Цветные кружочки с чёрными цифрами в столбце «Рейтинг»:
    5 — ярко-зелёный, 4 — салатовый, 3 — ярко-жёлтый,
    2 — бледно-жёлтый, 1 — розовый, 0 — ярко-красный */
-.data-table td.seg-cell.seg-5,
-.seg-pill.seg-5 { background-color: #22c55e !important; color: #052e16 !important; }
-
-.data-table td.seg-cell.seg-4,
-.seg-pill.seg-4 { background-color: #a3e635 !important; color: #1a2e05 !important; }
-
-.data-table td.seg-cell.seg-3,
-.seg-pill.seg-3 { background-color: #ffeb3b !important; color: #422006 !important; }
-
-.data-table td.seg-cell.seg-2,
-.seg-pill.seg-2 { background-color: #fef9c3 !important; color: #713f12 !important; }
-
-.data-table td.seg-cell.seg-1,
-.seg-pill.seg-1 { background-color: #f9a8d4 !important; color: #831843 !important; }
-
-.data-table td.seg-cell.seg-0,
-.seg-pill.seg-0 { background-color: #ef4444 !important; color: #ffffff !important; }
+.seg-pill.seg-5 { background-color: #22c55e !important; color: #000000 !important; }
+.seg-pill.seg-4 { background-color: #a3e635 !important; color: #000000 !important; }
+.seg-pill.seg-3 { background-color: #ffeb3b !important; color: #000000 !important; }
+.seg-pill.seg-2 { background-color: #fef9c3 !important; color: #000000 !important; }
+.seg-pill.seg-1 { background-color: #f9a8d4 !important; color: #000000 !important; }
+.seg-pill.seg-0 { background-color: #ef4444 !important; color: #000000 !important; }
 
 .abc-pill {
   display: inline-block;

@@ -320,7 +320,7 @@
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
         <td class="unit-cell">шт.</td>
-        <td class="seg-cell seg-${segNum}" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${segNum}</span></td>
+        <td class="seg-cell" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${segNum}</span></td>
         <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
         <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
         <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
