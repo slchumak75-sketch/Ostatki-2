@@ -82,5 +82,5 @@ go run ./cmd/ostatki -headless \
   -orders-output "Заявки поставщикам (авторасчёт).xlsx"
 
 # Запуск веб-сервера для предпросмотра (строго на 0.0.0.0)
-go run ./cmd/ostatki -server -listen 0.0.0.0:8080 -input "Ведомость с периодом ОК (1).xlsx"
+go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с периодом ОК (1).xlsx"
 ```
