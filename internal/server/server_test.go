@@ -211,7 +211,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "font-size: 8px"} {
+	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "font-size: 8px", "td.seg-cell.seg-"} {
 		if strings.Contains(cssBody, removedCSS) {
 			t.Fatalf("styles.css still contains removed selector: %q", removedCSS)
 		}
@@ -231,6 +231,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".auto-order-row",
 		"--auto-order-bg",
 		".seg-pill",
+		"border-radius: 50%",
+		"color: #000000 !important",
 		"#22c55e",
 		"#a3e635",
 		"#ffeb3b",
