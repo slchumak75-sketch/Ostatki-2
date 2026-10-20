@@ -123,7 +123,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	groupDecay := math.Max(0.5, params.RecencyDecay)
 	groupIndices := buildGroupIndices(groupCleanTotals, periods, groupDecay)
 
-	// 2. Классификация ABC, 6-уровневая сегментация продаж (0..5), медианная наценка по группам и дневная сетка горизонта
+	// 2. Классификация ABC, 6-уровневый рейтинг продаж (0..5), медианная наценка по группам и дневная сетка горизонта
 	abcClasses := computeABCClasses(wb.Items, periods)
 	salesSegments, sumLast6List := computeSalesSegments(wb.Items, periods)
 	groupMarkup := computeGroupMedianMarkup(wb.Items)
@@ -1007,7 +1007,7 @@ func quantileSorted(sorted []float64, p float64) float64 {
 	return sorted[lo] + (sorted[hi]-sorted[lo])*frac
 }
 
-// computeSalesSegments рассчитывает 6-уровневый параметр сегментов продаж (0..5):
+// computeSalesSegments рассчитывает 6-уровневый параметр рейтинга продаж (0..5):
 //   - 0 ("0-Нет продаж") — продажи отсутствуют в течение последних 6 месяцев (sumLast6 <= 0)
 //   - 1 ("1-Низкий") .. 5 ("5-Высокий") — квинтили (20/40/60/80%) интенсивности продаж за 6 месяцев среди активных SKU
 func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn) ([]int, []float64) {

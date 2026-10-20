@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Остатки 2 (Вариант 4 PRO) — Управление закупками • Сегменты продаж • SBA</title>
+  <title>Остатки 2 (Вариант 4 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M6 23V15h4v8H6zm6 0V9h4v14h-4zm6 0v-9h4v9h-4zm6 0V6h2v17h-2z' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -16,7 +16,7 @@
         <line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
       <h2>Отпустите файл Excel (.xlsx) для расчёта в «Варианте 4»</h2>
-      <p>Автоматически выполнятся ABC-XYZ сегментация, очистка разовых оптовых выбросов и расчёт столбца 8 (цветовая заливка ячеек 1С игнорируется)</p>
+      <p>Автоматически выполнятся расчёт рейтинга продаж, очистка разовых оптовых выбросов и расчёт столбца 8 (цветовая заливка ячеек 1С игнорируется)</p>
     </div>
   </div>
 
@@ -31,7 +31,7 @@
         <div class="brand-title-row">
           <h1>Остатки 2</h1>
           <span class="badge badge-v2">Сборка: Вариант 4 • PRO SCM</span>
-          <span class="badge badge-accent">Сегменты 5..0 • SBA</span>
+          <span class="badge badge-accent">Рейтинг 5..0 • SBA</span>
         </div>
         <div class="file-meta" id="fileMetaLine">Загрузка ведомости…</div>
       </div>
@@ -201,8 +201,8 @@
           <option value="">Все поставщики</option>
         </select>
 
-        <select id="fltABCXYZ" aria-label="Сегмент продаж" title="Параметр сегментов продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
-          <option value="">Сегмент: Все</option>
+        <select id="fltABCXYZ" aria-label="Рейтинг" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+          <option value="">Рейтинг: Все</option>
           <option value="5">5-Высокий</option>
           <option value="4">4-Выше среднего</option>
           <option value="3">3-Средний</option>
@@ -231,7 +231,8 @@
               <th data-sort="group" class="grp-col">Группа</th>
               <th data-sort="sku">Артикул</th>
               <th data-sort="name" class="col-name">Номенклатура</th>
-              <th data-sort="salesSegment" class="seg-col" title="Параметр сегментов продаж: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют в течение 6 месяцев)">Сегм.</th>
+              <th data-sort="unit" class="unit-col">Ед.</th>
+              <th data-sort="salesSegment" class="seg-col" title="Рейтинг: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют в течение 6 месяцев)">Рейтинг</th>
               <th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
               <th data-sort="closingStock" class="num-col col-5digits">Остаток</th>
               <th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>
@@ -305,8 +306,8 @@
             Разовые оптовые отгрузки строительным бригадам/ЖКХ (например, строка <code>#1351 Петля гаражная</code> — разовая продажа <code>1 100 шт.</code> при обычных <code>2–18 шт./мес.</code>) автоматически сглаживаются, чтобы не раздувать розничный заказ.
           </li>
           <li>
-            <strong>Сегменты продаж (<code>5..0</code>) и метод Croston / SBA:</strong>
-            Все позиции классифицируются по интенсивности продаж на 6 сегментов: <code>5-Высокий</code>, <code>4-Выше среднего</code>, <code>3-Средний</code>, <code>2-Ниже среднего</code>, <code>1-Низкий</code> и <code>0-Нет продаж</code> (продажи отсутствуют в течение 6 месяцев). Строки номенклатуры с установленным автоматическим заказом подсвечиваются светло-салатовым цветом.
+            <strong>Рейтинг (<code>5..0</code>) и метод Croston / SBA:</strong>
+            Все позиции классифицируются по интенсивности продаж в 6-уровневый рейтинг: <code>5-Высокий</code>, <code>4-Выше среднего</code>, <code>3-Средний</code>, <code>2-Ниже среднего</code>, <code>1-Низкий</code> и <code>0-Нет продаж</code> (продажи отсутствуют в течение 6 месяцев). Строки номенклатуры с установленным автоматическим заказом подсвечиваются светло-салатовым цветом.
           </li>
           <li>
             <strong>Оптимизатор лимита бюджета и радар неликвидов:</strong>

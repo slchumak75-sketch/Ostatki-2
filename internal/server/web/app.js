@@ -291,7 +291,7 @@
       : `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)}`;
 
     if (slice.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
       return;
     }
 
@@ -301,7 +301,7 @@
       const hasAutoOrder = it.autoOrderQty > 0;
       const segNum = Number(it.salesSegment) || 0;
       const segLabel = it.salesSegmentLabel || `${segNum}-Нет продаж`;
-      const segTitle = `${segLabel} • продажи за 6 мес.: ${fmtInt(it.sumSalesLast6M)}, за 12 мес.: ${fmtInt(it.sumSalesLast12M)}`;
+      const segTitle = `Рейтинг ${segLabel} • продажи за 6 мес.: ${fmtInt(it.sumSalesLast6M)}, за 12 мес.: ${fmtInt(it.sumSalesLast12M)}`;
 
       const rowCls = [
         hasAutoOrder ? 'auto-order-row' : '',
@@ -319,7 +319,8 @@
         <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
-        <td class="seg-cell" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${esc(segLabel)}</span></td>
+        <td class="unit-cell">шт.</td>
+        <td class="seg-cell seg-${segNum}" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${esc(segLabel)}</span></td>
         <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
         <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
         <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">

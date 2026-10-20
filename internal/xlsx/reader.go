@@ -133,7 +133,6 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 	colGroup := 2
 	colSKU := 3
 	colName := 4
-	colUnit := 5
 	colExpense := 6
 	colStock := 7
 	colOrder := 8
@@ -171,8 +170,6 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 			colSKU = c
 		case h == "номенклатура":
 			colName = c
-		case strings.HasPrefix(h, "ед"):
-			colUnit = c
 		case strings.Contains(h, "расход"):
 			colExpense = c
 		case strings.Contains(h, "остаток"):
@@ -233,7 +230,7 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 			Group:         strings.TrimSpace(r.cells[colGroup].val),
 			SKU:           strings.TrimSpace(r.cells[colSKU].val),
 			Name:          name,
-			Unit:          strings.TrimSpace(r.cells[colUnit].val),
+			Unit:          "шт.",
 			TotalExpense:  ParseFlexibleFloat(r.cells[colExpense].val),
 			ClosingStock:  ParseFlexibleFloat(stockCell.val),
 			ExistingOrder: existingOrder,
