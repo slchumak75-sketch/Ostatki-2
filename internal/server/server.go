@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -199,6 +200,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/export/xlsx", s.handleExportFilledXLSX)
 	mux.HandleFunc("/api/export/orders", s.handleExportOrdersXLSX)
 	mux.HandleFunc("/api/export/supplier-order", s.handleExportSingleSupplierOrderXLSX)
+	mux.HandleFunc("/api/export/staryo", s.handleExportStaryoXLSX)
 	mux.HandleFunc("/api/heartbeat", s.handleHeartbeat)
 	mux.HandleFunc("/api/shutdown", s.handleShutdown)
 
@@ -630,6 +632,78 @@ func (s *AppServer) handleExportSingleSupplierOrderXLSX(w http.ResponseWriter, r
 	}
 
 	dlName := xlsx.FormatSupplierOrderFilename(whForName, filterSupplier, time.Now())
+	sendXLSXAttachment(w, dlName, outBytes)
+}
+
+func (s *AppServer) handleExportStaryoXLSX(w http.ResponseWriter, r *http.Request) {
+	s.touchHeartbeat()
+
+	var requestedRows []int
+	ct := r.Header.Get("Content-Type")
+	if r.Method == http.MethodPost && strings.Contains(ct, "application/json") {
+		var payload struct {
+			ExcelRows []int `json:"excelRows"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			writeError(w, http.StatusBadRequest, "некорректный список строк: "+err.Error())
+			return
+		}
+		requestedRows = payload.ExcelRows
+	} else {
+		_ = r.ParseForm()
+		rawRows := strings.TrimSpace(r.FormValue("rows"))
+		if rawRows != "" {
+			for _, part := range strings.Split(rawRows, ",") {
+				n, err := strconv.Atoi(strings.TrimSpace(part))
+				if err == nil && n > 0 {
+					requestedRows = append(requestedRows, n)
+				}
+			}
+		}
+	}
+
+	if len(requestedRows) == 0 {
+		writeError(w, http.StatusBadRequest, "не отмечено ни одной строки с символом «+»")
+		return
+	}
+
+	s.mu.RLock()
+	rep := s.report
+	s.mu.RUnlock()
+
+	if rep == nil {
+		writeError(w, http.StatusBadRequest, "нет загруженной ведомости")
+		return
+	}
+
+	byExcelRow := make(map[int]model.CalculatedItem, len(rep.Items))
+	for _, it := range rep.Items {
+		byExcelRow[it.ExcelRow] = it
+	}
+
+	seen := make(map[int]bool, len(requestedRows))
+	marked := make([]model.CalculatedItem, 0, len(requestedRows))
+	for _, rNum := range requestedRows {
+		if seen[rNum] {
+			continue
+		}
+		if it, ok := byExcelRow[rNum]; ok {
+			seen[rNum] = true
+			marked = append(marked, it)
+		}
+	}
+	if len(marked) == 0 {
+		writeError(w, http.StatusBadRequest, "выбранные строки с «+» не найдены в текущей базе")
+		return
+	}
+
+	outBytes, err := xlsx.GenerateStaryoExportXLSX(marked)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "ошибка формирования файла Старьё: "+err.Error())
+		return
+	}
+
+	dlName := fmt.Sprintf("Старьё — %s.xlsx", time.Now().Format("02.01.2006"))
 	sendXLSXAttachment(w, dlName, outBytes)
 }
 

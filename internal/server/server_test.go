@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -334,19 +335,21 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
 	}
-	// Проверка размещения «Бюджет закупки», «Очистить базу», «Старьё выгрузка» и «Старьё» (слева от «Печать») на верхней плашке (<header class="topbar">)
-	budgetCardIdx := strings.Index(htmlBody, `id="budgetInlineCard"`)
+	// Проверка размещения «Очистить базу», «Старьё выгрузка» (disabled по умолчанию), «Старьё», «Активно» (справа от «Старьё»), «Печать» и «Бюджет закупки» в правом углу (<header class="topbar">)
 	uploadIdx := strings.Index(htmlBody, `id="btnUpload"`)
 	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
-	oldExportIdx := strings.Index(htmlBody, `Старьё выгрузка`)
+	oldExportIdx := strings.Index(htmlBody, `id="btnDownloadOrders" type="button" disabled`)
 	staryoBtnIdx := strings.Index(htmlBody, `>Старьё</button>`)
+	activeBtnIdx := strings.Index(htmlBody, `id="btnActiveFilter"`)
 	printBtnIdx := strings.Index(htmlBody, `id="btnPrintOrder"`)
+	themeBtnIdx := strings.Index(htmlBody, `id="btnTheme"`)
+	budgetCardIdx := strings.Index(htmlBody, `id="budgetInlineCard"`)
 	headerEndIdx := strings.Index(htmlBody, `</header>`)
-	if !(budgetCardIdx > 0 && uploadIdx > 0 && clearIdx > uploadIdx && headerEndIdx > budgetCardIdx && headerEndIdx > clearIdx) {
-		t.Fatalf("expected budgetInlineCard and btnClearDatabase in topbar before </header>, got budget=%d upload=%d clear=%d headerEnd=%d", budgetCardIdx, uploadIdx, clearIdx, headerEndIdx)
+	if !(uploadIdx > 0 && clearIdx > uploadIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && headerEndIdx > budgetCardIdx) {
+		t.Fatalf("expected budgetInlineCard in the right corner of topbar after buttons before </header>, got upload=%d clear=%d theme=%d budget=%d headerEnd=%d", uploadIdx, clearIdx, themeBtnIdx, budgetCardIdx, headerEndIdx)
 	}
-	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && printBtnIdx > staryoBtnIdx && headerEndIdx > printBtnIdx) {
-		t.Fatalf("expected button sequence Старьё выгрузка -> Старьё -> Печать inside topbar, got export=%d staryo=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, printBtnIdx, headerEndIdx)
+	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && activeBtnIdx > staryoBtnIdx && printBtnIdx > activeBtnIdx && headerEndIdx > printBtnIdx) {
+		t.Fatalf("expected button sequence Старьё выгрузка (disabled) -> Старьё -> Активно -> Печать inside topbar, got export=%d staryo=%d active=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, activeBtnIdx, printBtnIdx, headerEndIdx)
 	}
 
 	// Проверка столбца «+» строго между столбцами «Группа» и «Артикул»
@@ -413,6 +416,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"--sticky-toolbar-top",
 		"--sticky-table-head-top",
 		".budget-inline-card",
+		"#itemsTable:not(.show-plus-col) th.plus-col",
+		".plus-input",
+		"width: 20px",
+		"height: 20px",
 		".rating-chart-popover",
 		".btn-beige",
 		".btn-neutral",
@@ -606,6 +613,59 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 	_ = zr.Close()
 	if err != nil || !strings.Contains(string(decompressed), `"hasWorkbook":true`) {
 		t.Fatalf("invalid gzip payload, err=%v", err)
+	}
+
+	// 2.5 Проверка выгрузки «Старьё выгрузка» (/api/export/staryo):
+	// только строки с внесённым символом «+» и строго 5 столбцов (+, Артикул, Номенклатура, Цена, Розница)
+	var envCheck struct {
+		Report *model.CalculationReport `json:"report"`
+	}
+	if err := json.Unmarshal(decompressed, &envCheck); err != nil || envCheck.Report == nil || len(envCheck.Report.Items) < 3 {
+		t.Fatalf("failed to decode state report items: %v", err)
+	}
+	rA := envCheck.Report.Items[0]
+	rB := envCheck.Report.Items[2]
+	staryoReqBody := fmt.Sprintf("rows=%d,%d", rA.ExcelRow, rB.ExcelRow)
+	staryoReq := httptest.NewRequest(http.MethodPost, "/api/export/staryo", strings.NewReader(staryoReqBody))
+	staryoReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	staryoRec := httptest.NewRecorder()
+	h.ServeHTTP(staryoRec, staryoReq)
+	if staryoRec.Code != http.StatusOK {
+		t.Fatalf("POST /api/export/staryo failed: %d body=%s", staryoRec.Code, staryoRec.Body.String())
+	}
+	zrStaryo, err := zip.NewReader(bytes.NewReader(staryoRec.Body.Bytes()), int64(staryoRec.Body.Len()))
+	if err != nil {
+		t.Fatalf("open exported staryo xlsx zip failed: %v", err)
+	}
+	var sheetXML string
+	for _, f := range zrStaryo.File {
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatalf("open sheet1.xml: %v", err)
+			}
+			b, _ := io.ReadAll(rc)
+			_ = rc.Close()
+			sheetXML = string(b)
+		}
+	}
+	for _, wantHeader := range []string{
+		`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">+</t></is></c>`,
+		`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
+		`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
+		`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Цена</t></is></c>`,
+		`<c r="E1" s="1" t="inlineStr"><is><t xml:space="preserve">Розница</t></is></c>`,
+	} {
+		if !strings.Contains(sheetXML, wantHeader) {
+			t.Fatalf("staryo sheet1.xml missing header %s\ngot: %s", wantHeader, sheetXML)
+		}
+	}
+	if rowTags := strings.Count(sheetXML, `<row r="`); rowTags != 3 {
+		t.Fatalf("expected 1 header row + 2 marked '+' rows = 3 rows, got %d", rowTags)
+	}
+	if !strings.Contains(sheetXML, `<c r="A2" s="4" t="inlineStr"><is><t xml:space="preserve">+</t></is></c>`) ||
+		!strings.Contains(sheetXML, `<c r="A3" s="4" t="inlineStr"><is><t xml:space="preserve">+</t></is></c>`) {
+		t.Fatalf("expected '+' symbol in column A for exported rows, got: %s", sheetXML)
 	}
 
 	// 3. Проверка скорости параллельного расчёта на большой базе: 30 000 SKU × 37 мес. (1 110 000 ячеек)

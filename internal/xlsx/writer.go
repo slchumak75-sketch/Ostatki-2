@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -864,4 +865,141 @@ func inlineStrCell(ref string, style int, text string) string {
 func numCell(ref string, style int, val float64) string {
 	formatted := strconv.FormatFloat(val, 'f', -1, 64)
 	return fmt.Sprintf(`<c r="%s" s="%d"><v>%s</v></c>`, ref, style, formatted)
+}
+
+func emptyStyledCell(ref string, style int) string {
+	return fmt.Sprintf(`<c r="%s" s="%d"/>`, ref, style)
+}
+
+// GenerateStaryoExportXLSX формирует однолистовый Excel-файл «Старьё» без заливки
+// со строго 5 столбцами: «+», «Артикул», «Номенклатура», «Цена», «Розница»
+// только по позициям, в которых пользователем внесён символ «+».
+func GenerateStaryoExportXLSX(markedItems []model.CalculatedItem) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	addFile := func(name, content string) error {
+		w, err := zw.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte(content))
+		return err
+	}
+
+	if err := addFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Старьё" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`); err != nil {
+		return nil, err
+	}
+
+	if err := addFile("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1">
+    <numFmt numFmtId="164" formatCode="#,##0.00"/>
+  </numFmts>
+  <fonts count="2">
+    <font><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="2">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border>
+      <left style="thin"><color rgb="FFCBD5E1"/></left>
+      <right style="thin"><color rgb="FFCBD5E1"/></right>
+      <top style="thin"><color rgb="FFCBD5E1"/></top>
+      <bottom style="thin"><color rgb="FFCBD5E1"/></bottom>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="5">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+    <xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`); err != nil {
+		return nil, err
+	}
+
+	var s1 strings.Builder
+	s1.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols>
+  <col min="1" max="1" width="6" customWidth="1"/>
+  <col min="2" max="2" width="18" customWidth="1"/>
+  <col min="3" max="3" width="56" customWidth="1"/>
+  <col min="4" max="4" width="14" customWidth="1"/>
+  <col min="5" max="5" width="14" customWidth="1"/>
+</cols><sheetData>`)
+
+	s1.WriteString(`<row r="1" ht="24" customHeight="1">`)
+	for i, h := range []string{"+", "Артикул", "Номенклатура", "Цена", "Розница"} {
+		s1.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
+	}
+	s1.WriteString(`</row>`)
+
+	for idx, it := range markedItems {
+		rs := strconv.Itoa(idx + 2)
+		s1.WriteString(`<row r="` + rs + `" ht="20" customHeight="1">`)
+		s1.WriteString(inlineStrCell("A"+rs, 4, "+"))
+		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
+		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
+		s1.WriteString(numCell("D"+rs, 3, math.Round(it.PurchasePrice*100)/100))
+		if it.RetailPrice > 0 || strings.TrimSpace(it.RetailRaw) != "" {
+			s1.WriteString(numCell("E"+rs, 3, math.Round(it.RetailPrice*100)/100))
+		} else {
+			s1.WriteString(emptyStyledCell("E"+rs, 3))
+		}
+		s1.WriteString(`</row>`)
+	}
+	s1.WriteString(`</sheetData>`)
+	if len(markedItems) > 0 {
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:E%d"/>`, len(markedItems)+1))
+	}
+	s1.WriteString(`</worksheet>`)
+	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {
+		return nil, err
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
