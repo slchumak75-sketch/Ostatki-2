@@ -274,6 +274,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"twomonths",
 		"btn-primary",
 		"btn-success",
+		"kpiBudgetInfo",
+		"Отчёт и заявки",
+		"Алгоритм",
+		"helpModal",
 		"сегмент",
 		"Сегмент",
 		"сегм.",
@@ -330,12 +334,27 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
 	}
-	// Проверка размещения кнопки «Очистить базу» на верхней плашке (<header class="topbar">) рядом с «Загрузить .xlsx»
+	// Проверка размещения «Бюджет закупки», «Очистить базу», «Старьё выгрузка» и «Старьё» (слева от «Печать») на верхней плашке (<header class="topbar">)
+	budgetCardIdx := strings.Index(htmlBody, `id="budgetInlineCard"`)
 	uploadIdx := strings.Index(htmlBody, `id="btnUpload"`)
 	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
+	oldExportIdx := strings.Index(htmlBody, `Старьё выгрузка`)
+	staryoBtnIdx := strings.Index(htmlBody, `>Старьё</button>`)
+	printBtnIdx := strings.Index(htmlBody, `id="btnPrintOrder"`)
 	headerEndIdx := strings.Index(htmlBody, `</header>`)
-	if !(uploadIdx > 0 && clearIdx > uploadIdx && headerEndIdx > clearIdx) {
-		t.Fatalf("expected btnClearDatabase in topbar right after btnUpload before </header>, got upload=%d clear=%d headerEnd=%d", uploadIdx, clearIdx, headerEndIdx)
+	if !(budgetCardIdx > 0 && uploadIdx > 0 && clearIdx > uploadIdx && headerEndIdx > budgetCardIdx && headerEndIdx > clearIdx) {
+		t.Fatalf("expected budgetInlineCard and btnClearDatabase in topbar before </header>, got budget=%d upload=%d clear=%d headerEnd=%d", budgetCardIdx, uploadIdx, clearIdx, headerEndIdx)
+	}
+	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && printBtnIdx > staryoBtnIdx && headerEndIdx > printBtnIdx) {
+		t.Fatalf("expected button sequence Старьё выгрузка -> Старьё -> Печать inside topbar, got export=%d staryo=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, printBtnIdx, headerEndIdx)
+	}
+
+	// Проверка столбца «+» строго между столбцами «Группа» и «Артикул»
+	groupColIdx := strings.Index(htmlBody, `<th data-sort="group" class="grp-col">Группа</th>`)
+	plusColIdx := strings.Index(htmlBody, `<th class="plus-col">+</th>`)
+	skuColIdx := strings.Index(htmlBody, `<th data-sort="sku">Артикул</th>`)
+	if !(groupColIdx > 0 && plusColIdx > groupColIdx && skuColIdx > plusColIdx) {
+		t.Fatalf("expected column order Группа -> + -> Артикул, got indices %d, %d, %d", groupColIdx, plusColIdx, skuColIdx)
 	}
 
 	// Проверка порядка столбцов: Номенклатура -> Ед. -> Рейтинг, а также Цена -> Розница -> Сумма
@@ -439,6 +458,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"selPageSize",
 		"twomonths",
 		"btnClearOverrides",
+		"kpiBudgetInfo",
+		"helpModal",
+		"btnCloseHelp",
 		"zeroSuppliers",
 		"restoreSuppliers",
 		"btnZeroCheckedSuppliers",

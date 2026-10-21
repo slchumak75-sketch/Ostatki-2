@@ -394,13 +394,12 @@
 
     if (el('fileMetaLine')) el('fileMetaLine').textContent = 'База очищена • Загрузите файл Ведомости (.xlsx) для расчёта';
     if (el('kpiOrderCost')) el('kpiOrderCost').textContent = '0,00 руб.';
-    if (el('kpiBudgetInfo')) el('kpiBudgetInfo').textContent = 'База пуста';
     if (el('cntTabTable')) el('cntTabTable').textContent = '0';
     if (el('cntTabSuppliers')) el('cntTabSuppliers').textContent = '0';
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
     if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
     if (el('tableBody')) {
-      el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+      el('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
     }
     if (el('tableFoot')) el('tableFoot').innerHTML = '';
     if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
@@ -631,16 +630,6 @@
     el('kpiOrderCost').textContent = `${fmtMoney(checkedBudget)} руб.`;
 
     const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && isSupplierChecked(s.supplier));
-    const uniqueCheckedCount = state.checkedSuppliers.size;
-
-    if (uniqueCheckedCount === 0) {
-      el('kpiBudgetInfo').textContent = `Отметьте галочками поставщиков в «Все поставщики»`;
-    } else if (isFiltered) {
-      el('kpiBudgetInfo').textContent = `По фильтру • Отмечено поставщиков: ${uniqueCheckedCount}`;
-    } else {
-      el('kpiBudgetInfo').textContent = `Отмечено поставщиков: ${uniqueCheckedCount} • Готовы к отправке: ${readyRows.length}`;
-    }
-
     el('cntTabSuppliers').textContent = readyRows.length;
     el('cntTabOverstock').textContent = rep.overstockItemsCount;
   }
@@ -730,7 +719,7 @@
 
     if (tfoot) {
       tfoot.innerHTML = `<tr>
-        <td colspan="8" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
+        <td colspan="9" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
         <td class="num-col col-5digits" style="color:var(--primary)">${fmtInt(orderUnits)}</td>
         <td class="num-col"></td>
         <td class="num-col"></td>
@@ -761,6 +750,7 @@
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
       <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
+      <td class="plus-cell"></td>
       <td class="sku-cell">${esc(it.sku)}</td>
       <td class="name-cell">${esc(it.name)}</td>
       <td class="unit-cell">шт.</td>
@@ -838,13 +828,13 @@
 
       const parts = [];
       if (topPx > 0) {
-        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="13" style="height:${topPx}px"></td></tr>`);
+        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="14" style="height:${topPx}px"></td></tr>`);
       }
       for (let i = start; i < end; i++) {
         parts.push(buildTableRowHTML(slice[i]));
       }
       if (bottomPx > 0) {
-        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="13" style="height:${bottomPx}px"></td></tr>`);
+        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="14" style="height:${bottomPx}px"></td></tr>`);
       }
       tbody.innerHTML = parts.join('');
 
@@ -884,7 +874,7 @@
     if (slice.length === 0) {
       state.vStart = 0;
       state.vEnd = 0;
-      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
       return;
     }
 
@@ -1945,20 +1935,9 @@
       window.location.href = 'api/export/xlsx';
     });
 
-    el('btnDownloadOrders').addEventListener('click', async () => {
-      if (state.checkedSuppliers.size === 0) {
-        showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
-        return;
-      }
-      await syncSelectedSuppliersToServer();
-      const wh = el('fltWarehouse').value;
-      const sup = el('fltSupplier').value;
-      const qs = new URLSearchParams();
-      if (wh) qs.set('warehouse', wh);
-      if (sup && sup !== '(Поставщик не указан)') qs.set('supplier', sup);
-      const qStr = qs.toString();
-      window.location.href = qStr ? `api/export/orders?${qStr}` : 'api/export/orders';
-    });
+    // Кнопки «Старьё выгрузка» и «Старьё» очищены от прежнего функционала
+    el('btnDownloadOrders').addEventListener('click', () => {});
+    el('btnHelp').addEventListener('click', () => {});
 
     el('btnPrintOrder').addEventListener('click', () => {
       el('fltStatus').value = 'order';
@@ -1999,12 +1978,6 @@
       el('dropOverlay').classList.add('hidden');
       const f = e.dataTransfer?.files?.[0];
       if (f) uploadExcelFile(f);
-    });
-
-    el('btnHelp').addEventListener('click', () => el('helpModal').classList.remove('hidden'));
-    el('btnCloseHelp').addEventListener('click', () => el('helpModal').classList.add('hidden'));
-    el('helpModal').addEventListener('click', (e) => {
-      if (e.target === el('helpModal')) el('helpModal').classList.add('hidden');
     });
 
     const savedTheme = localStorage.getItem('ostatki2_theme');
@@ -2119,7 +2092,7 @@
           e.preventDefault();
           e.stopPropagation();
 
-          const initialWidths = ths.map((h) => Math.max(44, Math.round(h.getBoundingClientRect().width)));
+          const initialWidths = ths.map((h) => Math.max(24, Math.round(h.getBoundingClientRect().width)));
           let colgroup = table.querySelector('colgroup');
           if (!colgroup) {
             colgroup = document.createElement('colgroup');
@@ -2145,7 +2118,7 @@
 
           const onMouseMove = (moveEv) => {
             const delta = moveEv.clientX - startX;
-            const nextWidth = Math.max(44, Math.round(startWidth + delta));
+            const nextWidth = Math.max(24, Math.round(startWidth + delta));
             currentWidths[colIdx] = nextWidth;
             cols[colIdx].style.width = `${nextWidth}px`;
             ths[colIdx].style.width = `${nextWidth}px`;
