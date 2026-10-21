@@ -168,6 +168,40 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/upload code=%d body=%s", rec.Code, rec.Body.String())
 	}
 
+	// 6b. POST /api/override — пакетное обнуление и возврат авторасчёта по избранным поставщикам
+	req = httptest.NewRequest(http.MethodPost, "/api/override",
+		bytes.NewReader([]byte(`{"zeroSuppliers":["ООО \"СИСТЕМА ООО\"","ООО \"ТД Комплект\""]}`)))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/override zeroSuppliers code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var zeroSupEnv struct {
+		Report *struct {
+			TotalOrderCost float64                `json:"totalOrderCost"`
+			Items          []model.CalculatedItem `json:"items"`
+		} `json:"report"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &zeroSupEnv); err != nil || zeroSupEnv.Report == nil {
+		t.Fatalf("unmarshal zeroSuppliers response failed: %v", err)
+	}
+	for _, it := range zeroSupEnv.Report.Items {
+		if it.Supplier == `ООО "СИСТЕМА ООО"` || it.Supplier == `ООО "ТД Комплект"` {
+			if it.FinalOrderQty != 0 || math.Abs(it.OrderCost) > 1e-6 {
+				t.Fatalf("expected zeroed order for %s row %d, got qty=%d cost=%.2f",
+					it.Supplier, it.ExcelRow, it.FinalOrderQty, it.OrderCost)
+			}
+		}
+	}
+	// Возвращаем авторасчёт тем же поставщикам
+	req = httptest.NewRequest(http.MethodPost, "/api/override",
+		bytes.NewReader([]byte(`{"restoreSuppliers":["ООО \"СИСТЕМА ООО\"","ООО \"ТД Комплект\""]}`)))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/override restoreSuppliers code=%d body=%s", rec.Code, rec.Body.String())
+	}
+
 	// 7. GET /, GET /styles.css и GET /app.js (проверка UI-структуры, колонок и удалённых панелей)
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = httptest.NewRecorder()
@@ -405,6 +439,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"recomputeReportSummaries",
 		"renderTableFooter",
 		"updateRowSumLive",
+		"initColumnResizers",
+		"zeroSuppliers",
+		"restoreSuppliers",
+		"btnZeroCheckedSuppliers",
+		"inpSearchSku",
 		"api/clear",
 		"ovFltWarehouse",
 		"ovFltName",
@@ -421,6 +460,31 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
 		}
 	}
+	// Проверка строгого порядка 7 полей горизонтальной плашки над таблицей «Ведомость»:
+	// Все склады -> Все группы -> Поиск артикул -> Поиск по номенклатуре -> Рейтинг все -> Все поставщики -> Показать все строки
+	toolbarStart := strings.Index(htmlBody, `<div class="toolbar">`)
+	if toolbarStart < 0 {
+		t.Fatalf("missing <div class=\"toolbar\"> in index.html")
+	}
+	toolbarChunk := htmlBody[toolbarStart:]
+	orderedToolbarTokens := []string{
+		`id="fltWarehouse"`,
+		`id="fltGroup"`,
+		`id="inpSearchSku"`,
+		`id="inpSearch"`,
+		`id="fltABCXYZ"`,
+		`id="supplierDropdown"`,
+		`id="fltStatus"`,
+	}
+	prevPos := -1
+	for _, tok := range orderedToolbarTokens {
+		pos := strings.Index(toolbarChunk, tok)
+		if pos < 0 || pos <= prevPos {
+			t.Fatalf("toolbar field %s missing or out of expected sequence (pos=%d prev=%d)", tok, pos, prevPos)
+		}
+		prevPos = pos
+	}
+
 	// Проверка, что во вкладке «Радар неликвидов» столбец «Продажи» стоит перед «Остаток»
 	ovStart := strings.Index(jsBody, "function renderOverstockView")
 	ovChunk := jsBody[ovStart:]

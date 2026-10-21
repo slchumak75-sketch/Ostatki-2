@@ -240,6 +240,14 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			groupWeightedIdxSum += gIdx[st.monthIdx]
 		}
 
+		// Мягкая корректировка алгоритма «Подготовка к весне (Март–Апр)» в меньшую сторону:
+		// при заблаговременном предсезонном планировании на март–апрель демпфируем
+		// прогнозный спрос коэффициентом 0.80, исключая перезатарку на старте сезона.
+		if strings.TrimSpace(params.PlanStartDate) != "" &&
+			(startDate.Month() == time.March || startDate.Month() == time.April) {
+			demand *= 0.80
+		}
+
 		effSeasonIdx := 1.0
 		if baseRate > 1e-9 && totalSpanDays > 0 {
 			avgDailyDemand := demand / float64(totalSpanDays)
