@@ -2,7 +2,10 @@ package server_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"fmt"
+	"io"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -11,8 +14,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/server"
 )
@@ -534,5 +540,145 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	if !strings.Contains(htmlBody, `id="btnFullscreen"`) || !strings.Contains(htmlBody, `id="btnCloseApp"`) {
 		t.Fatalf("HTML missing fullscreen/close window controls")
+	}
+}
+
+func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
+	app := server.New(false)
+	repoFile := filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx")
+	if err := app.LoadWorkbookFromPath(repoFile); err != nil {
+		t.Fatalf("LoadWorkbookFromPath: %v", err)
+	}
+	h := app.Handler()
+
+	// 1. Проверка строгих анти-кэш заголовков на статических файлах UI
+	for _, assetPath := range []string{"/", "/app.js", "/styles.css"} {
+		req := httptest.NewRequest(http.MethodGet, assetPath, nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s failed: %d", assetPath, rec.Code)
+		}
+		cc := rec.Header().Get("Cache-Control")
+		if !strings.Contains(cc, "no-store") {
+			t.Fatalf("GET %s missing Cache-Control no-store, got %q", assetPath, cc)
+		}
+	}
+
+	// 2. Проверка прозрачного gzip-сжатия для ускорения передачи больших баз
+	gzReq := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	gzReq.Header.Set("Accept-Encoding", "gzip")
+	gzRec := httptest.NewRecorder()
+	h.ServeHTTP(gzRec, gzReq)
+	if gzRec.Code != http.StatusOK {
+		t.Fatalf("gzip GET /api/state failed: %d", gzRec.Code)
+	}
+	if gzRec.Header().Get("Content-Encoding") != "gzip" {
+		t.Fatalf("expected Content-Encoding: gzip, got %q", gzRec.Header().Get("Content-Encoding"))
+	}
+	zr, err := gzip.NewReader(gzRec.Body)
+	if err != nil {
+		t.Fatalf("gzip reader failed: %v", err)
+	}
+	decompressed, err := io.ReadAll(zr)
+	_ = zr.Close()
+	if err != nil || !strings.Contains(string(decompressed), `"hasWorkbook":true`) {
+		t.Fatalf("invalid gzip payload, err=%v", err)
+	}
+
+	// 3. Проверка скорости параллельного расчёта на большой базе: 30 000 SKU × 37 мес. (1 110 000 ячеек)
+	const nItems = 30000
+	const nMonths = 37
+	periods := make([]model.PeriodColumn, nMonths)
+	for m := 0; m < nMonths; m++ {
+		yr := 2023 + m/12
+		mo := (m % 12) + 1
+		periods[m] = model.PeriodColumn{
+			ColIndex: 12 + m,
+			Label:    fmt.Sprintf("%02d.%d", mo, yr),
+			Year:     yr,
+			Month:    mo,
+		}
+	}
+	salesPool := make([]float64, nItems*nMonths)
+	items := make([]model.RawItem, nItems)
+	for i := 0; i < nItems; i++ {
+		ms := salesPool[i*nMonths : (i+1)*nMonths : (i+1)*nMonths]
+		for m := 0; m < nMonths; m++ {
+			v := float64((i*7+m*13)%9) * 1.5
+			if m == 14 && i%40 == 0 {
+				v = 450 // оптовый выброс для проверки параллельной Winsorization
+			}
+			ms[m] = v
+		}
+		items[i] = model.RawItem{
+			ExcelRow:      10 + i,
+			Warehouse:     fmt.Sprintf("Склад %d", (i%4)+1),
+			Group:         fmt.Sprintf("Группа %d", (i%25)+1),
+			SKU:           fmt.Sprintf("SKU-%06d", i+1),
+			Name:          fmt.Sprintf("Номенклатура позиция №%d", i+1),
+			Unit:          "шт.",
+			ClosingStock:  float64(i % 15),
+			PurchasePrice: 120.50 + float64(i%70),
+			RetailPrice:   195.00 + float64(i%70)*1.5,
+			Supplier:      fmt.Sprintf("Поставщик %d", (i%35)+1),
+			MonthlySales:  ms,
+		}
+	}
+	largeWB := &model.WorkbookData{
+		FileName:  "Большая_база_30000.xlsx",
+		HeaderRow: 8,
+		OrderCol:  8,
+		Periods:   periods,
+		Items:     items,
+	}
+
+	t0 := time.Now()
+	largeRep := forecast.Calculate(largeWB, model.DefaultParams(), nil)
+	calcDur := time.Since(t0)
+	t.Logf("30,000 SKU x 37 months (1,110,000 sales cells) parallel calculation took %v (orderUnits=%d, orderCost=%.2f)", calcDur, largeRep.TotalOrderUnits, largeRep.TotalOrderCost)
+	if largeRep.TotalItems != nItems || largeRep.TotalOrderUnits <= 0 {
+		t.Fatalf("unexpected large report totals: items=%d units=%d", largeRep.TotalItems, largeRep.TotalOrderUnits)
+	}
+
+	// 4. Гонка: параллельные запросы /api/params и /api/override во время нажатия «Очистить базу» (/api/clear)
+	var wg sync.WaitGroup
+	for w := 0; w < 6; w++ {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			pBody, _ := json.Marshal(model.DefaultParams())
+			r1 := httptest.NewRequest(http.MethodPost, "/api/params", bytes.NewReader(pBody))
+			w1 := httptest.NewRecorder()
+			h.ServeHTTP(w1, r1)
+
+			oBody := []byte(fmt.Sprintf(`{"excelRow":%d,"value":15}`, 15+worker))
+			r2 := httptest.NewRequest(http.MethodPost, "/api/override", bytes.NewReader(oBody))
+			w2 := httptest.NewRecorder()
+			h.ServeHTTP(w2, r2)
+		}(w)
+	}
+	time.Sleep(2 * time.Millisecond)
+	clearReq := httptest.NewRequest(http.MethodPost, "/api/clear", strings.NewReader("{}"))
+	clearRec := httptest.NewRecorder()
+	h.ServeHTTP(clearRec, clearReq)
+	if clearRec.Code != http.StatusOK {
+		t.Fatalf("POST /api/clear failed: %d", clearRec.Code)
+	}
+	wg.Wait()
+
+	// Финальный контрольный вызов GET /api/clear и проверка, что база гарантированно пуста
+	clearGetReq := httptest.NewRequest(http.MethodGet, "/api/clear", nil)
+	clearGetRec := httptest.NewRecorder()
+	h.ServeHTTP(clearGetRec, clearGetReq)
+	if clearGetRec.Code != http.StatusOK {
+		t.Fatalf("GET /api/clear failed: %d", clearGetRec.Code)
+	}
+
+	stReq := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	stRec := httptest.NewRecorder()
+	h.ServeHTTP(stRec, stReq)
+	if !strings.Contains(stRec.Body.String(), `"hasWorkbook":false`) {
+		t.Fatalf("expected database to be cleared, got: %s", stRec.Body.String())
 	}
 }

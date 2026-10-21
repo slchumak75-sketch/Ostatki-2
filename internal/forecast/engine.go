@@ -3,8 +3,10 @@ package forecast
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
@@ -86,18 +88,49 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	endDate := startDate.AddDate(0, 0, totalSpanDays-1)
 
 	// Предварительная очистка рядов от разовых оптовых выбросов (Winsorization)
+	// Параллельно на всех ядрах CPU для больших баз (10 000 – 100 000+ SKU)
 	nItems := len(wb.Items)
 	cleanedSeries := make([][]float64, nItems)
 	outlierCounts := make([]int, nItems)
-	for i, it := range wb.Items {
-		if params.OutlierFilter {
-			cleanedSeries[i], outlierCounts[i] = winsorizeItemSales(it.MonthlySales)
-		} else {
-			cp := make([]float64, len(it.MonthlySales))
-			copy(cp, it.MonthlySales)
-			cleanedSeries[i] = cp
-		}
+	workers := max(1, runtime.GOMAXPROCS(0))
+	if nItems < 512 {
+		workers = 1
 	}
+
+	runParallel := func(fn func(from, to int)) {
+		if workers <= 1 || nItems == 0 {
+			fn(0, nItems)
+			return
+		}
+		chunk := (nItems + workers - 1) / workers
+		var wg sync.WaitGroup
+		for w := 0; w < workers; w++ {
+			from := w * chunk
+			if from >= nItems {
+				break
+			}
+			to := min(nItems, from+chunk)
+			wg.Add(1)
+			go func(f, t int) {
+				defer wg.Done()
+				fn(f, t)
+			}(from, to)
+		}
+		wg.Wait()
+	}
+
+	runParallel(func(from, to int) {
+		for i := from; i < to; i++ {
+			it := &wb.Items[i]
+			if params.OutlierFilter {
+				cleanedSeries[i], outlierCounts[i] = winsorizeItemSales(it.MonthlySales)
+			} else {
+				cp := make([]float64, len(it.MonthlySales))
+				copy(cp, it.MonthlySales)
+				cleanedSeries[i] = cp
+			}
+		}
+	})
 
 	// 1. Расчёт очищенных сезонных индексов групп
 	periodTotals := make([]float64, T)
@@ -165,228 +198,236 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		}
 	}
 
-	for i, item := range wb.Items {
-		rawSales := item.MonthlySales
-		cleanSales := cleanedSeries[i]
-		gIdx := groupIndices[item.Group]
+	runParallel(func(from, to int) {
+		for i := from; i < to; i++ {
+			item := wb.Items[i]
+			rawSales := item.MonthlySales
+			cleanSales := cleanedSeries[i]
+			gIdx := groupIndices[item.Group]
 
+			sumAll := 0.0
+			sumLast12 := 0.0
+			firstNZ := -1
+			nzMonths := 0
+			for idx := 0; idx < T && idx < len(rawSales); idx++ {
+				v := rawSales[idx]
+				sumAll += v
+				if idx >= T-12 {
+					sumLast12 += v
+				}
+				if v > 0 {
+					nzMonths++
+					if firstNZ < 0 {
+						firstNZ = idx
+					}
+				}
+			}
+
+			activeStart := 0
+			if firstNZ >= 0 {
+				activeStart = firstNZ
+			} else if T > 12 {
+				activeStart = T - 12
+			}
+			if T >= 3 && activeStart > T-3 {
+				activeStart = T - 3
+			}
+			activeMonths := T - activeStart
+
+			// Расчёт XYZ и коэффициента вариации на активном интервале
+			xyz, cv := classifyXYZ(cleanSales[activeStart:], gIdx, periods[activeStart:], sumAll)
+			abc := abcClasses[i]
+			abcxyz := abc + xyz
+			if abc == "D" {
+				xyz = "D"
+				abcxyz = "DD"
+			}
+
+			// --- Расчёт потребности «Вариант 4» ---
+			v2MonthForecast, baseRate, flatRate := forecastItem12Months(cleanSales, activeStart, periods, gIdx, params.RecencyDecay, params.ShrinkageK, params.SeasonMode)
+
+			flatDemand := 0.0
+			for _, st := range steps {
+				flatDemand += flatRate / st.daysInMon
+			}
+			flatTarget := flatDemand * (1.0 + params.SafetyStockPct/100.0)
+			flatQty := roundOrderQty(math.Max(0, flatTarget-item.ClosingStock), params.Rounding)
+
+			// Для редких позиций класса Z при включённом UseCrostonZ применяем демпфирование Syntetos–Boylan (SBA)
+			if params.UseCrostonZ && xyz == "Z" && sumAll > 0 {
+				sbaMonthly := computeCrostonSBARate(cleanSales[activeStart:], periods[activeStart:])
+				for m := 0; m < 12; m++ {
+					seasonalSBA := sbaMonthly * (0.5 + 0.5*gIdx[m])
+					if v2MonthForecast[m] > seasonalSBA*1.25 {
+						v2MonthForecast[m] = 0.55*seasonalSBA + 0.45*v2MonthForecast[m]
+					}
+				}
+			}
+
+			demand := 0.0
+			groupWeightedIdxSum := 0.0
+			for _, st := range steps {
+				demand += v2MonthForecast[st.monthIdx] / st.daysInMon
+				groupWeightedIdxSum += gIdx[st.monthIdx]
+			}
+
+			effSeasonIdx := 1.0
+			if baseRate > 1e-9 && totalSpanDays > 0 {
+				avgDailyDemand := demand / float64(totalSpanDays)
+				avgDailyBase := baseRate / 30.4375
+				effSeasonIdx = avgDailyDemand / avgDailyBase
+			} else if totalSpanDays > 0 {
+				effSeasonIdx = groupWeightedIdxSum / float64(totalSpanDays)
+			}
+
+			effSafetyPct := params.SafetyStockPct
+			if params.AdaptiveSafetySLA {
+				effSafetyPct = params.SafetyStockPct * safetyMultiplierForSegment(abc, xyz)
+			}
+
+			safetyUnits := demand * (effSafetyPct / 100.0)
+			targetStock := demand + safetyUnits
+
+			minDisplayApplied := false
+			if params.MinDisplayStock > 0 && (abc == "A" || abc == "B") && sumLast12 >= 4 {
+				if targetStock < float64(params.MinDisplayStock) {
+					targetStock = float64(params.MinDisplayStock)
+					minDisplayApplied = true
+				}
+			}
+
+			rawDeficit := math.Max(0, targetStock-item.ClosingStock)
+			autoQty := roundOrderQty(rawDeficit, params.Rounding)
+			if autoQty > 0 && params.PackMultiple > 1 {
+				rem := autoQty % params.PackMultiple
+				if rem != 0 {
+					autoQty += params.PackMultiple - rem
+				}
+			}
+
+			cleanSum := 0.0
+			for idx := activeStart; idx < len(cleanSales); idx++ {
+				cleanSum += cleanSales[idx]
+			}
+			theta := 0.0
+			if cleanSum > 0 {
+				if params.ShrinkageK == 0 {
+					theta = 1.0
+				} else {
+					theta = cleanSum / (cleanSum + params.ShrinkageK)
+				}
+			}
+
+			daysSupply := 999.0
+			if demand > 1e-6 {
+				daily := demand / float64(totalSpanDays)
+				daysSupply = math.Min(999.0, item.ClosingStock/daily)
+			}
+
+			annualExpected := baseRate * 12.0
+			isOverstock := false
+			overstockVal := 0.0
+			if item.ClosingStock > 0 && item.PurchasePrice > 0 {
+				excessUnits := item.ClosingStock - math.Max(2.0, annualExpected)
+				if excessUnits >= 2.0 && (sumLast12 <= 0 || daysSupply >= 365.0) {
+					isOverstock = true
+					overstockVal = excessUnits * item.PurchasePrice
+				}
+			}
+
+			effectiveRetail := item.RetailPrice
+			if effectiveRetail <= 0 && item.PurchasePrice > 0 {
+				mult := groupMarkup[item.Group]
+				if mult <= 1.0 {
+					mult = 1.0
+				}
+				effectiveRetail = item.PurchasePrice * mult
+			}
+
+			prio := computePriorityScore(abc, xyz, item.ClosingStock, daysSupply, item.PurchasePrice, effectiveRetail, effSeasonIdx)
+
+			finalQty := autoQty
+			var overridePtr *int
+			if manualOverrides != nil {
+				if manualVal, ok := manualOverrides[item.ExcelRow]; ok {
+					if manualVal < 0 {
+						manualVal = 0
+					}
+					finalQty = manualVal
+					vCopy := manualVal
+					overridePtr = &vCopy
+				}
+			}
+
+			var roundedM12 [12]float64
+			for m := 0; m < 12; m++ {
+				roundedM12[m] = roundTo(v2MonthForecast[m], 2)
+			}
+			cappedRounded := make([]float64, len(cleanSales))
+			for k, cvVal := range cleanSales {
+				cappedRounded[k] = roundTo(cvVal, 1)
+			}
+
+			salesSeg := salesSegments[i]
+			salesSegLabel := model.SalesSegmentLabelByCode(salesSeg)
+			sumLast6 := sumLast6List[i]
+
+			unitPrice := roundTo(item.PurchasePrice, 2)
+			unitRetail := roundTo(effectiveRetail, 2)
+			lineOrderCost := roundTo(float64(finalQty)*unitPrice, 2)
+			lineRetailVal := roundTo(float64(finalQty)*unitRetail, 2)
+
+			calcItems[i] = model.CalculatedItem{
+				RawItem:           item,
+				ABCClass:          abc,
+				XYZClass:          xyz,
+				ABCXYZ:            abcxyz,
+				SalesSegment:      salesSeg,
+				SalesSegmentLabel: salesSegLabel,
+				CV:                roundTo(cv, 2),
+				NonZeroMonths:     nzMonths,
+				OutlierMonths:     outlierCounts[i],
+				CappedSales:       cappedRounded,
+				SumSalesAll:       roundTo(sumAll, 2),
+				SumSalesLast12M:   roundTo(sumLast12, 2),
+				SumSalesLast6M:    roundTo(sumLast6, 2),
+				ActiveMonths:      activeMonths,
+				BaseMonthlyRate:   roundTo(baseRate, 2),
+				HorizonSeasonIdx:  roundTo(effSeasonIdx, 2),
+				BayesWeight:       roundTo(theta, 2),
+				EffectiveSafety:   roundTo(effSafetyPct, 1),
+				ForecastDemand:    roundTo(demand, 2),
+				SafetyUnits:       roundTo(safetyUnits, 2),
+				TargetStock:       roundTo(targetStock, 2),
+				AutoOrderQty:      autoQty,
+				FinalOrderQty:     finalQty,
+				ManualOverride:    overridePtr,
+				FlatComparisonQty: flatQty,
+				PriorityScore:     roundTo(prio, 1),
+				OrderCost:         lineOrderCost,
+				OrderRetailValue:  lineRetailVal,
+				DaysOfSupply:      roundTo(daysSupply, 1),
+				IsOverstock:       isOverstock,
+				OverstockValue:    roundTo(overstockVal, 2),
+				MonthlyForecast12: roundedM12,
+				Explanation:       buildExplanationV2(salesSegLabel, baseRate, effSeasonIdx, totalSpanDays, demand, effSafetyPct, targetStock, item.ClosingStock, autoQty, outlierCounts[i], overridePtr, minDisplayApplied, 0),
+			}
+		}
+	})
+
+	// Детерминированное последовательное суммирование в порядке строк 0..nItems-1
+	for i := range calcItems {
+		it := &calcItems[i]
 		if outlierCounts[i] > 0 {
 			report.OutlierItemsCount++
 		}
-
-		sumAll := 0.0
-		sumLast12 := 0.0
-		firstNZ := -1
-		nzMonths := 0
-		for idx := 0; idx < T && idx < len(rawSales); idx++ {
-			v := rawSales[idx]
-			sumAll += v
-			if idx >= T-12 {
-				sumLast12 += v
-			}
-			if v > 0 {
-				nzMonths++
-				if firstNZ < 0 {
-					firstNZ = idx
-				}
-			}
+		if it.ManualOverride != nil {
+			report.ManualOverrideCount++
 		}
-
-		activeStart := 0
-		if firstNZ >= 0 {
-			activeStart = firstNZ
-		} else if T > 12 {
-			activeStart = T - 12
-		}
-		if T >= 3 && activeStart > T-3 {
-			activeStart = T - 3
-		}
-		activeMonths := T - activeStart
-
-		// Расчёт XYZ и коэффициента вариации на активном интервале
-		xyz, cv := classifyXYZ(cleanSales[activeStart:], gIdx, periods[activeStart:], sumAll)
-		abc := abcClasses[i]
-		abcxyz := abc + xyz
-		if abc == "D" {
-			xyz = "D"
-			abcxyz = "DD"
-		}
-
-		// --- Расчёт потребности «Вариант 4» ---
-		v2MonthForecast, baseRate, flatRate := forecastItem12Months(cleanSales, activeStart, periods, gIdx, params.RecencyDecay, params.ShrinkageK, params.SeasonMode)
-
-		flatDemand := 0.0
-		for _, st := range steps {
-			flatDemand += flatRate / st.daysInMon
-		}
-		flatTarget := flatDemand * (1.0 + params.SafetyStockPct/100.0)
-		flatQty := roundOrderQty(math.Max(0, flatTarget-item.ClosingStock), params.Rounding)
-
-		// Для редких позиций класса Z при включённом UseCrostonZ применяем демпфирование Syntetos–Boylan (SBA)
-		if params.UseCrostonZ && xyz == "Z" && sumAll > 0 {
-			sbaMonthly := computeCrostonSBARate(cleanSales[activeStart:], periods[activeStart:])
-			for m := 0; m < 12; m++ {
-				seasonalSBA := sbaMonthly * (0.5 + 0.5*gIdx[m])
-				if v2MonthForecast[m] > seasonalSBA*1.25 {
-					v2MonthForecast[m] = 0.55*seasonalSBA + 0.45*v2MonthForecast[m]
-				}
-			}
-		}
-
-		demand := 0.0
-		groupWeightedIdxSum := 0.0
-		for _, st := range steps {
-			demand += v2MonthForecast[st.monthIdx] / st.daysInMon
-			groupWeightedIdxSum += gIdx[st.monthIdx]
-		}
-
-		effSeasonIdx := 1.0
-		if baseRate > 1e-9 && totalSpanDays > 0 {
-			avgDailyDemand := demand / float64(totalSpanDays)
-			avgDailyBase := baseRate / 30.4375
-			effSeasonIdx = avgDailyDemand / avgDailyBase
-		} else if totalSpanDays > 0 {
-			effSeasonIdx = groupWeightedIdxSum / float64(totalSpanDays)
-		}
-
-		effSafetyPct := params.SafetyStockPct
-		if params.AdaptiveSafetySLA {
-			effSafetyPct = params.SafetyStockPct * safetyMultiplierForSegment(abc, xyz)
-		}
-
-		safetyUnits := demand * (effSafetyPct / 100.0)
-		targetStock := demand + safetyUnits
-
-		minDisplayApplied := false
-		if params.MinDisplayStock > 0 && (abc == "A" || abc == "B") && sumLast12 >= 4 {
-			if targetStock < float64(params.MinDisplayStock) {
-				targetStock = float64(params.MinDisplayStock)
-				minDisplayApplied = true
-			}
-		}
-
-		rawDeficit := math.Max(0, targetStock-item.ClosingStock)
-		autoQty := roundOrderQty(rawDeficit, params.Rounding)
-		if autoQty > 0 && params.PackMultiple > 1 {
-			rem := autoQty % params.PackMultiple
-			if rem != 0 {
-				autoQty += params.PackMultiple - rem
-			}
-		}
-
-		cleanSum := 0.0
-		for idx := activeStart; idx < len(cleanSales); idx++ {
-			cleanSum += cleanSales[idx]
-		}
-		theta := 0.0
-		if cleanSum > 0 {
-			if params.ShrinkageK == 0 {
-				theta = 1.0
-			} else {
-				theta = cleanSum / (cleanSum + params.ShrinkageK)
-			}
-		}
-
-		daysSupply := 999.0
-		if demand > 1e-6 {
-			daily := demand / float64(totalSpanDays)
-			daysSupply = math.Min(999.0, item.ClosingStock/daily)
-		}
-
-		// Детектор сверхнормативного запаса / замороженного капитала (> 365 дней продаж или мёртвый остаток)
-		annualExpected := baseRate * 12.0
-		isOverstock := false
-		overstockVal := 0.0
-		if item.ClosingStock > 0 && item.PurchasePrice > 0 {
-			excessUnits := item.ClosingStock - math.Max(2.0, annualExpected)
-			if excessUnits >= 2.0 && (sumLast12 <= 0 || daysSupply >= 365.0) {
-				isOverstock = true
-				overstockVal = excessUnits * item.PurchasePrice
-			}
-		}
-
-		effectiveRetail := item.RetailPrice
-		if effectiveRetail <= 0 && item.PurchasePrice > 0 {
-			mult := groupMarkup[item.Group]
-			if mult <= 1.0 {
-				mult = 1.0
-			}
-			effectiveRetail = item.PurchasePrice * mult
-		}
-
-		prio := computePriorityScore(abc, xyz, item.ClosingStock, daysSupply, item.PurchasePrice, effectiveRetail, effSeasonIdx)
-
-		finalQty := autoQty
-		var overridePtr *int
-		if manualOverrides != nil {
-			if manualVal, ok := manualOverrides[item.ExcelRow]; ok {
-				if manualVal < 0 {
-					manualVal = 0
-				}
-				finalQty = manualVal
-				vCopy := manualVal
-				overridePtr = &vCopy
-				report.ManualOverrideCount++
-			}
-		}
-
-		var roundedM12 [12]float64
-		for m := 0; m < 12; m++ {
-			roundedM12[m] = roundTo(v2MonthForecast[m], 2)
-		}
-		cappedRounded := make([]float64, len(cleanSales))
-		for k, cvVal := range cleanSales {
-			cappedRounded[k] = roundTo(cvVal, 1)
-		}
-
-		salesSeg := salesSegments[i]
-		salesSegLabel := model.SalesSegmentLabelByCode(salesSeg)
-		sumLast6 := sumLast6List[i]
-
-		unitPrice := roundTo(item.PurchasePrice, 2)
-		unitRetail := roundTo(effectiveRetail, 2)
-		lineOrderCost := roundTo(float64(finalQty)*unitPrice, 2)
-		lineRetailVal := roundTo(float64(finalQty)*unitRetail, 2)
-
-		calcItems[i] = model.CalculatedItem{
-			RawItem:           item,
-			ABCClass:          abc,
-			XYZClass:          xyz,
-			ABCXYZ:            abcxyz,
-			SalesSegment:      salesSeg,
-			SalesSegmentLabel: salesSegLabel,
-			CV:                roundTo(cv, 2),
-			NonZeroMonths:     nzMonths,
-			OutlierMonths:     outlierCounts[i],
-			CappedSales:       cappedRounded,
-			SumSalesAll:       roundTo(sumAll, 2),
-			SumSalesLast12M:   roundTo(sumLast12, 2),
-			SumSalesLast6M:    roundTo(sumLast6, 2),
-			ActiveMonths:      activeMonths,
-			BaseMonthlyRate:   roundTo(baseRate, 2),
-			HorizonSeasonIdx:  roundTo(effSeasonIdx, 2),
-			BayesWeight:       roundTo(theta, 2),
-			EffectiveSafety:   roundTo(effSafetyPct, 1),
-			ForecastDemand:    roundTo(demand, 2),
-			SafetyUnits:       roundTo(safetyUnits, 2),
-			TargetStock:       roundTo(targetStock, 2),
-			AutoOrderQty:      autoQty,
-			FinalOrderQty:     finalQty,
-			ManualOverride:    overridePtr,
-			FlatComparisonQty: flatQty,
-			PriorityScore:     roundTo(prio, 1),
-			OrderCost:         lineOrderCost,
-			OrderRetailValue:  lineRetailVal,
-			DaysOfSupply:      roundTo(daysSupply, 1),
-			IsOverstock:       isOverstock,
-			OverstockValue:    roundTo(overstockVal, 2),
-			MonthlyForecast12: roundedM12,
-			Explanation:       buildExplanationV2(salesSegLabel, baseRate, effSeasonIdx, totalSpanDays, demand, effSafetyPct, targetStock, item.ClosingStock, autoQty, outlierCounts[i], overridePtr, minDisplayApplied, 0),
-		}
-
-		report.UncappedOrderCost += lineOrderCost
-		report.FlatOrderUnits += flatQty
-		report.FlatOrderCost += roundTo(float64(flatQty)*unitPrice, 2)
+		unitPrice := roundTo(it.PurchasePrice, 2)
+		report.UncappedOrderCost += it.OrderCost
+		report.FlatOrderUnits += it.FlatComparisonQty
+		report.FlatOrderCost += roundTo(float64(it.FlatComparisonQty)*unitPrice, 2)
 	}
 
 	report.UncappedOrderCost = roundTo(report.UncappedOrderCost, 2)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"compress/gzip"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -10,8 +11,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
@@ -25,6 +28,7 @@ var embeddedWeb embed.FS
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.
 type AppServer struct {
 	mu                      sync.RWMutex
+	epoch                   atomic.Uint64
 	wb                      *model.WorkbookData
 	rawXLSX                 []byte
 	params                  model.ForecastParams
@@ -81,31 +85,47 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 }
 
 // LoadWorkbookFromBytes загружает ведомость из памяти (например, при загрузке через браузер).
+// Парсинг и тяжёлый расчёт выполняются вне глобальной блокировки, чтобы кнопка «Очистить базу»
+// срабатывала мгновенно даже при загрузке очень больших ведомостей.
 func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
+	startEpoch := s.epoch.Load()
 	wb, err := xlsx.ParseBytes(raw, fileName)
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.wb = wb
-	s.rawXLSX = raw
-	s.overrides = make(map[int]int)
-	s.selectedSuppliers = make(map[string]bool)
-	s.supplierSelectionActive = false
-	// Сохраняем текущие настройки пользователя, но сбрасываем жёсткую дату на авто из нового файла
+	if s.epoch.Load() != startEpoch {
+		return nil
+	}
+
+	s.mu.RLock()
 	p := s.params
+	s.mu.RUnlock()
 	p.PlanStartDate = ""
 	p.LastMonthDaysElapsed = 0
+
+	emptyOverrides := make(map[int]int)
+	rep := forecast.Calculate(wb, p, emptyOverrides)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.epoch.Load() != startEpoch {
+		return nil
+	}
+	s.wb = wb
+	s.rawXLSX = raw
+	s.overrides = emptyOverrides
+	s.selectedSuppliers = make(map[string]bool)
+	s.supplierSelectionActive = false
 	s.params = p
-	s.report = forecast.Calculate(s.wb, s.params, s.overrides)
+	s.report = rep
 	return nil
 }
 
-// ClearDatabase полностью очищает загруженную базу ведомости и сбрасывает расчёт в пустое состояние.
+// ClearDatabase мгновенно очищает загруженную базу ведомости, отменяет фоновые расчёты старой эпохи
+// и возвращает освобождённую оперативную память системе.
 func (s *AppServer) ClearDatabase() {
+	s.epoch.Add(1)
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.wb = nil
 	s.rawXLSX = nil
 	s.overrides = make(map[int]int)
@@ -113,6 +133,9 @@ func (s *AppServer) ClearDatabase() {
 	s.supplierSelectionActive = false
 	s.params = model.DefaultParams()
 	s.report = nil
+	s.mu.Unlock()
+
+	go debug.FreeOSMemory()
 }
 
 // ShutdownChan закрывается, когда десктопное окно на Windows закрыто пользователем.
@@ -189,11 +212,16 @@ func (s *AppServer) Handler() http.Handler {
 	return withPermissiveHeaders(mux)
 }
 
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		gw, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+		return gw
+	},
+}
+
 func (s *AppServer) handleGetState(w http.ResponseWriter, r *http.Request) {
 	s.touchHeartbeat()
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	env := stateEnvelope{
 		HasWorkbook:    s.wb != nil && s.report != nil,
 		CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
@@ -203,7 +231,9 @@ func (s *AppServer) handleGetState(w http.ResponseWriter, r *http.Request) {
 	if s.wb != nil {
 		env.FilePath = s.wb.FilePath
 	}
-	writeJSON(w, http.StatusOK, env)
+	s.mu.RUnlock()
+
+	writeJSONForRequest(w, r, http.StatusOK, env)
 }
 
 func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
@@ -218,18 +248,49 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	normParams := forecast.NormalizeParams(incoming)
+
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.params = forecast.NormalizeParams(incoming)
-	if s.wb != nil {
-		s.report = forecast.Calculate(s.wb, s.params, s.overrides)
+	startEpoch := s.epoch.Load()
+	s.params = normParams
+	wb := s.wb
+	var overridesCopy map[int]int
+	if wb != nil {
+		overridesCopy = make(map[int]int, len(s.overrides))
+		for k, v := range s.overrides {
+			overridesCopy[k] = v
+		}
 	}
-	writeJSON(w, http.StatusOK, stateEnvelope{
+	s.mu.Unlock()
+
+	var rep *model.CalculationReport
+	if wb != nil {
+		rep = forecast.Calculate(wb, normParams, overridesCopy)
+	}
+
+	s.mu.Lock()
+	if s.epoch.Load() != startEpoch {
+		// Во время расчёта пользователь нажал «Очистить базу» или загрузил другой файл
+		env := stateEnvelope{
+			HasWorkbook:    s.wb != nil && s.report != nil,
+			CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
+			DesktopMode:    s.desktopMode,
+			Report:         s.report,
+		}
+		s.mu.Unlock()
+		writeJSONForRequest(w, r, http.StatusOK, env)
+		return
+	}
+	s.report = rep
+	env := stateEnvelope{
 		HasWorkbook:    s.wb != nil,
 		CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
 		DesktopMode:    s.desktopMode,
 		Report:         s.report,
-	})
+	}
+	s.mu.Unlock()
+
+	writeJSONForRequest(w, r, http.StatusOK, env)
 }
 
 func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
@@ -250,11 +311,12 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.wb == nil {
+		s.mu.Unlock()
 		writeError(w, http.StatusBadRequest, "файл Excel не загружен")
 		return
 	}
+	startEpoch := s.epoch.Load()
 	if req.ClearAll {
 		s.overrides = make(map[int]int)
 	} else if req.Clear {
@@ -265,13 +327,38 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 		}
 		s.overrides[req.ExcelRow] = req.Value
 	}
-	s.report = forecast.Calculate(s.wb, s.params, s.overrides)
-	writeJSON(w, http.StatusOK, stateEnvelope{
+	wb := s.wb
+	params := s.params
+	overridesCopy := make(map[int]int, len(s.overrides))
+	for k, v := range s.overrides {
+		overridesCopy[k] = v
+	}
+	s.mu.Unlock()
+
+	rep := forecast.Calculate(wb, params, overridesCopy)
+
+	s.mu.Lock()
+	if s.epoch.Load() != startEpoch || s.wb == nil {
+		env := stateEnvelope{
+			HasWorkbook:    s.wb != nil && s.report != nil,
+			CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
+			DesktopMode:    s.desktopMode,
+			Report:         s.report,
+		}
+		s.mu.Unlock()
+		writeJSONForRequest(w, r, http.StatusOK, env)
+		return
+	}
+	s.report = rep
+	env := stateEnvelope{
 		HasWorkbook:    true,
 		CanSaveInPlace: s.wb.FilePath != "",
 		DesktopMode:    s.desktopMode,
 		Report:         s.report,
-	})
+	}
+	s.mu.Unlock()
+
+	writeJSONForRequest(w, r, http.StatusOK, env)
 }
 
 func (s *AppServer) handleSelectedSuppliers(w http.ResponseWriter, r *http.Request) {
@@ -332,13 +419,13 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 }
 
 func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "требуется метод POST")
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "требуется метод POST или GET")
 		return
 	}
 	s.touchHeartbeat()
 	s.ClearDatabase()
-	writeJSON(w, http.StatusOK, stateEnvelope{
+	writeJSONForRequest(w, r, http.StatusOK, stateEnvelope{
 		HasWorkbook:    false,
 		CanSaveInPlace: false,
 		DesktopMode:    s.desktopMode,
@@ -352,7 +439,7 @@ func (s *AppServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.touchHeartbeat()
-	if err := r.ParseMultipartForm(64 << 20); err != nil {
+	if err := r.ParseMultipartForm(512 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "ошибка чтения формы: "+err.Error())
 		return
 	}
@@ -590,7 +677,26 @@ func sanitizeFilePart(s string) string {
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func writeJSONForRequest(w http.ResponseWriter, r *http.Request, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	if r != nil && strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Add("Vary", "Accept-Encoding")
+		w.WriteHeader(status)
+		gw := gzipWriterPool.Get().(*gzip.Writer)
+		gw.Reset(w)
+		_ = json.NewEncoder(gw).Encode(payload)
+		_ = gw.Close()
+		gw.Reset(io.Discard)
+		gzipWriterPool.Put(gw)
+		return
+	}
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
 }
@@ -604,6 +710,9 @@ func withPermissiveHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
