@@ -121,6 +121,7 @@
     state.report = env.report || null;
 
     el('btnSaveInPlace').classList.toggle('hidden', !state.canSaveInPlace);
+    el('btnCloseApp').classList.toggle('hidden', !state.desktopMode);
     if (!state.report) return;
 
     syncParamsControls(state.report);
@@ -828,6 +829,31 @@
       const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
       document.documentElement.dataset.theme = next;
       localStorage.setItem('ostatki2_theme', next);
+    });
+
+    el('btnFullscreen').addEventListener('click', async () => {
+      const isAppFullWindow = Math.abs(window.outerWidth - screen.width) <= 2 && Math.abs(window.outerHeight - screen.height) <= 2;
+      if (document.fullscreenElement) {
+        await document.exitFullscreen().catch(() => {});
+      } else if (isAppFullWindow && state.desktopMode) {
+        const targetW = Math.round(screen.availWidth * 0.92);
+        const targetH = Math.round(screen.availHeight * 0.9);
+        window.resizeTo(targetW, targetH);
+        window.moveTo(
+          Math.max(0, Math.round((screen.availWidth - targetW) / 2)),
+          Math.max(0, Math.round((screen.availHeight - targetH) / 2)),
+        );
+      } else if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen().catch(() => {
+          window.moveTo(0, 0);
+          window.resizeTo(screen.availWidth, screen.availHeight);
+        });
+      }
+    });
+
+    el('btnCloseApp').addEventListener('click', async () => {
+      await fetch('api/shutdown', { method: 'POST', keepalive: true }).catch(() => {});
+      window.close();
     });
 
     const topbarEl = document.querySelector('.topbar');

@@ -317,4 +317,26 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if !(ovSalesIdx > 0 && ovStockIdx > ovSalesIdx) {
 		t.Fatalf("expected Overstock table columns Продажи -> Остаток, got indices %d, %d", ovSalesIdx, ovStockIdx)
 	}
+
+	// 8. Проверка полноэкранного запуска на Windows, отсутствия rundll32 и наличия встроенного PE-манифеста (.syso)
+	winSrcBytes, err := os.ReadFile(filepath.Join("..", "desktop", "open_windows.go"))
+	if err != nil {
+		t.Fatalf("read open_windows.go failed: %v", err)
+	}
+	winSrc := string(winSrcBytes)
+	if strings.Contains(winSrc, "rundll32") || strings.Contains(winSrc, "1460,920") {
+		t.Fatalf("open_windows.go must not contain rundll32 or small fixed 1460x920 window size")
+	}
+	for _, mustWin := range []string{"--start-fullscreen", "--start-maximized", "ShellExecuteW"} {
+		if !strings.Contains(winSrc, mustWin) {
+			t.Fatalf("open_windows.go missing %q", mustWin)
+		}
+	}
+	sysoInfo, err := os.Stat(filepath.Join("..", "..", "cmd", "ostatki", "rsrc_windows_amd64.syso"))
+	if err != nil || sysoInfo.Size() < 1024 {
+		t.Fatalf("expected embedded Windows PE resource rsrc_windows_amd64.syso (>1KB), err=%v", err)
+	}
+	if !strings.Contains(htmlBody, `id="btnFullscreen"`) || !strings.Contains(htmlBody, `id="btnCloseApp"`) {
+		t.Fatalf("HTML missing fullscreen/close window controls")
+	}
 }
