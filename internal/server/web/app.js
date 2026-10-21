@@ -36,6 +36,9 @@
     vStart: 0,
     vEnd: 0,
     overstockLimit: 500,
+    ovSortKey: 'overstockValue',
+    ovSortDir: 'desc',
+    ovColWidths: null,
   };
 
   const el = (id) => document.getElementById(id);
@@ -383,6 +386,9 @@
     state.vStart = 0;
     state.vEnd = 0;
     state.overstockLimit = 500;
+    state.ovSortKey = 'overstockValue';
+    state.ovSortDir = 'desc';
+    state.ovColWidths = null;
     state.pendingOverrides.clear();
     state.checkedSuppliers.clear();
     state.staryoRows.clear();
@@ -413,6 +419,7 @@
     if (el('supplierDropdownMenu')) el('supplierDropdownMenu').classList.add('hidden');
     if (el('ovFltWarehouse')) el('ovFltWarehouse').innerHTML = '<option value="">Все склады</option>';
     if (el('ovFltName')) el('ovFltName').innerHTML = '<option value="">Вся номенклатура</option>';
+    if (el('ovFltRating')) el('ovFltRating').value = '';
     if (el('ovFltSupplier')) el('ovFltSupplier').innerHTML = '<option value="">Все поставщики</option>';
     if (el('ovInpSearch')) el('ovInpSearch').value = '';
     if (el('btnResetOverstockFilters')) el('btnResetOverstockFilters').classList.add('hidden');
@@ -1227,8 +1234,10 @@
     );
 
     const selName = el('ovFltName').value;
+    const selRating = el('ovFltRating')?.value ?? '';
+    const selRatingNum = selRating !== '' ? Number(selRating) : null;
     const searchQ = el('ovInpSearch').value.trim().toLowerCase();
-    const hasActiveFilter = Boolean(selWh || selSup || selName || searchQ);
+    const hasActiveFilter = Boolean(selWh || selSup || selName || selRating !== '' || searchQ);
     el('btnResetOverstockFilters').classList.toggle('hidden', !hasActiveFilter);
 
     const over = allOver.filter((it) => {
@@ -1236,11 +1245,26 @@
       const sName = it._supNorm || it.supplier || '(Поставщик не указан)';
       if (selSup && sName !== selSup) return false;
       if (selName && it.name !== selName) return false;
+      if (selRating !== '' && it.salesSegment !== selRatingNum && String(it.salesSegment) !== selRating && it.salesSegmentLabel !== selRating) {
+        return false;
+      }
       if (searchQ) {
         const hay = it._ovSearchLC || `${it.name} ${it.sku} ${it.group} ${it.supplier} ${it.warehouse}`.toLowerCase();
         if (!hay.includes(searchQ)) return false;
       }
       return true;
+    });
+
+    const ovKey = state.ovSortKey || 'overstockValue';
+    const ovMult = state.ovSortDir === 'asc' ? 1 : -1;
+    over.sort((a, b) => {
+      const va = a[ovKey];
+      const vb = b[ovKey];
+      if (typeof va === 'number' && typeof vb === 'number') {
+        if (va !== vb) return (va - vb) * ovMult;
+        return a.excelRow - b.excelRow;
+      }
+      return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * ovMult;
     });
 
     const filteredFrozen = over.reduce((acc, it) => acc + (Number(it.overstockValue) || 0), 0);
@@ -1250,40 +1274,46 @@
     const visibleOver = state.overstockLimit > 0 ? over.slice(0, state.overstockLimit) : over;
     const remainingOver = over.length - visibleOver.length;
 
-    el('overstockContainer').innerHTML = `
+    const ovContainer = el('overstockContainer');
+    ovContainer.innerHTML = `
       <h3>Радар замороженного капитала и неликвидов (&gt; 365 дней продаж или 0 продаж за 12 мес.)</h3>
       <p class="muted">Выявлено <strong>${fmtInt(over.length)} позиций</strong> со сверхнормативным запасом на сумму <strong style="color:var(--warn)">${fmtMoney(filteredFrozen)} руб.</strong>${totalHint} (в закупочных ценах сверх годовой потребности). Рекомендуется промо-выкладка, скидка или межскладской обмен.</p>
-      <div>
-        <table class="data-table">
+      <div class="table-scroll">
+        <table class="data-table" id="overstockTable">
           <thead>
             <tr>
-              <th class="wh-col">Склад</th>
-              <th class="grp-col">Группа</th>
-              <th>Артикул</th>
-              <th class="col-name">Номенклатура</th>
-              <th>Поставщик</th>
-              <th class="num-col col-5digits">Продажи</th>
-              <th class="num-col col-5digits">Остаток</th>
-              <th class="num-col">Цена</th>
-              <th class="num-col">Розница</th>
-              <th class="num-col">Заморожено сверх года</th>
+              <th data-ov-sort="warehouse" class="wh-col">Склад</th>
+              <th data-ov-sort="group" class="grp-col">Группа</th>
+              <th data-ov-sort="sku">Артикул</th>
+              <th data-ov-sort="name" class="col-name">Номенклатура</th>
+              <th data-ov-sort="salesSegment" class="seg-col" title="Рейтинг: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют в течение 6 месяцев)">Рейтинг</th>
+              <th data-ov-sort="supplier">Поставщик</th>
+              <th data-ov-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
+              <th data-ov-sort="closingStock" class="num-col col-5digits">Остаток</th>
+              <th data-ov-sort="purchasePrice" class="num-col">Цена</th>
+              <th data-ov-sort="retailPrice" class="num-col">Розница</th>
+              <th data-ov-sort="overstockValue" class="num-col">Заморожено сверх года</th>
             </tr>
           </thead>
           <tbody>
             ${visibleOver.length === 0
-              ? '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">По выбранным фильтрам позиций не найдено</td></tr>'
-              : visibleOver.map((it) => `<tr data-jump-row="${it.excelRow}">
+              ? '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted)">По выбранным фильтрам позиций не найдено</td></tr>'
+              : visibleOver.map((it) => {
+                const segNum = Number(it.salesSegment) || 0;
+                return `<tr data-jump-row="${it.excelRow}">
               <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
               <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
               <td class="name-cell">${esc(it.name)}</td>
-              <td>${esc(it.supplier || '')}</td>
+              <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
+              <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
               <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
               <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
               <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
               <td class="num-col">${fmtRetail(it)}</td>
               <td class="num-col" style="color:var(--warn);font-weight:700">${fmtMoney(it.overstockValue)} руб.</td>
-            </tr>`).join('')}
+            </tr>`;
+              }).join('')}
           </tbody>
         </table>
         ${remainingOver > 0 ? `<div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
@@ -1292,6 +1322,24 @@
         </div>` : ''}
       </div>
     `;
+
+    initColumnResizers(ovContainer);
+    const ovTable = el('overstockTable');
+    if (ovTable && Array.isArray(state.ovColWidths)) {
+      const ovThs = [...ovTable.querySelectorAll('thead tr th')];
+      if (ovThs.length === state.ovColWidths.length) {
+        const colgroup = document.createElement('colgroup');
+        state.ovColWidths.forEach((w, idx) => {
+          const col = document.createElement('col');
+          col.style.width = `${w}px`;
+          colgroup.appendChild(col);
+          ovThs[idx].style.width = `${w}px`;
+        });
+        ovTable.insertBefore(colgroup, ovTable.firstChild);
+        ovTable.classList.add('table-manual-cols');
+        ovTable.style.width = `${state.ovColWidths.reduce((a, b) => a + b, 0)}px`;
+      }
+    }
   }
 
   function collectParamsFromUI() {
@@ -1448,7 +1496,7 @@
       }
     });
 
-    ['ovFltWarehouse', 'ovFltName', 'ovFltSupplier'].forEach((id) => {
+    ['ovFltWarehouse', 'ovFltName', 'ovFltRating', 'ovFltSupplier'].forEach((id) => {
       el(id).addEventListener('change', () => {
         if (state.report) renderOverstockView(state.report);
       });
@@ -1459,8 +1507,37 @@
     el('btnResetOverstockFilters').addEventListener('click', () => {
       el('ovFltWarehouse').value = '';
       el('ovFltName').value = '';
+      el('ovFltRating').value = '';
       el('ovFltSupplier').value = '';
       el('ovInpSearch').value = '';
+      if (state.report) renderOverstockView(state.report);
+    });
+
+    // Всплывающий справа график продаж за 3 года и сортировка по столбцам во вкладке «Радар неликвидов»
+    el('overstockContainer').addEventListener('mouseover', (e) => {
+      const target = e.target.closest('[data-rating-row]');
+      if (!target) {
+        if (activePopoverRow !== null) hideRatingChartPopover();
+        return;
+      }
+      showRatingChartPopover(target, Number(target.dataset.ratingRow));
+    });
+
+    el('overstockContainer').addEventListener('mouseleave', () => {
+      hideRatingChartPopover();
+    });
+
+    el('overstockContainer').addEventListener('click', (e) => {
+      const th = e.target.closest('thead th[data-ov-sort]');
+      if (!th) return;
+      if (state.justResizedColumn || e.target.closest('.col-resizer')) return;
+      const key = th.dataset.ovSort;
+      if (state.ovSortKey === key) {
+        state.ovSortDir = state.ovSortDir === 'desc' ? 'asc' : 'desc';
+      } else {
+        state.ovSortKey = key;
+        state.ovSortDir = typeof state.report?.items?.[0]?.[key] === 'number' ? 'desc' : 'asc';
+      }
       if (state.report) renderOverstockView(state.report);
     });
 
@@ -1898,6 +1975,7 @@
 
       const jumpRow = e.target.closest('tr[data-jump-row]');
       if (jumpRow) {
+        if (state.justResizedColumn || e.target.closest('.col-resizer')) return;
         const rNum = Number(jumpRow.dataset.jumpRow);
         state.selectedExcelRow = rNum;
         el('inpSearchSku').value = '';
@@ -2183,14 +2261,14 @@
     });
   }
 
-  function initColumnResizers() {
-    // Сбрасываем любые ранее сохранённые ширины, чтобы при каждом открытии программы
-    // столбцы гарантированно имели эталонную ширину по умолчанию из последнего релиза
-    try {
-      localStorage.removeItem('ostatki_v4_col_widths');
-    } catch (_) {}
+  function initColumnResizers(root = document) {
+    if (root === document) {
+      try {
+        localStorage.removeItem('ostatki_v4_col_widths');
+      } catch (_) {}
+    }
 
-    document.querySelectorAll('table.data-table').forEach((table) => {
+    root.querySelectorAll('table.data-table').forEach((table) => {
       const headRow = table.querySelector('thead tr');
       if (!headRow) return;
       const ths = [...headRow.querySelectorAll('th')];
@@ -2201,9 +2279,12 @@
         table.style.width = '';
         table.querySelector('colgroup')?.remove();
         ths.forEach((h) => { h.style.width = ''; });
+        if (table.id === 'overstockTable') {
+          state.ovColWidths = null;
+        }
       };
 
-      ths.forEach((th, colIdx) => {
+      ths.forEach((th) => {
         if (th.querySelector('.col-resizer')) return;
         const handle = document.createElement('span');
         handle.className = 'col-resizer';
@@ -2252,6 +2333,9 @@
           const startX = e.clientX;
           const startWidth = initialWidths[visIdx];
           const currentWidths = [...initialWidths];
+          if (table.id === 'overstockTable') {
+            state.ovColWidths = [...currentWidths];
+          }
 
           handle.classList.add('resizing');
           document.body.classList.add('col-resize-active');
@@ -2263,6 +2347,9 @@
             cols[visIdx].style.width = `${nextWidth}px`;
             visibleThs[visIdx].style.width = `${nextWidth}px`;
             table.style.width = `${currentWidths.reduce((a, b) => a + b, 0)}px`;
+            if (table.id === 'overstockTable') {
+              state.ovColWidths = [...currentWidths];
+            }
           };
 
           const onMouseUp = () => {

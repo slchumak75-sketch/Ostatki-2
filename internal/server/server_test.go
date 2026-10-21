@@ -540,13 +540,24 @@ func TestServerAPIEndpoints(t *testing.T) {
 		prevPos = pos
 	}
 
-	// Проверка, что во вкладке «Радар неликвидов» столбец «Продажи» стоит перед «Остаток»
+	// Проверка столбцов в «Радаре замороженного капитала и неликвидов»:
+	// Номенклатура -> Рейтинг -> Поставщик -> Продажи -> Остаток, а также ресайз столбцов (initColumnResizers(ovContainer))
+	if !strings.Contains(htmlBody, `id="ovFltRating"`) {
+		t.Fatalf("missing id=\"ovFltRating\" in index.html")
+	}
 	ovStart := strings.Index(jsBody, "function renderOverstockView")
-	ovChunk := jsBody[ovStart:]
-	ovSalesIdx := strings.Index(ovChunk, `<th class="num-col col-5digits">Продажи</th>`)
-	ovStockIdx := strings.Index(ovChunk, `<th class="num-col col-5digits">Остаток</th>`)
-	if !(ovSalesIdx > 0 && ovStockIdx > ovSalesIdx) {
-		t.Fatalf("expected Overstock table columns Продажи -> Остаток, got indices %d, %d", ovSalesIdx, ovStockIdx)
+	ovEnd := strings.Index(jsBody[ovStart:], "function collectParamsFromUI")
+	ovChunk := jsBody[ovStart : ovStart+ovEnd]
+	ovNameIdx := strings.Index(ovChunk, `<th data-ov-sort="name" class="col-name">Номенклатура</th>`)
+	ovRatingIdx := strings.Index(ovChunk, `<th data-ov-sort="salesSegment" class="seg-col"`)
+	ovSupIdx := strings.Index(ovChunk, `<th data-ov-sort="supplier">Поставщик</th>`)
+	ovSalesIdx := strings.Index(ovChunk, `<th data-ov-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`)
+	ovStockIdx := strings.Index(ovChunk, `<th data-ov-sort="closingStock" class="num-col col-5digits">Остаток</th>`)
+	if !(ovNameIdx > 0 && ovRatingIdx > ovNameIdx && ovSupIdx > ovRatingIdx && ovSalesIdx > ovSupIdx && ovStockIdx > ovSalesIdx) {
+		t.Fatalf("expected Overstock table columns Номенклатура -> Рейтинг -> Поставщик -> Продажи -> Остаток, got %d, %d, %d, %d, %d", ovNameIdx, ovRatingIdx, ovSupIdx, ovSalesIdx, ovStockIdx)
+	}
+	if !strings.Contains(ovChunk, `initColumnResizers(ovContainer)`) || !strings.Contains(ovChunk, `data-rating-row="${it.excelRow}"`) {
+		t.Fatalf("Overstock table missing initColumnResizers(ovContainer) or data-rating-row badge")
 	}
 
 	// 8. Проверка полноэкранного запуска на Windows, отсутствия rundll32 и наличия встроенного PE-манифеста (.syso)
