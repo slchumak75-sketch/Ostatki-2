@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,38 +169,45 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/upload code=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	// 6b. POST /api/override — пакетное обнуление и возврат авторасчёта по избранным поставщикам
-	req = httptest.NewRequest(http.MethodPost, "/api/override",
-		bytes.NewReader([]byte(`{"zeroSuppliers":["ООО \"СИСТЕМА ООО\"","ООО \"ТД Комплект\""]}`)))
+	// 6b. POST /api/selected-suppliers — выбор поставщиков галочками для бюджета, статуса «Готов к отправке» и выгрузки Excel
+	req = httptest.NewRequest(http.MethodPost, "/api/selected-suppliers",
+		bytes.NewReader([]byte(`{"suppliers":["ООО \"СИСТЕМА ООО\""]}`)))
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /api/override zeroSuppliers code=%d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("POST /api/selected-suppliers code=%d body=%s", rec.Code, rec.Body.String())
 	}
-	var zeroSupEnv struct {
+
+	// Выгрузка заказа для отмеченного поставщика разрешена (200 OK)
+	req = httptest.NewRequest(http.MethodGet, "/api/export/supplier-order?supplier="+url.QueryEscape(`ООО "СИСТЕМА ООО"`), nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.Len() < 800 {
+		t.Fatalf("expected 200 OK for checked supplier xlsx, got code=%d len=%d", rec.Code, rec.Body.Len())
+	}
+
+	// Выгрузка заказа для НЕотмеченного поставщика отклоняется (400 Bad Request)
+	req = httptest.NewRequest(http.MethodGet, "/api/export/supplier-order?supplier="+url.QueryEscape(`ООО "ТД Комплект"`), nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for unchecked supplier xlsx, got code=%d", rec.Code)
+	}
+
+	// При этом в самой ведомости автозаполнение «Заказ» НЕ обнуляется
+	req = httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	var afterCheckState struct {
 		Report *struct {
-			TotalOrderCost float64                `json:"totalOrderCost"`
-			Items          []model.CalculatedItem `json:"items"`
+			TotalOrderCost float64 `json:"totalOrderCost"`
 		} `json:"report"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &zeroSupEnv); err != nil || zeroSupEnv.Report == nil {
-		t.Fatalf("unmarshal zeroSuppliers response failed: %v", err)
+	if err := json.Unmarshal(rec.Body.Bytes(), &afterCheckState); err != nil || afterCheckState.Report == nil {
+		t.Fatalf("unmarshal state after selected-suppliers failed: %v", err)
 	}
-	for _, it := range zeroSupEnv.Report.Items {
-		if it.Supplier == `ООО "СИСТЕМА ООО"` || it.Supplier == `ООО "ТД Комплект"` {
-			if it.FinalOrderQty != 0 || math.Abs(it.OrderCost) > 1e-6 {
-				t.Fatalf("expected zeroed order for %s row %d, got qty=%d cost=%.2f",
-					it.Supplier, it.ExcelRow, it.FinalOrderQty, it.OrderCost)
-			}
-		}
-	}
-	// Возвращаем авторасчёт тем же поставщикам
-	req = httptest.NewRequest(http.MethodPost, "/api/override",
-		bytes.NewReader([]byte(`{"restoreSuppliers":["ООО \"СИСТЕМА ООО\"","ООО \"ТД Комплект\""]}`)))
-	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /api/override restoreSuppliers code=%d body=%s", rec.Code, rec.Body.String())
+	if math.Abs(afterCheckState.Report.TotalOrderCost-5704.18) > 1e-6 {
+		t.Fatalf("expected table report orders untouched (5704.18), got %.2f", afterCheckState.Report.TotalOrderCost)
 	}
 
 	// 7. GET /, GET /styles.css и GET /app.js (проверка UI-структуры, колонок и удалённых панелей)
@@ -216,6 +224,12 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"Анти-выбросы и Радар неликвидов",
 		"Вес свежих лет:",
 		"Дата начала планирования",
+		"Подготовка к весне",
+		`data-preset="spring"`,
+		"Сбросить ручные правки",
+		`id="btnClearOverrides"`,
+		"zeroSuppliers",
+		"btnZeroCheckedSuppliers",
 		">Стр.<",
 		"Прод. 12м",
 		"Столбец 8: К закупкам",
@@ -418,6 +432,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"kpiOrderUnits",
 		"selPageSize",
 		"twomonths",
+		"btnClearOverrides",
+		"zeroSuppliers",
+		"restoreSuppliers",
+		"btnZeroCheckedSuppliers",
+		"preset === 'spring'",
 		"сегмент",
 		"Сегмент",
 		"сегм.",
@@ -440,9 +459,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"renderTableFooter",
 		"updateRowSumLive",
 		"initColumnResizers",
-		"zeroSuppliers",
-		"restoreSuppliers",
-		"btnZeroCheckedSuppliers",
+		"api/selected-suppliers",
+		"isSupplierChecked",
+		"btnCheckAllSuppliers",
+		"btnUncheckAllSuppliers",
 		"inpSearchSku",
 		"api/clear",
 		"ovFltWarehouse",
