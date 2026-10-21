@@ -355,6 +355,7 @@ jobs:
           TXT1
 
           cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 4/"
+          cp "Ведомость с периодом ОК.xlsx" "dist/Вариант 4/"
           cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 4/"
           cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 4/"
 
@@ -377,21 +378,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): полное совпадение сумм закупки между вкладками «Ведомость» и «Поставщики и склады» во всех разрезах (склад, поставщик, ручные правки) + строки «Итого» в обеих таблицах, бежевые кнопки «Загрузить .xlsx» и «Очистить базу» на верхней плашке, бесцветные кнопки скачивания, бежевые вкладки «Ведомость» и «Поставщики и склады», фильтры в «Радаре неликвидов», графа «Сумма» = «Заказ» × «Цена», свёрнутые по умолчанию «Параметры PRO SCM», 3-летний график продаж по наведению на «Рейтинг», полный экран и подпись Authenticode SHA-256."
-          if gh release view variant-4 >/dev/null 2>&1; then
-            for old in $(gh release view variant-4 --json assets --jq '.assets[].name'); do
-              gh release delete-asset variant-4 "$old" -y || true
-            done
-            gh release edit variant-4 --latest --title "Вариант 4" --notes "$NOTES_V4"
-            gh release upload variant-4 \
-              "dist/OstatkiZakupki_Variant_4.exe#OstatkiZakupki_Variant_4.exe (Вариант 4 — Windows x64 GUI)" \
-              "dist/Variant_4_Windows_x64.zip#Variant_4_Windows_x64.zip (Полный архив Вариант 4)" --clobber
-          else
-            gh release create variant-4 \
-              --target "${{ github.sha }}" \
-              --latest \
-              --title "Вариант 4" \
-              --notes "$NOTES_V4" \
-              "dist/OstatkiZakupki_Variant_4.exe#OstatkiZakupki_Variant_4.exe (Вариант 4 — Windows x64 GUI)" \
-              "dist/Variant_4_Windows_x64.zip#Variant_4_Windows_x64.zip (Полный архив Вариант 4)"
-          fi
+          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): новый порядок полей в плашке над таблицей (Все склады → Все группы → Поиск артикул → Поиск по номенклатуре → Рейтинг: Все → Все поставщики → Показать все строки), ручная настройка ширины столбцов в таблицах мышью, скорректированный в меньшую сторону алгоритм «Подготовка к весне», обнуление автозаполнения заказа по избранным поставщикам прямо в списке «Все поставщики», полное совпадение сумм закупки между вкладками + строки «Итого», полный экран и подпись Authenticode SHA-256."
+          gh release delete variant-4 --cleanup-tag -y || true
+          gh release create variant-4 \
+            --target "${{ github.sha }}" \
+            --latest \
+            --title "Вариант 4" \
+            --notes "$NOTES_V4" \
+            "dist/OstatkiZakupki_Variant_4.exe#OstatkiZakupki_Variant_4.exe (Вариант 4 — Windows x64 GUI)" \
+            "dist/Variant_4_Windows_x64.zip#Variant_4_Windows_x64.zip (Полный архив Вариант 4)"

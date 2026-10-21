@@ -15,6 +15,8 @@
     activeTab: 'table',
     debounceTimer: null,
     pendingOverrides: new Map(),
+    checkedSuppliers: new Set(),
+    justResizedColumn: false,
   };
 
   const el = (id) => document.getElementById(id);
@@ -36,6 +38,7 @@
 
   function hasActiveTableFilter() {
     return Boolean(
+      el('inpSearchSku')?.value.trim() ||
       el('inpSearch')?.value.trim() ||
       el('fltWarehouse')?.value ||
       el('fltGroup')?.value ||
@@ -440,6 +443,85 @@
       'Все поставщики',
       (s) => `${s.supplier} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})`
     );
+
+    renderSupplierDropdownMenu(rep, uniqueSuppliers);
+  }
+
+  function renderSupplierDropdownMenu(rep, uniqueSuppliers) {
+    const selectedWh = el('fltWarehouse')?.value || '';
+    const activeSup = el('fltSupplier')?.value || '';
+    const filterQuery = (el('inpSupplierFilter')?.value || '').trim().toLowerCase();
+
+    // Определяем, у каких поставщиков обнулён автозаказ (manualOverride === 0)
+    const zeroedStats = new Map();
+    for (const it of rep.items || []) {
+      if (selectedWh && it.warehouse !== selectedWh) continue;
+      const supName = it.supplier || '(Поставщик не указан)';
+      let st = zeroedStats.get(supName);
+      if (!st) {
+        st = { zeroedCount: 0, activeCount: 0 };
+        zeroedStats.set(supName, st);
+      }
+      if (it.finalOrderQty > 0) st.activeCount += 1;
+      if (it.manualOverride === 0 && (it.autoOrderQty > 0 || it.finalOrderQty === 0)) {
+        st.zeroedCount += 1;
+      }
+    }
+
+    let fullyZeroedSuppliers = 0;
+    for (const s of uniqueSuppliers) {
+      const st = zeroedStats.get(s.supplier);
+      if (st && st.activeCount === 0 && st.zeroedCount > 0) {
+        fullyZeroedSuppliers += 1;
+      }
+    }
+
+    const labelEl = el('supplierDropdownLabel');
+    if (labelEl) {
+      if (activeSup) {
+        const found = uniqueSuppliers.find((s) => s.supplier === activeSup);
+        labelEl.textContent = found
+          ? `${found.supplier} — ${fmtMoney(found.totalOrderCost)} р. (${found.orderItems})`
+          : activeSup;
+      } else if (fullyZeroedSuppliers > 0) {
+        labelEl.textContent = `Все поставщики (обнулено: ${fullyZeroedSuppliers})`;
+      } else {
+        labelEl.textContent = 'Все поставщики';
+      }
+    }
+
+    const listEl = el('supplierDropdownList');
+    if (!listEl) return;
+
+    const visibleSuppliers = filterQuery
+      ? uniqueSuppliers.filter((s) => s.supplier.toLowerCase().includes(filterQuery))
+      : uniqueSuppliers;
+
+    const allRowHtml = `<div class="supplier-dd-row ${activeSup === '' ? 'active-filter' : ''}">
+      <button type="button" class="supplier-dd-item-btn" data-sup-select="" style="font-weight:700">
+        Все поставщики (${uniqueSuppliers.length})
+      </button>
+    </div>`;
+
+    const rowsHtml = visibleSuppliers.map((s) => {
+      const st = zeroedStats.get(s.supplier) || { zeroedCount: 0, activeCount: 0 };
+      const isZeroed = st.activeCount === 0 && st.zeroedCount > 0;
+      const isChecked = state.checkedSuppliers.has(s.supplier);
+      const isActive = activeSup === s.supplier;
+      const actionBtn = isZeroed
+        ? `<button type="button" class="supplier-dd-zero-btn restore" data-sup-restore="${esc(s.supplier)}" title="Вернуть авторасчёт заказа этому поставщику">Авто</button>`
+        : `<button type="button" class="supplier-dd-zero-btn" data-sup-zero="${esc(s.supplier)}" title="Обнулить автозаполнение графы «Заказ» по этому поставщику">Обнулить</button>`;
+
+      return `<div class="supplier-dd-row ${isActive ? 'active-filter' : ''} ${isZeroed ? 'is-zeroed' : ''}">
+        <input type="checkbox" class="supplier-dd-check" data-sup-check="${esc(s.supplier)}" ${isChecked ? 'checked' : ''} title="Отметить поставщика для группового обнуления заказа" />
+        <button type="button" class="supplier-dd-item-btn" data-sup-select="${esc(s.supplier)}" title="${esc(s.supplier)}">
+          ${esc(s.supplier)} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})
+        </button>
+        ${actionBtn}
+      </div>`;
+    }).join('');
+
+    listEl.innerHTML = allRowHtml + rowsHtml;
   }
 
   function renderKPIs(rep) {
@@ -473,7 +555,8 @@
       state.filteredItems = [];
       return;
     }
-    const q = el('inpSearch').value.trim().toLowerCase();
+    const qSku = (el('inpSearchSku')?.value || '').trim().toLowerCase();
+    const qName = el('inpSearch').value.trim().toLowerCase();
     const wh = el('fltWarehouse').value;
     const grp = el('fltGroup').value;
     const sup = el('fltSupplier').value;
@@ -493,9 +576,11 @@
       if (status === 'zero' && it.closingStock > 0) return false;
       if (status === 'manual' && it.manualOverride == null) return false;
 
-      if (q) {
-        const hay = `${it.name} ${it.sku} ${it.supplier} ${it.group} ${it.warehouse} ${it.salesSegmentLabel}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+      if (qSku) {
+        if (!String(it.sku || '').toLowerCase().includes(qSku)) return false;
+      }
+      if (qName) {
+        if (!String(it.name || '').toLowerCase().includes(qName)) return false;
       }
       return true;
     });
@@ -1060,25 +1145,28 @@
           el('inpLeadTime').value = 3;
           el('inpSafety').value = 10;
           state.planStartDate = '';
+          el('selSeasonMode').value = 'hybrid';
         } else if (preset === 'standard') {
           el('inpHorizon').value = 30;
           el('inpLeadTime').value = 4;
           el('inpSafety').value = 10;
           state.planStartDate = '';
+          el('selSeasonMode').value = 'hybrid';
         } else if (preset === 'budget5k') {
           el('inpHorizon').value = 30;
           el('inpLeadTime').value = 4;
           el('inpSafety').value = 10;
           el('inpBudgetCap').value = 5000;
           state.planStartDate = '';
+          el('selSeasonMode').value = 'hybrid';
         } else if (preset === 'spring') {
           const baseYear = (state.report?.periods?.at(-1)?.year || 2026) + 1;
           state.planStartDate = `${baseYear}-03-01`;
-          el('inpHorizon').value = 60;
-          el('inpLeadTime').value = 7;
-          el('inpSafety').value = 15;
+          el('inpHorizon').value = 21;
+          el('inpLeadTime').value = 4;
+          el('inpSafety').value = 5;
+          el('selSeasonMode').value = 'conservative';
         }
-        el('selSeasonMode').value = 'hybrid';
         scheduleRecalculate();
       });
     });
@@ -1160,16 +1248,18 @@
       showToast('Восстановлены настройки по умолчанию');
     });
 
-    el('inpSearch').addEventListener('input', () => {
-      state.page = 1;
-      recomputeFilteredList();
-      if (state.report) renderKPIs(state.report);
-      renderTable();
+    ['inpSearchSku', 'inpSearch'].forEach((id) => {
+      el(id).addEventListener('input', () => {
+        state.page = 1;
+        recomputeFilteredList();
+        if (state.report) renderKPIs(state.report);
+        renderTable();
+      });
     });
     ['fltWarehouse', 'fltGroup', 'fltSupplier', 'fltABCXYZ', 'fltStatus'].forEach((id) => {
       el(id).addEventListener('change', () => {
         state.page = 1;
-        if (id === 'fltWarehouse' && state.report) {
+        if (state.report) {
           populateFilterDropdowns(state.report);
         }
         recomputeFilteredList();
@@ -1178,8 +1268,114 @@
       });
     });
 
+    // Кастомный выпадающий список «Все поставщики» с обнулением автозаполнения заказа по избранным поставщикам
+    const closeSupplierDropdown = () => {
+      const menu = el('supplierDropdownMenu');
+      const trig = el('btnSupplierDropdown');
+      if (menu && !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+        trig?.setAttribute('aria-expanded', 'false');
+      }
+    };
+
+    el('btnSupplierDropdown').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = el('supplierDropdownMenu');
+      const isHidden = menu.classList.toggle('hidden');
+      el('btnSupplierDropdown').setAttribute('aria-expanded', String(!isHidden));
+      if (!isHidden) {
+        if (state.report) populateFilterDropdowns(state.report);
+        requestAnimationFrame(() => el('inpSupplierFilter')?.focus());
+      }
+    });
+
+    el('inpSupplierFilter').addEventListener('input', () => {
+      if (state.report) populateFilterDropdowns(state.report);
+    });
+
+    el('supplierDropdownList').addEventListener('change', (e) => {
+      const chk = e.target.closest('input[data-sup-check]');
+      if (!chk) return;
+      const sup = chk.dataset.supCheck;
+      if (chk.checked) {
+        state.checkedSuppliers.add(sup);
+      } else {
+        state.checkedSuppliers.delete(sup);
+      }
+    });
+
+    el('supplierDropdownList').addEventListener('click', async (e) => {
+      const zeroBtn = e.target.closest('[data-sup-zero]');
+      if (zeroBtn) {
+        e.stopPropagation();
+        const sup = zeroBtn.dataset.supZero;
+        const wh = el('fltWarehouse').value || '';
+        const env = await apiPost('api/override', { warehouse: wh, zeroSuppliers: [sup] });
+        applyEnvelope(env);
+        showToast(`Заказ обнулён: ${sup}`);
+        return;
+      }
+
+      const restoreBtn = e.target.closest('[data-sup-restore]');
+      if (restoreBtn) {
+        e.stopPropagation();
+        const sup = restoreBtn.dataset.supRestore;
+        const wh = el('fltWarehouse').value || '';
+        const env = await apiPost('api/override', { warehouse: wh, restoreSuppliers: [sup] });
+        applyEnvelope(env);
+        showToast(`Авторасчёт восстановлен: ${sup}`);
+        return;
+      }
+
+      const selBtn = e.target.closest('[data-sup-select]');
+      if (selBtn) {
+        el('fltSupplier').value = selBtn.dataset.supSelect || '';
+        el('fltSupplier').dispatchEvent(new Event('change'));
+        closeSupplierDropdown();
+      }
+    });
+
+    el('btnZeroCheckedSuppliers').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      let targets = [...state.checkedSuppliers];
+      if (targets.length === 0 && el('fltSupplier').value) {
+        targets = [el('fltSupplier').value];
+      }
+      if (targets.length === 0) {
+        showToast('Отметьте галочками избранных поставщиков в списке');
+        return;
+      }
+      const wh = el('fltWarehouse').value || '';
+      const env = await apiPost('api/override', { warehouse: wh, zeroSuppliers: targets });
+      applyEnvelope(env);
+      showToast(`Обнулён заказ у поставщиков: ${targets.length}`);
+    });
+
+    el('btnRestoreCheckedSuppliers').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      let targets = [...state.checkedSuppliers];
+      if (targets.length === 0 && el('fltSupplier').value) {
+        targets = [el('fltSupplier').value];
+      }
+      if (targets.length === 0) {
+        showToast('Отметьте галочками поставщиков для возврата авторасчёта');
+        return;
+      }
+      const wh = el('fltWarehouse').value || '';
+      const env = await apiPost('api/override', { warehouse: wh, restoreSuppliers: targets });
+      applyEnvelope(env);
+      showToast(`Восстановлен авторасчёт у поставщиков: ${targets.length}`);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#supplierDropdown')) {
+        closeSupplierDropdown();
+      }
+    });
+
     document.querySelectorAll('#itemsTable thead th[data-sort]').forEach((th) => {
-      th.addEventListener('click', () => {
+      th.addEventListener('click', (e) => {
+        if (state.justResizedColumn || e.target.closest('.col-resizer')) return;
         const key = th.dataset.sort;
         if (state.sortKey === key) {
           state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
@@ -1404,6 +1600,7 @@
     });
 
     el('btnClearOverrides').addEventListener('click', async () => {
+      state.checkedSuppliers.clear();
       const env = await apiPost('api/override', { clearAll: true });
       applyEnvelope(env);
       showToast('Все ручные корректировки сброшены');
@@ -1415,6 +1612,7 @@
       if (jumpRow) {
         const rNum = Number(jumpRow.dataset.jumpRow);
         state.selectedExcelRow = rNum;
+        el('inpSearchSku').value = '';
         el('inpSearch').value = '';
         el('fltWarehouse').value = '';
         el('fltGroup').value = '';
@@ -1574,7 +1772,123 @@
     });
   }
 
+  function initColumnResizers() {
+    const STORAGE_KEY = 'ostatki_v4_col_widths';
+    let savedWidths = {};
+    try {
+      savedWidths = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+    } catch (_) {
+      savedWidths = {};
+    }
+
+    const persistWidths = () => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedWidths));
+      } catch (_) {}
+    };
+
+    document.querySelectorAll('table.data-table').forEach((table) => {
+      const tableId = table.id || 'dataTable';
+      const headRow = table.querySelector('thead tr');
+      if (!headRow) return;
+      const ths = [...headRow.querySelectorAll('th')];
+      if (ths.length === 0) return;
+
+      let colgroup = table.querySelector('colgroup');
+      if (!colgroup) {
+        colgroup = document.createElement('colgroup');
+        for (let i = 0; i < ths.length; i++) {
+          colgroup.appendChild(document.createElement('col'));
+        }
+        table.insertBefore(colgroup, table.firstChild);
+      }
+      const cols = [...colgroup.querySelectorAll('col')];
+
+      const stored = savedWidths[tableId];
+      if (Array.isArray(stored) && stored.length === ths.length) {
+        table.classList.add('table-manual-cols');
+        stored.forEach((w, idx) => {
+          if (w && w >= 42) {
+            cols[idx].style.width = `${w}px`;
+            ths[idx].style.width = `${w}px`;
+          }
+        });
+      }
+
+      ths.forEach((th, colIdx) => {
+        if (th.querySelector('.col-resizer')) return;
+        const handle = document.createElement('span');
+        handle.className = 'col-resizer';
+        handle.title = 'Потяните границу для настройки ширины столбца (двойной клик — сброс)';
+        th.appendChild(handle);
+
+        handle.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+
+        handle.addEventListener('dblclick', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          delete savedWidths[tableId];
+          persistWidths();
+          table.classList.remove('table-manual-cols');
+          table.style.width = '';
+          cols.forEach((c) => { c.style.width = ''; });
+          ths.forEach((h) => { h.style.width = ''; });
+          showToast('Ширина столбцов восстановлена');
+        });
+
+        handle.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+
+          // Фиксируем текущие ширины всех столбцов перед началом перетаскивания
+          const initialWidths = ths.map((h) => Math.max(44, Math.round(h.getBoundingClientRect().width)));
+          table.classList.add('table-manual-cols');
+          initialWidths.forEach((w, idx) => {
+            cols[idx].style.width = `${w}px`;
+            ths[idx].style.width = `${w}px`;
+          });
+
+          const startX = e.clientX;
+          const startWidth = initialWidths[colIdx];
+          let currentWidths = [...initialWidths];
+
+          handle.classList.add('resizing');
+          document.body.classList.add('col-resize-active');
+
+          const onMouseMove = (moveEv) => {
+            const delta = moveEv.clientX - startX;
+            const nextWidth = Math.max(44, Math.round(startWidth + delta));
+            currentWidths[colIdx] = nextWidth;
+            cols[colIdx].style.width = `${nextWidth}px`;
+            ths[colIdx].style.width = `${nextWidth}px`;
+            const totalW = currentWidths.reduce((a, b) => a + b, 0);
+            table.style.width = `${totalW}px`;
+          };
+
+          const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            handle.classList.remove('resizing');
+            document.body.classList.remove('col-resize-active');
+            savedWidths[tableId] = currentWidths;
+            persistWidths();
+            state.justResizedColumn = true;
+            setTimeout(() => { state.justResizedColumn = false; }, 180);
+          };
+
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', onMouseUp);
+        });
+      });
+    });
+  }
+
   async function bootstrap() {
+    initColumnResizers();
     bindEvents();
     try {
       const env = await apiGet('api/state');

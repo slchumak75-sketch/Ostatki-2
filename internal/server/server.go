@@ -229,10 +229,13 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 	s.touchHeartbeat()
 	var req struct {
-		ExcelRow int  `json:"excelRow"`
-		Value    int  `json:"value"`
-		Clear    bool `json:"clear"`
-		ClearAll bool `json:"clearAll"`
+		ExcelRow         int      `json:"excelRow"`
+		Value            int      `json:"value"`
+		Clear            bool     `json:"clear"`
+		ClearAll         bool     `json:"clearAll"`
+		Warehouse        string   `json:"warehouse"`
+		ZeroSuppliers    []string `json:"zeroSuppliers"`
+		RestoreSuppliers []string `json:"restoreSuppliers"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный запрос: "+err.Error())
@@ -247,6 +250,29 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ClearAll {
 		s.overrides = make(map[int]int)
+	} else if len(req.ZeroSuppliers) > 0 || len(req.RestoreSuppliers) > 0 {
+		zeroSet := make(map[string]bool, len(req.ZeroSuppliers))
+		for _, sup := range req.ZeroSuppliers {
+			zeroSet[strings.TrimSpace(sup)] = true
+		}
+		restoreSet := make(map[string]bool, len(req.RestoreSuppliers))
+		for _, sup := range req.RestoreSuppliers {
+			restoreSet[strings.TrimSpace(sup)] = true
+		}
+		for _, item := range s.wb.Items {
+			if req.Warehouse != "" && item.Warehouse != req.Warehouse {
+				continue
+			}
+			supKey := strings.TrimSpace(item.Supplier)
+			if supKey == "" {
+				supKey = "(Поставщик не указан)"
+			}
+			if zeroSet[supKey] {
+				s.overrides[item.ExcelRow] = 0
+			} else if restoreSet[supKey] {
+				delete(s.overrides, item.ExcelRow)
+			}
+		}
 	} else if req.Clear {
 		delete(s.overrides, req.ExcelRow)
 	} else if req.ExcelRow > 0 {
