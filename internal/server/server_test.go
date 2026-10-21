@@ -212,10 +212,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<div class="params-body hidden" id="paramsBody">`,
 		`id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM`,
 		`<button class="btn btn-beige" id="btnUpload"`,
+		`<button class="btn btn-beige" id="btnClearDatabase"`,
 		`<button class="btn btn-neutral" id="btnDownloadXlsx"`,
 		`<button class="btn btn-neutral" id="btnDownloadOrders"`,
-		`id="btnClearDatabase"`,
-		`>Очистить базу</button>`,
+		`Очистить базу`,
 		`<button class="tab-btn tab-beige active" data-tab="table"`,
 		`<button class="tab-btn tab-beige" data-tab="suppliers"`,
 		`id="ovFltWarehouse"`,
@@ -252,6 +252,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
 	}
+	// Проверка размещения кнопки «Очистить базу» на верхней плашке (<header class="topbar">) рядом с «Загрузить .xlsx»
+	uploadIdx := strings.Index(htmlBody, `id="btnUpload"`)
+	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
+	headerEndIdx := strings.Index(htmlBody, `</header>`)
+	if !(uploadIdx > 0 && clearIdx > uploadIdx && headerEndIdx > clearIdx) {
+		t.Fatalf("expected btnClearDatabase in topbar right after btnUpload before </header>, got upload=%d clear=%d headerEnd=%d", uploadIdx, clearIdx, headerEndIdx)
+	}
+
 	// Проверка порядка столбцов: Номенклатура -> Ед. -> Рейтинг, а также Цена -> Розница -> Сумма
 	nameIdx := strings.Index(htmlBody, `<th data-sort="name" class="col-name">Номенклатура</th>`)
 	unitIdx := strings.Index(htmlBody, `<th data-sort="unit" class="unit-col">Ед.</th>`)
