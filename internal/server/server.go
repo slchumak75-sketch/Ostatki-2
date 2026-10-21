@@ -95,6 +95,17 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	return nil
 }
 
+// ClearDatabase полностью очищает загруженную базу ведомости и сбрасывает расчёт в пустое состояние.
+func (s *AppServer) ClearDatabase() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wb = nil
+	s.rawXLSX = nil
+	s.overrides = make(map[int]int)
+	s.params = model.DefaultParams()
+	s.report = nil
+}
+
 // ShutdownChan закрывается, когда десктопное окно на Windows закрыто пользователем.
 func (s *AppServer) ShutdownChan() <-chan struct{} {
 	return s.shutdownCh
@@ -150,6 +161,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
 	mux.HandleFunc("/api/upload", s.handleUpload)
+	mux.HandleFunc("/api/clear", s.handleClearDatabase)
 	mux.HandleFunc("/api/save-inplace", s.handleSaveInPlace)
 	mux.HandleFunc("/api/export/xlsx", s.handleExportFilledXLSX)
 	mux.HandleFunc("/api/export/orders", s.handleExportOrdersXLSX)
@@ -249,6 +261,21 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 		CanSaveInPlace: s.wb.FilePath != "",
 		DesktopMode:    s.desktopMode,
 		Report:         s.report,
+	})
+}
+
+func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "требуется метод POST")
+		return
+	}
+	s.touchHeartbeat()
+	s.ClearDatabase()
+	writeJSON(w, http.StatusOK, stateEnvelope{
+		HasWorkbook:    false,
+		CanSaveInPlace: false,
+		DesktopMode:    s.desktopMode,
+		Report:         nil,
 	})
 }
 

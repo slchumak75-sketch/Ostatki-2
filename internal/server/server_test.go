@@ -109,6 +109,24 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("unexpected Content-Disposition filename header: %s", disp)
 	}
 
+	// 5c. POST /api/clear — очистка загруженной базы перед новой загрузкой
+	req = httptest.NewRequest(http.MethodPost, "/api/clear", bytes.NewReader([]byte(`{}`)))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/clear code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var clearEnv struct {
+		HasWorkbook bool            `json:"hasWorkbook"`
+		Report      json.RawMessage `json:"report"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &clearEnv); err != nil {
+		t.Fatalf("unmarshal clear response failed: %v", err)
+	}
+	if clearEnv.HasWorkbook || len(clearEnv.Report) > 0 {
+		t.Fatalf("expected empty database after /api/clear, got hasWorkbook=%v report=%s", clearEnv.HasWorkbook, string(clearEnv.Report))
+	}
+
 	// 6. POST /api/upload
 	rawBytes, err := os.ReadFile(repoFile)
 	if err != nil {
@@ -176,6 +194,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"btnPrevPage",
 		"btnNextPage",
 		"lblPageNum",
+		"На 2 месяца",
+		"twomonths",
+		"btn-primary",
+		"btn-success",
 		"сегмент",
 		"Сегмент",
 		"сегм.",
@@ -189,6 +211,17 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<input type="number" id="inpHorizon"`,
 		`<div class="params-body hidden" id="paramsBody">`,
 		`id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM`,
+		`<button class="btn btn-beige" id="btnUpload"`,
+		`<button class="btn btn-neutral" id="btnDownloadXlsx"`,
+		`<button class="btn btn-neutral" id="btnDownloadOrders"`,
+		`id="btnClearDatabase"`,
+		`>Очистить базу</button>`,
+		`<button class="tab-btn tab-beige active" data-tab="table"`,
+		`<button class="tab-btn tab-beige" data-tab="suppliers"`,
+		`id="ovFltWarehouse"`,
+		`id="ovFltName"`,
+		`id="ovFltSupplier"`,
+		`id="ovInpSearch"`,
 		`<input type="number" id="inpLeadTime" min="0" max="180" step="1" value="4"`,
 		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
 		`Ведомость <span class="tab-counter" id="cntTabTable">`,
@@ -276,6 +309,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"--sticky-table-head-top",
 		".budget-inline-card",
 		".rating-chart-popover",
+		".btn-beige",
+		".btn-neutral",
+		".tab-btn.tab-beige",
+		"#f5ead6",
 		"overflow: visible",
 		"top: var(--sticky-head-top",
 	} {
@@ -314,6 +351,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"inpHeaderName",
 		"kpiOrderUnits",
 		"selPageSize",
+		"twomonths",
 		"сегмент",
 		"Сегмент",
 		"сегм.",
@@ -333,6 +371,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`data-sum-row="${it.excelRow}"`,
 		"calcLineSum",
 		"updateRowSumLive",
+		"api/clear",
+		"ovFltWarehouse",
+		"ovFltName",
+		"ovFltSupplier",
 		"renderThreeYearSalesChart",
 		"showRatingChartPopover",
 		"api/export/supplier-order",
