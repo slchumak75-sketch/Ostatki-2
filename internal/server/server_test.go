@@ -184,6 +184,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
 		`<th data-sort="purchasePrice" class="num-col">Цена</th>`,
 		`<th data-sort="retailPrice" class="num-col">Розница</th>`,
+		`id="ratingChartPopover"`,
 	} {
 		if !strings.Contains(htmlBody, mustHaveHTML) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
@@ -245,6 +246,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"--sticky-toolbar-top",
 		"--sticky-table-head-top",
 		".budget-inline-card",
+		".rating-chart-popover",
 		"overflow: visible",
 		"top: var(--sticky-head-top",
 	} {
@@ -298,7 +300,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"salesSegment",
 		"salesSegmentLabel",
 		`<td class="unit-cell">шт.</td>`,
-		`<span class="seg-pill seg-${segNum}">${segNum}</span>`,
+		`data-rating-row="${it.excelRow}"`,
+		"renderThreeYearSalesChart",
+		"showRatingChartPopover",
 		"api/export/supplier-order",
 		"formatOrderFileName",
 		"freshEdit",

@@ -940,6 +940,109 @@ html, body {
 .seg-pill.seg-1 { background-color: #f9a8d4 !important; color: #000000 !important; }
 .seg-pill.seg-0 { background-color: #ef4444 !important; color: #000000 !important; }
 
+.data-table td.seg-cell .seg-pill {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.data-table td.seg-cell:hover .seg-pill {
+  transform: scale(1.16);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+/* Всплывающее окно справа от цифры рейтинга с графиком продаж за последние 3 года */
+.rating-chart-popover {
+  position: fixed;
+  z-index: 120;
+  pointer-events: none;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 10px 12px 9px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18), 0 3px 8px rgba(15, 23, 42, 0.09);
+}
+
+.rating-chart-popover::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: var(--arrow-top, 24px);
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  border-left: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.rcp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.rcp-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.rcp-item-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rcp-period-tag {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.rcp-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rcp-summary strong {
+  color: var(--text);
+}
+
+.rcp-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.rcp-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .abc-pill {
   display: inline-block;
   width: 22px;

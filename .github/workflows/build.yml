@@ -377,7 +377,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): открытие программы сразу в полноэкранном режиме (--start-fullscreen + кнопки управления окном ⛶ / ✕), подпись Authenticode SHA-256 + Windows PE-ресурсы (манифест asInvoker, иконка, VERSIONINFO, автоснятие метки SmartScreen в Запустить_Вариант_4.bat), чёрные цифры 5..0 в цветных кружочках «Рейтинг», закрепляемая панель фильтров и шапка таблицы, столбец «Ед.» («шт.») и неокрашенный Заказ .xlsx."
+          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): всплывающее справа окно с помесячным графиком продаж за последние 3 года при наведении курсора на цифру в столбце «Рейтинг», открытие программы сразу в полноэкранном режиме (--start-fullscreen + кнопки ⛶ / ✕), подпись Authenticode SHA-256 + Windows PE-ресурсы (манифест asInvoker, иконка, VERSIONINFO), чёрные цифры 5..0 в цветных кружочках «Рейтинг», закрепляемая панель фильтров и шапка таблицы, столбец «Ед.» («шт.») и неокрашенный Заказ .xlsx."
           if gh release view variant-4 >/dev/null 2>&1; then
             for old in $(gh release view variant-4 --json assets --jq '.assets[].name'); do
               gh release delete-asset variant-4 "$old" -y || true
