@@ -765,6 +765,20 @@ html, body {
   transition: background 0.1s ease;
 }
 
+.data-table tfoot tr {
+  background: var(--surface-alt);
+  border-top: 2px solid var(--border-strong);
+  font-weight: 700;
+}
+
+.data-table tfoot td {
+  padding: 5px 6px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 .data-table tbody tr:hover {
   background: var(--surface-hover);
 }
