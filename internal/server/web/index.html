@@ -39,16 +39,16 @@
 
     <div class="topbar-actions">
       <input type="file" id="fileInput" accept=".xlsx" class="hidden" />
-      <button class="btn btn-secondary" id="btnUpload" title="Открыть другой файл Ведомости (.xlsx)">
+      <button class="btn btn-beige" id="btnUpload" title="Открыть другой файл Ведомости (.xlsx)">
         Загрузить .xlsx
       </button>
       <button class="btn btn-secondary hidden" id="btnSaveInPlace" title="Записать столбец 8 прямо в исходный файл на диске">
         Сохранить в файл
       </button>
-      <button class="btn btn-primary" id="btnDownloadXlsx" title="Скачать оригинальную ведомость с заполненным столбцом 8 (100% сохранение структуры 1С)">
+      <button class="btn btn-neutral" id="btnDownloadXlsx" title="Скачать оригинальную ведомость с заполненным столбцом 8 (100% сохранение структуры 1С)">
         Скачать Ведомость (.xlsx)
       </button>
-      <button class="btn btn-success" id="btnDownloadOrders" title="Скачать 4-листовый управленческий отчёт Excel (Заявки + Поставщики + ABC-XYZ + Неликвиды)">
+      <button class="btn btn-neutral" id="btnDownloadOrders" title="Скачать 4-листовый управленческий отчёт Excel (Заявки + Поставщики + ABC-XYZ + Неликвиды)">
         Отчёт и заявки (.xlsx)
       </button>
       <button class="btn btn-ghost" id="btnPrintOrder" title="Печатный бланк заявки на закупку (Печать / PDF)">Печать</button>
@@ -68,8 +68,8 @@
           <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
           <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
           <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
-          <button class="preset-chip" data-preset="twomonths">На 2 месяца (60 дн.)</button>
           <button class="preset-chip" data-preset="spring">Подготовка к весне (Март–Апр)</button>
+          <button class="btn btn-beige btn-sm" id="btnClearDatabase" type="button" title="Очистить загруженную базу ведомости">Очистить базу</button>
         </div>
 
         <div class="params-header-right">
@@ -172,10 +172,10 @@
 
     <!-- Навигация по вкладкам -->
     <nav class="tabs-bar" role="tablist">
-      <button class="tab-btn active" data-tab="table" role="tab">
+      <button class="tab-btn tab-beige active" data-tab="table" role="tab">
         Ведомость <span class="tab-counter" id="cntTabTable">0</span>
       </button>
-      <button class="tab-btn" data-tab="suppliers" role="tab">
+      <button class="tab-btn tab-beige" data-tab="suppliers" role="tab">
         Поставщики и склады <span class="tab-counter" id="cntTabSuppliers">0</span>
       </button>
       <button class="tab-btn" data-tab="overstock" role="tab">
@@ -286,6 +286,26 @@
 
     <!-- ВКЛАДКА 4: РАДАР НЕЛИКВИДОВ И ЗАМОРОЖЕННОГО КАПИТАЛА -->
     <section class="tab-view" id="view-overstock">
+      <div class="toolbar" id="overstockToolbar">
+        <select id="ovFltWarehouse" aria-label="Выбор склада в радаре неликвидов">
+          <option value="">Все склады</option>
+        </select>
+
+        <select id="ovFltName" aria-label="Выбор номенклатуры в радаре неликвидов">
+          <option value="">Вся номенклатура</option>
+        </select>
+
+        <div class="search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="search" id="ovInpSearch" placeholder="Быстрый поиск по номенклатуре или артикулу…" />
+        </div>
+
+        <select id="ovFltSupplier" aria-label="Выбор поставщика в радаре неликвидов">
+          <option value="">Все поставщики</option>
+        </select>
+
+        <button class="btn btn-ghost btn-sm hidden" id="btnResetOverstockFilters" type="button">Сбросить фильтр</button>
+      </div>
       <div class="card-block" id="overstockContainer"></div>
     </section>
   </main>

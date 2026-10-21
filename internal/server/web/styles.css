@@ -21,6 +21,11 @@
   --auto-order-bg: #e2f9df;
   --auto-order-cell: #d3f5cf;
   --auto-order-hover: #cef2ca;
+  --beige-bg: #f5ead6;
+  --beige-hover: #ebd9b9;
+  --beige-active: #e3cca4;
+  --beige-border: #d6bfa0;
+  --beige-text: #3d2c1e;
   --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
   --radius: 10px;
   --sticky-head-top: 39px;
@@ -51,6 +56,11 @@
   --auto-order-bg: rgba(74, 222, 128, 0.14);
   --auto-order-cell: rgba(74, 222, 128, 0.22);
   --auto-order-hover: rgba(74, 222, 128, 0.26);
+  --beige-bg: #efe0c6;
+  --beige-hover: #e5cfa9;
+  --beige-active: #dcc092;
+  --beige-border: #c4a77d;
+  --beige-text: #2c1e12;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
@@ -250,6 +260,27 @@ html, body {
 }
 .btn-secondary:hover {
   background: var(--surface-hover);
+}
+
+.btn-neutral {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.btn-neutral:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.btn-beige {
+  background-color: var(--beige-bg);
+  color: var(--beige-text);
+  border-color: var(--beige-border);
+}
+.btn-beige:hover {
+  background-color: var(--beige-hover);
+  border-color: #c2a47e;
+  color: #261a10;
 }
 
 .btn-ghost {
@@ -571,6 +602,32 @@ html, body {
   border-bottom-color: var(--primary);
 }
 
+.tab-btn.tab-beige {
+  background-color: var(--beige-bg);
+  color: var(--beige-text);
+  border: 1px solid var(--beige-border);
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+}
+
+.tab-btn.tab-beige:hover {
+  background-color: var(--beige-hover);
+  color: #23170d;
+}
+
+.tab-btn.tab-beige.active {
+  background-color: var(--beige-active);
+  color: #23170d;
+  border-bottom-color: #8b5e2b;
+  font-weight: 700;
+}
+
+.tab-btn.tab-beige .tab-counter {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: var(--beige-border);
+  color: var(--beige-text);
+}
+
 .tab-counter {
   padding: 0 6px;
   border-radius: 999px;
@@ -639,10 +696,16 @@ html, body {
   max-width: 220px;
 }
 
-#fltSupplier {
+#fltSupplier,
+#ovFltSupplier {
   width: 330px;
   min-width: 330px;
   max-width: 330px;
+}
+
+#ovFltName {
+  width: 300px;
+  max-width: 320px;
 }
 
 /* Main Full-Width Table */
@@ -683,7 +746,8 @@ html, body {
   border-top-left-radius: var(--radius);
 }
 
-#view-table .data-table thead th {
+#view-table .data-table thead th,
+#view-overstock .data-table thead th {
   top: var(--sticky-table-head-top, 83px);
 }
 

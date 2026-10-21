@@ -133,7 +133,36 @@
 
     el('btnSaveInPlace').classList.toggle('hidden', !state.canSaveInPlace);
     el('btnCloseApp').classList.toggle('hidden', !state.desktopMode);
-    if (!state.report) return;
+    if (!state.report) {
+      hideRatingChartPopover();
+      state.filteredItems = [];
+      state.selectedExcelRow = null;
+      el('inpSearch').value = '';
+      el('fltABCXYZ').value = '';
+      el('fltStatus').value = 'all';
+      el('fltWarehouse').innerHTML = '<option value="">Все склады</option>';
+      el('fltGroup').innerHTML = '<option value="">Все группы</option>';
+      el('fltSupplier').innerHTML = '<option value="">Все поставщики</option>';
+      el('ovFltWarehouse').innerHTML = '<option value="">Все склады</option>';
+      el('ovFltName').innerHTML = '<option value="">Вся номенклатура</option>';
+      el('ovFltSupplier').innerHTML = '<option value="">Все поставщики</option>';
+      el('ovInpSearch').value = '';
+      el('btnResetOverstockFilters').classList.add('hidden');
+      el('btnClearOverrides').classList.add('hidden');
+
+      el('fileMetaLine').textContent = 'База очищена • Загрузите файл Ведомости (.xlsx) для расчёта';
+      el('kpiOrderCost').textContent = '0,00 руб.';
+      el('kpiBudgetInfo').textContent = 'База пуста';
+      el('cntTabTable').textContent = '0';
+      el('cntTabSuppliers').textContent = '0';
+      el('cntTabOverstock').textContent = '0';
+      el('paginationInfo').textContent = 'База очищена (0 строк)';
+      el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+      el('warehousesContainer').innerHTML = '';
+      el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">База данных очищена</td></tr>';
+      el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
+      return;
+    }
 
     syncParamsControls(state.report);
     populateFilterDropdowns(state.report);
@@ -556,13 +585,97 @@
   }
 
   function renderOverstockView(rep) {
-    const over = rep.items
+    if (!rep) return;
+    const allOver = rep.items
       .filter((it) => it.isOverstock)
       .sort((a, b) => b.overstockValue - a.overstockValue);
 
+    const setSelectOptions = (selectEl, items, defaultLabel, formatter) => {
+      const prev = selectEl.value;
+      selectEl.innerHTML = `<option value="">${esc(defaultLabel)}</option>` +
+        items.map((item) => {
+          const val = typeof item === 'string' ? item : item.value;
+          const label = formatter ? formatter(item) : val;
+          return `<option value="${esc(val)}">${esc(label)}</option>`;
+        }).join('');
+      if ([...selectEl.options].some((o) => o.value === prev)) {
+        selectEl.value = prev;
+      } else {
+        selectEl.value = '';
+      }
+    };
+
+    const whAgg = new Map();
+    const supAgg = new Map();
+    for (const it of allOver) {
+      const whName = it.warehouse || '';
+      if (whName) {
+        const w = whAgg.get(whName) || { value: whName, warehouse: whName, count: 0, frozen: 0 };
+        w.count += 1;
+        w.frozen += it.overstockValue;
+        whAgg.set(whName, w);
+      }
+      const sName = it.supplier || '(Поставщик не указан)';
+      const s = supAgg.get(sName) || { value: sName, supplier: sName, count: 0, frozen: 0 };
+      s.count += 1;
+      s.frozen += it.overstockValue;
+      supAgg.set(sName, s);
+    }
+
+    setSelectOptions(
+      el('ovFltWarehouse'),
+      [...whAgg.values()].sort((a, b) => b.frozen - a.frozen || a.warehouse.localeCompare(b.warehouse, 'ru')),
+      'Все склады',
+      (w) => `${w.warehouse} (${w.count})`
+    );
+    setSelectOptions(
+      el('ovFltSupplier'),
+      [...supAgg.values()].sort((a, b) => b.frozen - a.frozen || a.supplier.localeCompare(b.supplier, 'ru')),
+      'Все поставщики',
+      (s) => `${s.supplier} — ${fmtMoney(s.frozen)} р. (${s.count})`
+    );
+
+    const selWh = el('ovFltWarehouse').value;
+    const selSup = el('ovFltSupplier').value;
+
+    const nameCandidates = new Set();
+    for (const it of allOver) {
+      if (selWh && it.warehouse !== selWh) continue;
+      const sName = it.supplier || '(Поставщик не указан)';
+      if (selSup && sName !== selSup) continue;
+      if (it.name) nameCandidates.add(it.name);
+    }
+    setSelectOptions(
+      el('ovFltName'),
+      [...nameCandidates].sort((a, b) => a.localeCompare(b, 'ru')),
+      'Вся номенклатура'
+    );
+
+    const selName = el('ovFltName').value;
+    const searchQ = el('ovInpSearch').value.trim().toLowerCase();
+    const hasActiveFilter = Boolean(selWh || selSup || selName || searchQ);
+    el('btnResetOverstockFilters').classList.toggle('hidden', !hasActiveFilter);
+
+    const over = allOver.filter((it) => {
+      if (selWh && it.warehouse !== selWh) return false;
+      const sName = it.supplier || '(Поставщик не указан)';
+      if (selSup && sName !== selSup) return false;
+      if (selName && it.name !== selName) return false;
+      if (searchQ) {
+        const hay = `${it.name} ${it.sku} ${it.group} ${it.supplier} ${it.warehouse}`.toLowerCase();
+        if (!hay.includes(searchQ)) return false;
+      }
+      return true;
+    });
+
+    const filteredFrozen = over.reduce((acc, it) => acc + (Number(it.overstockValue) || 0), 0);
+    const totalHint = hasActiveFilter
+      ? ` (всего по базе: ${fmtInt(allOver.length)} поз. на ${fmtMoney(rep.overstockFrozenCost)} руб.)`
+      : '';
+
     el('overstockContainer').innerHTML = `
       <h3>Радар замороженного капитала и неликвидов (&gt; 365 дней продаж или 0 продаж за 12 мес.)</h3>
-      <p class="muted">Выявлено <strong>${over.length} позиций</strong> со сверхнормативным запасом на сумму <strong style="color:var(--warn)">${fmtMoney(rep.overstockFrozenCost)} руб.</strong> (в закупочных ценах сверх годовой потребности). Рекомендуется промо-выкладка, скидка или межскладской обмен.</p>
+      <p class="muted">Выявлено <strong>${fmtInt(over.length)} позиций</strong> со сверхнормативным запасом на сумму <strong style="color:var(--warn)">${fmtMoney(filteredFrozen)} руб.</strong>${totalHint} (в закупочных ценах сверх годовой потребности). Рекомендуется промо-выкладка, скидка или межскладской обмен.</p>
       <div>
         <table class="data-table">
           <thead>
@@ -580,7 +693,9 @@
             </tr>
           </thead>
           <tbody>
-            ${over.map((it) => `<tr data-jump-row="${it.excelRow}">
+            ${over.length === 0
+              ? '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">По выбранным фильтрам позиций не найдено</td></tr>'
+              : over.map((it) => `<tr data-jump-row="${it.excelRow}">
               <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
               <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
@@ -688,11 +803,6 @@
           el('inpSafety').value = 10;
           el('inpBudgetCap').value = 5000;
           state.planStartDate = '';
-        } else if (preset === 'twomonths') {
-          el('inpHorizon').value = 60;
-          el('inpLeadTime').value = 4;
-          el('inpSafety').value = 10;
-          state.planStartDate = '';
         } else if (preset === 'spring') {
           const baseYear = (state.report?.periods?.at(-1)?.year || 2026) + 1;
           state.planStartDate = `${baseYear}-03-01`;
@@ -703,6 +813,32 @@
         el('selSeasonMode').value = 'hybrid';
         scheduleRecalculate();
       });
+    });
+
+    el('btnClearDatabase').addEventListener('click', async () => {
+      try {
+        const env = await apiPost('api/clear', {});
+        applyEnvelope(env);
+        showToast('База данных очищена');
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+
+    ['ovFltWarehouse', 'ovFltName', 'ovFltSupplier'].forEach((id) => {
+      el(id).addEventListener('change', () => {
+        if (state.report) renderOverstockView(state.report);
+      });
+    });
+    el('ovInpSearch').addEventListener('input', () => {
+      if (state.report) renderOverstockView(state.report);
+    });
+    el('btnResetOverstockFilters').addEventListener('click', () => {
+      el('ovFltWarehouse').value = '';
+      el('ovFltName').value = '';
+      el('ovFltSupplier').value = '';
+      el('ovInpSearch').value = '';
+      if (state.report) renderOverstockView(state.report);
     });
 
     el('btnToggleAdvanced').addEventListener('click', () => {
@@ -1094,19 +1230,25 @@
 
     const topbarEl = document.querySelector('.topbar');
     const toolbarEl = document.querySelector('#view-table .toolbar');
+    const ovToolbarEl = el('overstockToolbar');
     const syncStickyHeaderOffset = () => {
       const topbarH = topbarEl ? Math.round(topbarEl.getBoundingClientRect().height) : 39;
-      const toolbarH = toolbarEl ? Math.round(toolbarEl.getBoundingClientRect().height) : 0;
+      const activeToolbar = state.activeTab === 'overstock' ? ovToolbarEl : toolbarEl;
+      const toolbarH = activeToolbar ? Math.round(activeToolbar.getBoundingClientRect().height) : 0;
       document.documentElement.style.setProperty('--sticky-head-top', `${topbarH}px`);
       document.documentElement.style.setProperty('--sticky-toolbar-top', `${topbarH}px`);
       const tableHeadTop = toolbarH > 0 ? topbarH + toolbarH + 5 : topbarH;
       document.documentElement.style.setProperty('--sticky-table-head-top', `${tableHeadTop}px`);
     };
     syncStickyHeaderOffset();
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => requestAnimationFrame(syncStickyHeaderOffset));
+    });
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(syncStickyHeaderOffset);
       if (topbarEl) ro.observe(topbarEl);
       if (toolbarEl) ro.observe(toolbarEl);
+      if (ovToolbarEl) ro.observe(ovToolbarEl);
     } else {
       window.addEventListener('resize', syncStickyHeaderOffset);
     }
