@@ -78,11 +78,11 @@
             <span class="kpi-value" id="kpiOrderCost">—</span>
             <span class="kpi-sub" id="kpiBudgetInfo">—</span>
           </div>
-          <button class="btn-link" id="btnToggleAdvanced">Параметры PRO SCM ▾</button>
+          <button class="btn-link" id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM ▸</button>
         </div>
       </div>
 
-      <div class="params-body" id="paramsBody">
+      <div class="params-body hidden" id="paramsBody">
         <div class="param-field" title="Горизонт обеспеченности запасом в днях">
           <label for="inpHorizon">Покрытие запаса (дней)</label>
           <input type="number" id="inpHorizon" min="1" max="365" step="1" value="30" />
