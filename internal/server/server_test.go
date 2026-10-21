@@ -3,6 +3,7 @@ package server_test
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -46,12 +47,38 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("POST /api/params code=%d", rec.Code)
 	}
 
-	// 3. POST /api/override
+	// 3. POST /api/override + проверка точного равенства Сумма = Заказ * Цена во всех строках
 	req = httptest.NewRequest(http.MethodPost, "/api/override", bytes.NewReader([]byte(`{"excelRow":8,"value":25}`)))
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST /api/override code=%d", rec.Code)
+	}
+	var overrideEnv struct {
+		Report *struct {
+			Items []model.CalculatedItem `json:"items"`
+		} `json:"report"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &overrideEnv); err != nil || overrideEnv.Report == nil {
+		t.Fatalf("unmarshal override envelope failed: %v", err)
+	}
+	foundRow8 := false
+	for _, it := range overrideEnv.Report.Items {
+		unitPrice := math.Round(it.PurchasePrice*100) / 100
+		expectedSum := math.Round(float64(it.FinalOrderQty)*unitPrice*100) / 100
+		if math.Abs(it.OrderCost-expectedSum) > 1e-6 {
+			t.Fatalf("row %d: expected OrderCost = FinalOrderQty(%d) * Price(%.2f) = %.2f, got %.2f",
+				it.ExcelRow, it.FinalOrderQty, unitPrice, expectedSum, it.OrderCost)
+		}
+		if it.ExcelRow == 8 {
+			foundRow8 = true
+			if it.FinalOrderQty != 25 || math.Abs(it.OrderCost-59.25) > 1e-6 {
+				t.Fatalf("row 8 override mismatch: qty=%d orderCost=%.2f", it.FinalOrderQty, it.OrderCost)
+			}
+		}
+	}
+	if !foundRow8 {
+		t.Fatalf("expected ExcelRow 8 in report items")
 	}
 
 	// 4. GET /api/export/xlsx
@@ -160,6 +187,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	for _, mustHaveHTML := range []string{
 		`<input type="number" id="inpHorizon"`,
+		`<div class="params-body hidden" id="paramsBody">`,
+		`id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM`,
 		`<input type="number" id="inpLeadTime" min="0" max="180" step="1" value="4"`,
 		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
 		`Ведомость <span class="tab-counter" id="cntTabTable">`,
@@ -301,6 +330,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"salesSegmentLabel",
 		`<td class="unit-cell">шт.</td>`,
 		`data-rating-row="${it.excelRow}"`,
+		`data-sum-row="${it.excelRow}"`,
+		"calcLineSum",
+		"updateRowSumLive",
 		"renderThreeYearSalesChart",
 		"showRatingChartPopover",
 		"api/export/supplier-order",

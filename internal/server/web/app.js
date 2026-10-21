@@ -22,6 +22,17 @@
     return Math.round(Number(n) || 0).toLocaleString('ru-RU');
   }
 
+  function parseQtyInput(raw) {
+    const digits = String(raw ?? '').replace(/[^\d]/g, '');
+    return Math.max(0, Math.round(Number(digits) || 0));
+  }
+
+  function calcLineSum(qty, price) {
+    const q = Math.max(0, Math.round(Number(qty) || 0));
+    const p = Math.round((Number(price) || 0) * 100) / 100;
+    return Math.round(q * p * 100) / 100;
+  }
+
   function fmtMoney(n) {
     return (Number(n) || 0).toLocaleString('ru-RU', {
       minimumFractionDigits: 2,
@@ -301,8 +312,7 @@
       const isManual = it.manualOverride != null;
       const hasAutoOrder = it.autoOrderQty > 0;
       const segNum = Number(it.salesSegment) || 0;
-      const segLabel = it.salesSegmentLabel || `${segNum}-Нет продаж`;
-      const segTitle = `Рейтинг ${segLabel} • продажи за 6 мес.: ${fmtInt(it.sumSalesLast6M)}, за 12 мес.: ${fmtInt(it.sumSalesLast12M)}`;
+      const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
 
       const rowCls = [
         hasAutoOrder ? 'auto-order-row' : '',
@@ -332,7 +342,7 @@
         </td>
         <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
         <td class="num-col">${fmtRetail(it)}</td>
-        <td class="num-col" style="font-weight:${it.orderCost > 0 ? '700' : '400'}">${it.orderCost > 0 ? fmtMoney(it.orderCost) : '—'}</td>
+        <td class="num-col" data-sum-row="${it.excelRow}" style="font-weight:${lineSum > 0 ? '700' : '400'}">${fmtMoney(lineSum)}</td>
         <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
       </tr>`;
     }).join('');
@@ -696,7 +706,10 @@
     });
 
     el('btnToggleAdvanced').addEventListener('click', () => {
-      el('paramsBody').classList.toggle('hidden');
+      const body = el('paramsBody');
+      const isHidden = body.classList.toggle('hidden');
+      el('btnToggleAdvanced').setAttribute('aria-expanded', String(!isHidden));
+      el('btnToggleAdvanced').textContent = isHidden ? 'Параметры PRO SCM ▸' : 'Параметры PRO SCM ▾';
     });
 
     [
@@ -805,12 +818,57 @@
       if (activePopoverRow !== null) hideRatingChartPopover();
     }, { passive: true });
 
+    let liveOverrideTimer = null;
+
+    function updateRowSumLive(rowNum, qty) {
+      if (!state.report?.items) return;
+      const it = state.report.items.find((x) => x.excelRow === rowNum);
+      if (!it) return;
+      const lineSum = calcLineSum(qty, it.purchasePrice);
+      it.finalOrderQty = qty;
+      it.orderCost = lineSum;
+
+      const tbody = el('tableBody');
+      const sumCell = tbody?.querySelector(`td[data-sum-row="${rowNum}"]`);
+      if (sumCell) {
+        sumCell.textContent = fmtMoney(lineSum);
+        sumCell.style.fontWeight = lineSum > 0 ? '700' : '400';
+      }
+      const inp = tbody?.querySelector(`input[data-qty-row="${rowNum}"]`);
+      if (inp) {
+        inp.classList.toggle('has-order', qty > 0);
+      }
+
+      const totalBudget = state.report.items.reduce(
+        (acc, x) => acc + calcLineSum(x.finalOrderQty, x.purchasePrice),
+        0
+      );
+      state.report.totalOrderCost = Math.round(totalBudget * 100) / 100;
+      const kpiEl = el('kpiOrderCost');
+      if (kpiEl) kpiEl.textContent = `${fmtMoney(state.report.totalOrderCost)} руб.`;
+    }
+
+    async function commitQtyOverride(inp) {
+      if (!inp || inp.dataset.dirty !== '1') return;
+      clearTimeout(liveOverrideTimer);
+      inp.dataset.dirty = '0';
+      const rowNum = Number(inp.dataset.qtyRow);
+      const val = parseQtyInput(inp.value);
+      inp.value = fmtInt(val);
+      state.selectedExcelRow = rowNum;
+      const env = await apiPost('api/override', { excelRow: rowNum, value: val });
+      applyEnvelope(env);
+      showToast(`Заказ обновлён: ${fmtInt(val)}`);
+    }
+
     // Автоматическое удаление старого значения в поле «Заказ» при начале ввода новых данных
     el('tableBody').addEventListener('focusin', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
       inp.dataset.origVal = inp.value;
+      inp.dataset.origQty = String(parseQtyInput(inp.value));
       inp.dataset.freshEdit = '1';
+      inp.dataset.dirty = '0';
       inp.select();
     });
 
@@ -830,6 +888,7 @@
         inp.value = '';
         inp.dataset.freshEdit = '0';
       }
+      inp.dataset.dirty = '1';
     });
 
     el('tableBody').addEventListener('keydown', (e) => {
@@ -842,8 +901,12 @@
       }
       if (e.key === 'Escape') {
         e.preventDefault();
-        inp.value = inp.dataset.origVal ?? inp.value;
+        clearTimeout(liveOverrideTimer);
+        const prevQty = Number(inp.dataset.origQty ?? 0);
+        inp.value = inp.dataset.origVal ?? fmtInt(prevQty);
         inp.dataset.freshEdit = '1';
+        inp.dataset.dirty = '0';
+        updateRowSumLive(Number(inp.dataset.qtyRow), prevQty);
         inp.blur();
         return;
       }
@@ -851,10 +914,18 @@
         if (/^\d$/.test(e.key)) {
           inp.value = '';
           inp.dataset.freshEdit = '0';
+          inp.dataset.dirty = '1';
         } else if (e.key === 'Backspace' || e.key === 'Delete') {
           e.preventDefault();
           inp.value = '';
           inp.dataset.freshEdit = '0';
+          inp.dataset.dirty = '1';
+          const rowNum = Number(inp.dataset.qtyRow);
+          updateRowSumLive(rowNum, 0);
+          clearTimeout(liveOverrideTimer);
+          liveOverrideTimer = setTimeout(() => {
+            apiPost('api/override', { excelRow: rowNum, value: 0 }).catch(() => {});
+          }, 350);
         }
       }
     });
@@ -863,22 +934,30 @@
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
       inp.dataset.freshEdit = '0';
+      inp.dataset.dirty = '1';
       const digits = inp.value.replace(/[^\d]/g, '');
       const formatted = digits === '' ? '' : Number(digits).toLocaleString('ru-RU');
       if (inp.value !== formatted) inp.value = formatted;
+      const rowNum = Number(inp.dataset.qtyRow);
+      const val = parseQtyInput(formatted);
+      updateRowSumLive(rowNum, val);
+      clearTimeout(liveOverrideTimer);
+      liveOverrideTimer = setTimeout(() => {
+        apiPost('api/override', { excelRow: rowNum, value: val }).catch(() => {});
+      }, 350);
     });
 
-    el('tableBody').addEventListener('change', async (e) => {
+    el('tableBody').addEventListener('change', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
       if (inp.dataset.freshEdit === '1') return;
-      const rowNum = Number(inp.dataset.qtyRow);
-      const digits = inp.value.replace(/[^\d]/g, '');
-      const val = Math.max(0, Math.round(Number(digits) || 0));
-      state.selectedExcelRow = rowNum;
-      const env = await apiPost('api/override', { excelRow: rowNum, value: val });
-      applyEnvelope(env);
-      showToast(`Заказ обновлён: ${fmtInt(val)}`);
+      commitQtyOverride(inp);
+    });
+
+    el('tableBody').addEventListener('focusout', (e) => {
+      const inp = e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      commitQtyOverride(inp);
     });
 
     el('btnClearOverrides').addEventListener('click', async () => {

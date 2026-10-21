@@ -343,6 +343,11 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 		salesSegLabel := model.SalesSegmentLabelByCode(salesSeg)
 		sumLast6 := sumLast6List[i]
 
+		unitPrice := roundTo(item.PurchasePrice, 2)
+		unitRetail := roundTo(effectiveRetail, 2)
+		lineOrderCost := roundTo(float64(finalQty)*unitPrice, 2)
+		lineRetailVal := roundTo(float64(finalQty)*unitRetail, 2)
+
 		calcItems[i] = model.CalculatedItem{
 			RawItem:           item,
 			ABCClass:          abc,
@@ -370,8 +375,8 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			ManualOverride:    overridePtr,
 			FlatComparisonQty: flatQty,
 			PriorityScore:     roundTo(prio, 1),
-			OrderCost:         roundTo(float64(finalQty)*item.PurchasePrice, 2),
-			OrderRetailValue:  roundTo(float64(finalQty)*effectiveRetail, 2),
+			OrderCost:         lineOrderCost,
+			OrderRetailValue:  lineRetailVal,
 			DaysOfSupply:      roundTo(daysSupply, 1),
 			IsOverstock:       isOverstock,
 			OverstockValue:    roundTo(overstockVal, 2),
@@ -379,9 +384,9 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			Explanation:       buildExplanationV2(salesSegLabel, baseRate, effSeasonIdx, totalSpanDays, demand, effSafetyPct, targetStock, item.ClosingStock, autoQty, outlierCounts[i], overridePtr, minDisplayApplied, 0),
 		}
 
-		report.UncappedOrderCost += float64(finalQty) * item.PurchasePrice
+		report.UncappedOrderCost += lineOrderCost
 		report.FlatOrderUnits += flatQty
-		report.FlatOrderCost += float64(flatQty) * item.PurchasePrice
+		report.FlatOrderCost += roundTo(float64(flatQty)*unitPrice, 2)
 	}
 
 	report.UncappedOrderCost = roundTo(report.UncappedOrderCost, 2)
@@ -854,7 +859,7 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 	remaining := budgetCap
 	for i := range items {
 		if items[i].ManualOverride != nil {
-			remaining -= float64(items[i].FinalOrderQty) * items[i].PurchasePrice
+			remaining -= roundTo(float64(items[i].FinalOrderQty)*roundTo(items[i].PurchasePrice, 2), 2)
 		}
 	}
 	if remaining < 0 {
@@ -869,16 +874,17 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 			continue
 		}
 		autoInitial[i] = it.FinalOrderQty
-		if it.PurchasePrice <= 0 {
+		uPrice := roundTo(it.PurchasePrice, 2)
+		if uPrice <= 0 {
 			continue
 		}
 		for u := 0; u < it.FinalOrderQty; u++ {
 			diminishing := 1.0 / (1.0 + 0.18*float64(u))
-			efficiency := (it.PriorityScore * diminishing) / math.Pow(math.Max(0.5, it.PurchasePrice), 0.35)
+			efficiency := (it.PriorityScore * diminishing) / math.Pow(math.Max(0.5, uPrice), 0.35)
 			slots = append(slots, unitSlot{
 				itemIdx:   i,
 				unitScore: efficiency,
-				unitPrice: it.PurchasePrice,
+				unitPrice: uPrice,
 			})
 		}
 		it.FinalOrderQty = 0
@@ -907,8 +913,8 @@ func applyBudgetCapOptimizer(items []model.CalculatedItem, budgetCap float64, gr
 				}
 				effectiveRetail = it.PurchasePrice * mult
 			}
-			it.OrderCost = roundTo(float64(it.FinalOrderQty)*it.PurchasePrice, 2)
-			it.OrderRetailValue = roundTo(float64(it.FinalOrderQty)*effectiveRetail, 2)
+			it.OrderCost = roundTo(float64(it.FinalOrderQty)*roundTo(it.PurchasePrice, 2), 2)
+			it.OrderRetailValue = roundTo(float64(it.FinalOrderQty)*roundTo(effectiveRetail, 2), 2)
 			it.Explanation = buildExplanationV2(
 				it.SalesSegmentLabel, it.BaseMonthlyRate, it.HorizonSeasonIdx,
 				totalSpanDays,
