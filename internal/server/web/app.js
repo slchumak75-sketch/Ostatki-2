@@ -321,7 +321,7 @@
         <td class="sku-cell">${esc(it.sku)}</td>
         <td class="name-cell">${esc(it.name)}</td>
         <td class="unit-cell">шт.</td>
-        <td class="seg-cell" title="${esc(segTitle)}"><span class="seg-pill seg-${segNum}">${segNum}</span></td>
+        <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
         <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
         <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
         <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
@@ -353,6 +353,145 @@
     if (window.scrollY !== prevScrollY) {
       window.scrollTo(0, prevScrollY);
     }
+  }
+
+  let activePopoverRow = null;
+
+  function renderThreeYearSalesChart(rep, it) {
+    const allPeriods = rep?.periods || [];
+    const salesArr = it?.monthlySales || [];
+    const count = Math.min(36, allPeriods.length);
+    const startIdx = Math.max(0, allPeriods.length - count);
+    const slicePeriods = allPeriods.slice(startIdx);
+    const sliceSales = slicePeriods.map((_, i) => Math.max(0, Number(salesArr[startIdx + i]) || 0));
+
+    const sumWindow = (from, to) => sliceSales.slice(from, to).reduce((a, b) => a + b, 0);
+    const n = sliceSales.length;
+    const y1Sum = sumWindow(0, Math.max(0, n - 24));
+    const y2Sum = sumWindow(Math.max(0, n - 24), Math.max(0, n - 12));
+    const y3Sum = sumWindow(Math.max(0, n - 12), n);
+    const total3Y = sliceSales.reduce((a, b) => a + b, 0);
+
+    const W = 520;
+    const H = 186;
+    const padL = 36;
+    const padR = 10;
+    const padT = 24;
+    const padB = 28;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+    const maxVal = Math.max(0, ...sliceSales);
+    const yScaleMax = maxVal > 0 ? maxVal * 1.16 : 10;
+    const step = n > 0 ? plotW / n : plotW;
+    const barW = Math.max(5, Math.min(11, step * 0.68));
+
+    const yPos = (val) => padT + plotH - (val / yScaleMax) * plotH;
+
+    let gridSVG = '';
+    const ticks = maxVal > 0 ? [0, Math.round(maxVal / 2), Math.round(maxVal)] : [0];
+    ticks.forEach((tv) => {
+      const y = yPos(tv).toFixed(1);
+      gridSVG += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="1" stroke-dasharray="${tv === 0 ? 'none' : '3,3'}" />`;
+      gridSVG += `<text x="${padL - 5}" y="${(Number(y) + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--text-muted)">${fmtInt(tv)}</text>`;
+    });
+
+    let yearLinesSVG = '';
+    let barsSVG = '';
+    slicePeriods.forEach((p, idx) => {
+      const val = sliceSales[idx];
+      const cx = padL + idx * step + step / 2;
+      const bx = cx - barW / 2;
+      const bh = val > 0 ? Math.max(2.5, (val / yScaleMax) * plotH) : 0;
+      const by = padT + plotH - bh;
+
+      if (idx === 0 || p.month === 1) {
+        const lx = (padL + idx * step).toFixed(1);
+        if (idx > 0) {
+          yearLinesSVG += `<line x1="${lx}" y1="${padT - 12}" x2="${lx}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="2,2" />`;
+        }
+        yearLinesSVG += `<text x="${(Number(lx) + 3).toFixed(1)}" y="${padT - 5}" font-size="10" font-weight="700" fill="var(--text)">${p.year}</text>`;
+      }
+
+      const barColor = idx >= n - 12 ? '#10b981' : (idx >= n - 24 ? '#3b82f6' : '#93c5fd');
+      if (bh > 0) {
+        barsSVG += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${barColor}" />`;
+        barsSVG += `<text x="${cx.toFixed(1)}" y="${(by - 3).toFixed(1)}" text-anchor="middle" font-size="8.5" font-weight="700" fill="var(--text)">${fmtInt(val)}</text>`;
+      }
+      const mm = String(p.month).padStart(2, '0');
+      barsSVG += `<text x="${cx.toFixed(1)}" y="${padT + plotH + 13}" text-anchor="middle" font-size="8.5" fill="var(--text-muted)">${mm}</text>`;
+    });
+
+    const emptyNotice = maxVal === 0
+      ? `<text x="${(padL + plotW / 2).toFixed(1)}" y="${(padT + plotH / 2 + 4).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text-muted)">За последние 3 года продаж не было (0 шт.)</text>`
+      : '';
+
+    const segNum = Number(it.salesSegment) || 0;
+    const firstLbl = slicePeriods[0]?.label || '';
+    const lastLbl = slicePeriods[slicePeriods.length - 1]?.label || '';
+    const skuPart = it.sku ? ` • Арт. ${esc(it.sku)}` : '';
+
+    return `
+      <div class="rcp-header">
+        <div class="rcp-title-wrap">
+          <span class="seg-pill seg-${segNum}">${segNum}</span>
+          <span class="rcp-item-name">${esc(it.name)}${skuPart}</span>
+        </div>
+        <span class="rcp-period-tag">График продаж за 3 года (${esc(firstLbl)} — ${esc(lastLbl)})</span>
+      </div>
+      <div class="rcp-summary">
+        <span>Всего за 3 года: <strong>${fmtInt(total3Y)} шт.</strong></span>
+        <span><i class="rcp-dot" style="background:#93c5fd"></i>1-й год: <strong>${fmtInt(y1Sum)} шт.</strong></span>
+        <span><i class="rcp-dot" style="background:#3b82f6"></i>2-й год: <strong>${fmtInt(y2Sum)} шт.</strong></span>
+        <span><i class="rcp-dot" style="background:#10b981"></i>Посл. 12 мес.: <strong>${fmtInt(y3Sum)} шт.</strong></span>
+        <span>Остаток: <strong>${fmtInt(it.closingStock)} шт.</strong></span>
+      </div>
+      <svg class="rcp-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+        ${gridSVG}
+        ${yearLinesSVG}
+        ${barsSVG}
+        ${emptyNotice}
+      </svg>
+    `;
+  }
+
+  function showRatingChartPopover(anchorEl, excelRow) {
+    const pop = el('ratingChartPopover');
+    if (!pop || !state.report) return;
+    const item = state.report.items.find((x) => x.excelRow === excelRow);
+    if (!item) return;
+
+    if (activePopoverRow !== excelRow) {
+      pop.innerHTML = renderThreeYearSalesChart(state.report, item);
+      activePopoverRow = excelRow;
+    }
+    pop.classList.remove('hidden');
+
+    const pillEl = anchorEl.classList.contains('seg-pill')
+      ? anchorEl
+      : (anchorEl.querySelector('.seg-pill') || anchorEl);
+    const rect = pillEl.getBoundingClientRect();
+
+    // Размещаем всплывающее окно строго справа от кружочка с цифрой рейтинга
+    const left = Math.round(rect.right + 12);
+    const availRight = window.innerWidth - left - 10;
+    const width = Math.max(300, Math.min(548, availRight));
+    pop.style.width = `${width}px`;
+    pop.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
+
+    const popH = pop.offsetHeight || 248;
+    const centerY = rect.top + rect.height / 2;
+    const top = Math.max(8, Math.min(Math.round(centerY - popH / 2), window.innerHeight - popH - 8));
+    pop.style.top = `${top}px`;
+
+    const arrowTop = Math.max(16, Math.min(Math.round(centerY - top), popH - 16));
+    pop.style.setProperty('--arrow-top', `${arrowTop}px`);
+  }
+
+  function hideRatingChartPopover() {
+    const pop = el('ratingChartPopover');
+    if (!pop) return;
+    pop.classList.add('hidden');
+    activePopoverRow = null;
   }
 
   function renderSuppliersView(rep) {
@@ -647,6 +786,24 @@
         tr.classList.add('selected-row');
       }
     });
+
+    // Всплывающий справа график продаж за последние 3 года при наведении курсора на цифру рейтинга
+    el('tableBody').addEventListener('mouseover', (e) => {
+      const target = e.target.closest('[data-rating-row]');
+      if (!target) {
+        if (activePopoverRow !== null) hideRatingChartPopover();
+        return;
+      }
+      showRatingChartPopover(target, Number(target.dataset.ratingRow));
+    });
+
+    el('tableBody').addEventListener('mouseleave', () => {
+      hideRatingChartPopover();
+    });
+
+    window.addEventListener('scroll', () => {
+      if (activePopoverRow !== null) hideRatingChartPopover();
+    }, { passive: true });
 
     // Автоматическое удаление старого значения в поле «Заказ» при начале ввода новых данных
     el('tableBody').addEventListener('focusin', (e) => {
