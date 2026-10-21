@@ -27,6 +27,9 @@
     searchDebounceTimer: null,
     pendingOverrides: new Map(),
     checkedSuppliers: new Set(),
+    staryoMode: false,
+    staryoRows: new Set(),
+    hidePlusSku: false,
     lastLoadedFile: null,
     justResizedColumn: false,
     rowHeightPx: 33,
@@ -51,11 +54,13 @@
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       state.rowMap.set(it.excelRow, it);
-      it._skuLC = String(it.sku || '').toLowerCase();
+      const rawSku = String(it.sku || '');
+      it._skuLC = rawSku.toLowerCase();
+      it._startsWithPlus = rawSku.trimStart().startsWith('+');
       it._nameLC = String(it.name || '').toLowerCase();
       it._supNorm = it.supplier || '(Поставщик не указан)';
       if (it.isOverstock) {
-        it._ovSearchLC = `${it.name || ''} ${it.sku || ''} ${it.group || ''} ${it.supplier || ''} ${it.warehouse || ''}`.toLowerCase();
+        it._ovSearchLC = `${it.name || ''} ${rawSku} ${it.group || ''} ${it.supplier || ''} ${it.warehouse || ''}`.toLowerCase();
       }
     }
   }
@@ -92,6 +97,7 @@
 
   function hasActiveTableFilter() {
     return Boolean(
+      state.hidePlusSku ||
       el('inpSearchSku')?.value.trim() ||
       el('inpSearch')?.value.trim() ||
       el('fltWarehouse')?.value ||
@@ -359,6 +365,14 @@
     }
   }
 
+  function resetTableColumnWidths(table) {
+    if (!table) return;
+    table.classList.remove('table-manual-cols');
+    table.style.width = '';
+    table.querySelector('colgroup')?.remove();
+    table.querySelectorAll('thead th').forEach((h) => { h.style.width = ''; });
+  }
+
   function resetUIToEmptyDatabase() {
     hideRatingChartPopover();
     state.report = null;
@@ -371,8 +385,19 @@
     state.overstockLimit = 500;
     state.pendingOverrides.clear();
     state.checkedSuppliers.clear();
+    state.staryoRows.clear();
+    state.staryoMode = false;
+    state.hidePlusSku = false;
     state.lastLoadedFile = null;
 
+    if (el('itemsTable')) {
+      resetTableColumnWidths(el('itemsTable'));
+      el('itemsTable').classList.remove('show-plus-col');
+    }
+    if (el('btnHelp')) el('btnHelp').classList.remove('btn-active-toggle');
+    if (el('btnActiveFilter')) el('btnActiveFilter').classList.remove('btn-active-toggle');
+    if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
+    if (el('staryoExportRows')) el('staryoExportRows').value = '';
     if (el('fileInput')) el('fileInput').value = '';
     if (el('btnSaveInPlace')) el('btnSaveInPlace').classList.add('hidden');
     if (el('inpSearchSku')) el('inpSearchSku').value = '';
@@ -399,7 +424,7 @@
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
     if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
     if (el('tableBody')) {
-      el('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+      el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
     }
     if (el('tableFoot')) el('tableFoot').innerHTML = '';
     if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
@@ -432,6 +457,7 @@
       state.lastLoadedFile = state.report.fileName;
       state.overstockLimit = 500;
       state.checkedSuppliers.clear();
+      state.staryoRows.clear();
       syncSelectedSuppliersToServer();
     }
 
@@ -652,6 +678,7 @@
     const list = [];
     for (let i = 0; i < src.length; i++) {
       const it = src[i];
+      if (state.hidePlusSku && (it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))) continue;
       if (wh && it.warehouse !== wh) continue;
       if (grp && it.group !== grp) continue;
       const itemSup = it._supNorm || it.supplier || '(Поставщик не указан)';
@@ -717,9 +744,10 @@
     el('paginationInfo').textContent =
       `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)} • К закупке: ${fmtInt(orderRows)} SKU / ${fmtInt(orderUnits)} шт. • Сумма закупки: ${fmtMoney(roundedOrderSum)} руб.`;
 
+    const leadColspan = state.staryoMode ? 9 : 8;
     if (tfoot) {
       tfoot.innerHTML = `<tr>
-        <td colspan="9" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
+        <td colspan="${leadColspan}" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
         <td class="num-col col-5digits" style="color:var(--primary)">${fmtInt(orderUnits)}</td>
         <td class="num-col"></td>
         <td class="num-col"></td>
@@ -733,6 +761,7 @@
     const isSelected = it.excelRow === state.selectedExcelRow;
     const isManual = it.manualOverride != null;
     const hasAutoOrder = it.autoOrderQty > 0;
+    const hasPlus = state.staryoRows.has(it.excelRow);
     const segNum = Number(it.salesSegment) || 0;
     const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
 
@@ -750,7 +779,7 @@
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
       <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
-      <td class="plus-cell"></td>
+      <td class="plus-cell" onclick="event.stopPropagation()"><input type="text" maxlength="2" autocomplete="off" class="plus-input${hasPlus ? ' has-plus' : ''}" value="${hasPlus ? '+' : ''}" data-plus-row="${it.excelRow}" aria-label="Символ +" /></td>
       <td class="sku-cell">${esc(it.sku)}</td>
       <td class="name-cell">${esc(it.name)}</td>
       <td class="unit-cell">шт.</td>
@@ -826,15 +855,16 @@
       const topPx = Math.round(start * rowH);
       const bottomPx = Math.round((total - end) * rowH);
 
+      const fullColspan = state.staryoMode ? 14 : 13;
       const parts = [];
       if (topPx > 0) {
-        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="14" style="height:${topPx}px"></td></tr>`);
+        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="${fullColspan}" style="height:${topPx}px"></td></tr>`);
       }
       for (let i = start; i < end; i++) {
         parts.push(buildTableRowHTML(slice[i]));
       }
       if (bottomPx > 0) {
-        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="14" style="height:${bottomPx}px"></td></tr>`);
+        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="${fullColspan}" style="height:${bottomPx}px"></td></tr>`);
       }
       tbody.innerHTML = parts.join('');
 
@@ -872,9 +902,10 @@
     renderTableFooter();
 
     if (slice.length === 0) {
+      const fullColspan = state.staryoMode ? 14 : 13;
       state.vStart = 0;
       state.vEnd = 0;
-      tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${fullColspan}" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
       return;
     }
 
@@ -1130,7 +1161,7 @@
   function renderOverstockView(rep) {
     if (!rep) return;
     const allOver = rep.items
-      .filter((it) => it.isOverstock)
+      .filter((it) => it.isOverstock && (!state.hidePlusSku || !(it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))))
       .sort((a, b) => b.overstockValue - a.overstockValue);
 
     const setSelectOptions = (selectEl, items, defaultLabel, formatter) => {
@@ -1935,9 +1966,113 @@
       window.location.href = 'api/export/xlsx';
     });
 
-    // Кнопки «Старьё выгрузка» и «Старьё» очищены от прежнего функционала
-    el('btnDownloadOrders').addEventListener('click', () => {});
-    el('btnHelp').addEventListener('click', () => {});
+    // Обработка маленьких квадратных полей в столбце «+»
+    el('tableBody').addEventListener('focusin', (e) => {
+      const plusInp = e.target.closest('input[data-plus-row]');
+      if (!plusInp) return;
+      plusInp.select();
+    });
+
+    el('tableBody').addEventListener('keydown', (e) => {
+      const plusInp = e.target.closest('input[data-plus-row]');
+      if (!plusInp) return;
+      const rowNum = Number(plusInp.dataset.plusRow);
+      if (e.key === '+') {
+        e.preventDefault();
+        plusInp.value = '+';
+        plusInp.classList.add('has-plus');
+        state.staryoRows.add(rowNum);
+        return;
+      }
+      if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') {
+        e.preventDefault();
+        plusInp.value = '';
+        plusInp.classList.remove('has-plus');
+        state.staryoRows.delete(rowNum);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          plusInp.blur();
+        }
+        return;
+      }
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        e.preventDefault();
+      }
+    });
+
+    el('tableBody').addEventListener('input', (e) => {
+      const plusInp = e.target.closest('input[data-plus-row]');
+      if (!plusInp) return;
+      const rowNum = Number(plusInp.dataset.plusRow);
+      if (plusInp.value.includes('+')) {
+        plusInp.value = '+';
+        plusInp.classList.add('has-plus');
+        state.staryoRows.add(rowNum);
+      } else {
+        plusInp.value = '';
+        plusInp.classList.remove('has-plus');
+        state.staryoRows.delete(rowNum);
+      }
+    });
+
+    // Кнопка «Старьё»: показывает/скрывает столбец «+» и активирует кнопку «Старьё выгрузка»
+    el('btnHelp').addEventListener('click', () => {
+      state.staryoMode = !state.staryoMode;
+      const tableEl = el('itemsTable');
+      if (tableEl) {
+        resetTableColumnWidths(tableEl);
+        tableEl.classList.toggle('show-plus-col', state.staryoMode);
+      }
+      el('btnHelp').classList.toggle('btn-active-toggle', state.staryoMode);
+      el('btnDownloadOrders').disabled = !state.staryoMode;
+      renderTable();
+    });
+
+    // Кнопка «Старьё выгрузка»: выгружает Excel-файл (+, Артикул, Номенклатура, Цена, Розница)
+    // только по строкам, в которых внесён символ «+»
+    el('btnDownloadOrders').addEventListener('click', () => {
+      if (!state.staryoMode) return;
+      if (!state.report || state.staryoRows.size === 0) {
+        showToast('Внесите символ «+» в столбце «+» хотя бы для одной позиции');
+        return;
+      }
+      const orderedRows = [];
+      const seen = new Set();
+      for (const it of state.filteredItems) {
+        if (state.staryoRows.has(it.excelRow) && !seen.has(it.excelRow)) {
+          seen.add(it.excelRow);
+          orderedRows.push(it.excelRow);
+        }
+      }
+      for (const it of state.report.items || []) {
+        if (state.staryoRows.has(it.excelRow) && !seen.has(it.excelRow)) {
+          seen.add(it.excelRow);
+          orderedRows.push(it.excelRow);
+        }
+      }
+      if (orderedRows.length === 0) {
+        showToast('Внесите символ «+» в столбце «+» хотя бы для одной позиции');
+        return;
+      }
+      el('staryoExportRows').value = orderedRows.join(',');
+      el('staryoExportForm').submit();
+    });
+
+    // Кнопка «Активно»: скрывает номенклатуру, у которой артикул начинается с символа «+»
+    el('btnActiveFilter').addEventListener('click', () => {
+      state.hidePlusSku = !state.hidePlusSku;
+      el('btnActiveFilter').classList.toggle('btn-active-toggle', state.hidePlusSku);
+      state.page = 1;
+      recomputeFilteredList();
+      if (state.report) {
+        renderKPIs(state.report);
+        renderOverstockView(state.report);
+      }
+      renderTable();
+    });
 
     el('btnPrintOrder').addEventListener('click', () => {
       el('fltStatus').value = 'order';
@@ -2092,11 +2227,16 @@
           e.preventDefault();
           e.stopPropagation();
 
-          const initialWidths = ths.map((h) => Math.max(24, Math.round(h.getBoundingClientRect().width)));
+          const visibleThs = ths.filter((h) => h.offsetParent !== null);
+          const visIdx = visibleThs.indexOf(th);
+          if (visIdx < 0) return;
+
+          const initialWidths = visibleThs.map((h) => Math.max(24, Math.round(h.getBoundingClientRect().width)));
           let colgroup = table.querySelector('colgroup');
-          if (!colgroup) {
+          if (!colgroup || colgroup.children.length !== visibleThs.length) {
+            colgroup?.remove();
             colgroup = document.createElement('colgroup');
-            for (let i = 0; i < ths.length; i++) {
+            for (let i = 0; i < visibleThs.length; i++) {
               colgroup.appendChild(document.createElement('col'));
             }
             table.insertBefore(colgroup, table.firstChild);
@@ -2105,12 +2245,12 @@
           table.classList.add('table-manual-cols');
           initialWidths.forEach((w, idx) => {
             cols[idx].style.width = `${w}px`;
-            ths[idx].style.width = `${w}px`;
+            visibleThs[idx].style.width = `${w}px`;
           });
           table.style.width = `${initialWidths.reduce((a, b) => a + b, 0)}px`;
 
           const startX = e.clientX;
-          const startWidth = initialWidths[colIdx];
+          const startWidth = initialWidths[visIdx];
           const currentWidths = [...initialWidths];
 
           handle.classList.add('resizing');
@@ -2119,9 +2259,9 @@
           const onMouseMove = (moveEv) => {
             const delta = moveEv.clientX - startX;
             const nextWidth = Math.max(24, Math.round(startWidth + delta));
-            currentWidths[colIdx] = nextWidth;
-            cols[colIdx].style.width = `${nextWidth}px`;
-            ths[colIdx].style.width = `${nextWidth}px`;
+            currentWidths[visIdx] = nextWidth;
+            cols[visIdx].style.width = `${nextWidth}px`;
+            visibleThs[visIdx].style.width = `${nextWidth}px`;
             table.style.width = `${currentWidths.reduce((a, b) => a + b, 0)}px`;
           };
 
