@@ -1586,3 +1586,18 @@ body.col-resize-active * {
   border-color: var(--primary);
   color: var(--primary);
 }
+
+.data-table.table-manual-cols th,
+.data-table.table-manual-cols td,
+.data-table.table-manual-cols th.col-name,
+.data-table.table-manual-cols td.name-cell,
+.data-table.table-manual-cols th.wh-col,
+.data-table.table-manual-cols td.wh-cell,
+.data-table.table-manual-cols th.grp-col,
+.data-table.table-manual-cols td.grp-cell,
+.data-table.table-manual-cols th.col-5digits,
+.data-table.table-manual-cols td.col-5digits,
+.data-table.table-manual-cols td.sup-cell {
+  min-width: 0 !important;
+  max-width: none !important;
+}
