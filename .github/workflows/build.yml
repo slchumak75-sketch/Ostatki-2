@@ -273,29 +273,86 @@ jobs:
 
       - name: Кросс-компиляция Windows x64 — «Вариант 4»
         run: |
-          mkdir -p "dist/Вариант 4"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osslsigncode
+
+          mkdir -p "dist/Вариант 4" cert_tmp
+
+          # Сборка без стриппинга таблиц символов (-s -w) и со встроенным Windows PE-ресурсом (.syso: иконка + манифест asInvoker + VERSIONINFO)
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -ldflags="-H=windowsgui" \
+            -o "dist/Вариант 4/OstatkiZakupki_Вариант_4_unsigned.exe" ./cmd/ostatki
 
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-            go build -trimpath -ldflags="-s -w -H=windowsgui" \
-            -o "dist/Вариант 4/OstatkiZakupki_Вариант_4.exe" ./cmd/ostatki
+            go build \
+            -o "dist/Вариант 4/OstatkiZakupki_Вариант_4_cli_unsigned.exe" ./cmd/ostatki
 
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-            go build -trimpath -ldflags="-s -w" \
-            -o "dist/Вариант 4/OstatkiZakupki_Вариант_4_cli.exe" ./cmd/ostatki
+          # Выпуск Code Signing сертификата и расчёт PE Checksum + Authenticode SHA-256 подписи
+          openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -sha256 \
+            -subj "/CN=Ostatki 2 Desktop Application/O=Ostatki 2 SCM/C=BY" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,digitalSignature,keyCertSign" \
+            -addext "extendedKeyUsage=codeSigning" \
+            -keyout cert_tmp/codesign.key \
+            -out "dist/Вариант 4/Ostatki2_CodeSign.cer"
 
-          cat << 'BAT1' > "dist/Вариант 4/Запустить_Вариант_4.bat"
-          @echo off
-          chcp 65001 >nul
-          start "" "%~dp0OstatkiZakupki_Вариант_4.exe"
-          BAT1
+          osslsigncode sign \
+            -certs "dist/Вариант 4/Ostatki2_CodeSign.cer" \
+            -key cert_tmp/codesign.key \
+            -h sha256 \
+            -n "Остатки 2 (Вариант 4)" \
+            -in "dist/Вариант 4/OstatkiZakupki_Вариант_4_unsigned.exe" \
+            -out "dist/Вариант 4/OstatkiZakupki_Вариант_4.exe"
 
-          cat << 'BAT2' > "dist/Вариант 4/Автозаполнение_без_окна_Вариант_4.bat"
-          @echo off
-          chcp 65001 >nul
-          "%~dp0OstatkiZakupki_Вариант_4_cli.exe" -headless -inplace -orders-output "Заявки поставщикам (авторасчёт).xlsx"
-          echo.
-          pause
-          BAT2
+          osslsigncode sign \
+            -certs "dist/Вариант 4/Ostatki2_CodeSign.cer" \
+            -key cert_tmp/codesign.key \
+            -h sha256 \
+            -n "Остатки 2 CLI (Вариант 4)" \
+            -in "dist/Вариант 4/OstatkiZakupki_Вариант_4_cli_unsigned.exe" \
+            -out "dist/Вариант 4/OstatkiZakupki_Вариант_4_cli.exe"
+
+          rm -rf cert_tmp "dist/Вариант 4/OstatkiZakupki_Вариант_4_unsigned.exe" "dist/Вариант 4/OstatkiZakupki_Вариант_4_cli_unsigned.exe"
+
+          printf '%s\r\n' \
+            '@echo off' \
+            'chcp 65001 >nul' \
+            'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-ChildItem -LiteralPath ''%~dp0'' -Include *.exe,*.cer -Recurse | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1' \
+            'start "" "%~dp0OstatkiZakupki_Вариант_4.exe"' \
+            > "dist/Вариант 4/Запустить_Вариант_4.bat"
+
+          printf '%s\r\n' \
+            '@echo off' \
+            'chcp 65001 >nul' \
+            'echo Установка сертификата доверенного издателя для «Остатки 2» (без прав администратора)...' \
+            'powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = Join-Path ''%~dp0'' ''Ostatki2_CodeSign.cer''; Unblock-File -LiteralPath $c -ErrorAction SilentlyContinue; Import-Certificate -FilePath $c -CertStoreLocation Cert:\CurrentUser\Root | Out-Null; Import-Certificate -FilePath $c -CertStoreLocation Cert:\CurrentUser\TrustedPublisher | Out-Null; Get-ChildItem -LiteralPath ''%~dp0'' -Filter *.exe | Unblock-File -ErrorAction SilentlyContinue"' \
+            'echo Готово! Теперь программа запускается без предупреждений Windows.' \
+            'pause' \
+            > "dist/Вариант 4/Установить_сертификат_доверия_(один_раз).bat"
+
+          printf '%s\r\n' \
+            '@echo off' \
+            'chcp 65001 >nul' \
+            'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-ChildItem -LiteralPath ''%~dp0'' -Filter *.exe | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1' \
+            '"%~dp0OstatkiZakupki_Вариант_4_cli.exe" -headless -inplace -orders-output "Заявки поставщикам (авторасчёт).xlsx"' \
+            'echo.' \
+            'pause' \
+            > "dist/Вариант 4/Автозаполнение_без_окна_Вариант_4.bat"
+
+          cat << 'TXT1' > "dist/Вариант 4/КАК_ЗАПУСТИТЬ_В_WINDOWS.txt"
+          КАК ЗАПУСТИТЬ «ОСТАТКИ 2 — ВАРИАНТ 4» НА WINDOWS 10 / 11 БЕЗ ПРЕДУПРЕЖДЕНИЙ
+
+          Способ 1 (рекомендуемый — из архива Variant_4_Windows_x64.zip):
+          1. Распакуйте архив Variant_4_Windows_x64.zip в любую удобную папку.
+          2. Запустите файл «Запустить_Вариант_4.bat» — он автоматически снимает метку скачивания
+             из интернета (SmartScreen) и сразу открывает программу в полноэкранном режиме.
+          3. При желании один раз запустите «Установить_сертификат_доверия_(один_раз).bat» —
+             сертификат программы добавится в доверенные на вашем ПК (без прав администратора).
+
+          Способ 2 (при прямом скачивании одиночного OstatkiZakupki_Variant_4.exe):
+          - При первом открытии в окне SmartScreen нажмите «Подробнее» -> «Выполнить в любом случае»
+            (или правый клик по файлу -> «Свойства» -> галочка «Разблокировать» -> ОК).
+          TXT1
 
           cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 4/"
           cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 4/"
@@ -320,7 +377,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): чёрные цифры 5..0 в маленьких цветных кружочках в столбце «Рейтинг», закрепляемая при скроллинге горизонтальная панель фильтров («Все склады», «Все группы», расширенное на 50% поле «Все поставщики») и шапка таблицы, столбец «Ед.» («шт.») после «Номенклатура» в таблице и в неокрашенной выгрузке Заказ .xlsx, вывод всех строк номенклатуры, автоочистка поля «Заказ» и «Бюджет закупки» на одном уровне с «Режим планирования»."
+          NOTES_V4="Актуальная сборка «Вариант 4» (PRO SCM): открытие программы сразу в полноэкранном режиме (--start-fullscreen + кнопки управления окном ⛶ / ✕), подпись Authenticode SHA-256 + Windows PE-ресурсы (манифест asInvoker, иконка, VERSIONINFO, автоснятие метки SmartScreen в Запустить_Вариант_4.bat), чёрные цифры 5..0 в цветных кружочках «Рейтинг», закрепляемая панель фильтров и шапка таблицы, столбец «Ед.» («шт.») и неокрашенный Заказ .xlsx."
           if gh release view variant-4 >/dev/null 2>&1; then
             for old in $(gh release view variant-4 --json assets --jq '.assets[].name'); do
               gh release delete-asset variant-4 "$old" -y || true

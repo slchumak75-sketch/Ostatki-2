@@ -214,6 +214,19 @@ html, body {
   font-size: 14px;
 }
 
+.btn-close-app {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+  font-weight: 700;
+}
+
+.btn-close-app:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
 .btn-primary {
   background: var(--primary);
   color: #ffffff;
