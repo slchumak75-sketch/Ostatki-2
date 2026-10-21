@@ -14,6 +14,7 @@
     pageSize: 100,
     activeTab: 'table',
     debounceTimer: null,
+    pendingOverrides: new Map(),
   };
 
   const el = (id) => document.getElementById(id);
@@ -31,6 +32,163 @@
     const q = Math.max(0, Math.round(Number(qty) || 0));
     const p = Math.round((Number(price) || 0) * 100) / 100;
     return Math.round(q * p * 100) / 100;
+  }
+
+  function hasActiveTableFilter() {
+    return Boolean(
+      el('inpSearch')?.value.trim() ||
+      el('fltWarehouse')?.value ||
+      el('fltGroup')?.value ||
+      el('fltSupplier')?.value ||
+      el('fltABCXYZ')?.value ||
+      (el('fltStatus')?.value && el('fltStatus').value !== 'all')
+    );
+  }
+
+  function recomputeReportSummaries(rep) {
+    if (!rep?.items) return;
+    let orderItemsCount = 0;
+    let totalOrderUnits = 0;
+    let totalOrderCost = 0;
+    let totalRetailValue = 0;
+
+    const whMap = new Map();
+    for (const prevW of rep.warehouses || []) {
+      whMap.set(prevW.warehouse, {
+        ...prevW,
+        totalItems: 0,
+        orderItems: 0,
+        zeroStockItems: 0,
+        totalOrderQty: 0,
+        totalOrderCost: 0,
+        totalRetailVal: 0,
+        overstockItems: 0,
+        overstockCost: 0,
+      });
+    }
+    const supMap = new Map();
+    const grpOrderItems = new Map();
+    const grpOrderUnits = new Map();
+    const grpOrderCost = new Map();
+
+    for (const it of rep.items) {
+      const qty = Math.max(0, Math.round(Number(it.finalOrderQty) || 0));
+      const lineCost = calcLineSum(qty, it.purchasePrice);
+      const unitRetail = Math.round((Number(it.retailPrice) || 0) * 100) / 100;
+      const lineRetail = unitRetail > 0
+        ? Math.round(qty * unitRetail * 100) / 100
+        : (it.finalOrderQty > 0 && it.orderRetailValue > 0
+          ? Math.round((it.orderRetailValue / it.finalOrderQty) * qty * 100) / 100
+          : 0);
+
+      it.finalOrderQty = qty;
+      it.orderCost = lineCost;
+      it.orderRetailValue = lineRetail;
+
+      if (qty > 0) {
+        orderItemsCount += 1;
+        totalOrderUnits += qty;
+        totalOrderCost += lineCost;
+        totalRetailValue += lineRetail;
+        grpOrderItems.set(it.group, (grpOrderItems.get(it.group) || 0) + 1);
+        grpOrderUnits.set(it.group, (grpOrderUnits.get(it.group) || 0) + qty);
+        grpOrderCost.set(it.group, (grpOrderCost.get(it.group) || 0) + lineCost);
+      }
+
+      const whName = it.warehouse || '';
+      let ws = whMap.get(whName);
+      if (!ws) {
+        ws = {
+          warehouse: whName,
+          totalItems: 0,
+          orderItems: 0,
+          zeroStockItems: 0,
+          totalOrderQty: 0,
+          totalOrderCost: 0,
+          totalRetailVal: 0,
+          overstockItems: 0,
+          overstockCost: 0,
+        };
+        whMap.set(whName, ws);
+      }
+      ws.totalItems += 1;
+      if (it.closingStock <= 0) ws.zeroStockItems += 1;
+      if (it.isOverstock) {
+        ws.overstockItems += 1;
+        ws.overstockCost += Number(it.overstockValue) || 0;
+      }
+      if (qty > 0) {
+        ws.orderItems += 1;
+        ws.totalOrderQty += qty;
+        ws.totalOrderCost += lineCost;
+        ws.totalRetailVal += lineRetail;
+      }
+
+      const supName = it.supplier || '(Поставщик не указан)';
+      const supKey = `${whName}\x00${supName}`;
+      let ss = supMap.get(supKey);
+      if (!ss) {
+        ss = {
+          warehouse: whName,
+          supplier: supName,
+          totalItems: 0,
+          orderItems: 0,
+          totalOrderQty: 0,
+          totalOrderCost: 0,
+          totalRetailVal: 0,
+          shareOfBudget: 0,
+          belowMinOrder: false,
+        };
+        supMap.set(supKey, ss);
+      }
+      ss.totalItems += 1;
+      if (qty > 0) {
+        ss.orderItems += 1;
+        ss.totalOrderQty += qty;
+        ss.totalOrderCost += lineCost;
+        ss.totalRetailVal += lineRetail;
+      }
+    }
+
+    rep.orderItemsCount = orderItemsCount;
+    rep.totalOrderUnits = totalOrderUnits;
+    rep.totalOrderCost = Math.round(totalOrderCost * 100) / 100;
+    rep.totalRetailValue = Math.round(totalRetailValue * 100) / 100;
+
+    rep.warehouses = [...whMap.values()]
+      .map((ws) => ({
+        ...ws,
+        totalOrderCost: Math.round(ws.totalOrderCost * 100) / 100,
+        totalRetailVal: Math.round(ws.totalRetailVal * 100) / 100,
+        overstockCost: Math.round(ws.overstockCost * 100) / 100,
+      }))
+      .sort((a, b) => a.warehouse.localeCompare(b.warehouse, 'ru'));
+
+    const minSupOrder = Number(rep.params?.minSupplierOrder) || 0;
+    rep.suppliers = [...supMap.values()]
+      .map((ss) => {
+        const cost = Math.round(ss.totalOrderCost * 100) / 100;
+        return {
+          ...ss,
+          totalOrderCost: cost,
+          totalRetailVal: Math.round(ss.totalRetailVal * 100) / 100,
+          shareOfBudget: rep.totalOrderCost > 0 ? Math.round((cost / rep.totalOrderCost) * 10000) / 100 : 0,
+          belowMinOrder: ss.orderItems > 0 && minSupOrder > 0 && cost < minSupOrder,
+        };
+      })
+      .sort((a, b) => {
+        if (Math.abs(a.totalOrderCost - b.totalOrderCost) > 1e-6) return b.totalOrderCost - a.totalOrderCost;
+        if (a.warehouse !== b.warehouse) return a.warehouse.localeCompare(b.warehouse, 'ru');
+        return a.supplier.localeCompare(b.supplier, 'ru');
+      });
+
+    if (Array.isArray(rep.groups)) {
+      for (const g of rep.groups) {
+        g.orderItemCount = grpOrderItems.get(g.group) || 0;
+        g.totalUnits = grpOrderUnits.get(g.group) || 0;
+        g.totalCost = Math.round((grpOrderCost.get(g.group) || 0) * 100) / 100;
+      }
+    }
   }
 
   function fmtMoney(n) {
@@ -158,16 +316,29 @@
       el('cntTabOverstock').textContent = '0';
       el('paginationInfo').textContent = 'База очищена (0 строк)';
       el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+      el('tableFoot').innerHTML = '';
       el('warehousesContainer').innerHTML = '';
       el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">База данных очищена</td></tr>';
+      el('suppliersFoot').innerHTML = '';
       el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
       return;
     }
 
+    if (state.pendingOverrides.size > 0) {
+      for (const [rNum, qty] of state.pendingOverrides.entries()) {
+        const target = state.report.items?.find((x) => x.excelRow === rNum);
+        if (target) {
+          target.finalOrderQty = qty;
+          target.manualOverride = qty;
+        }
+      }
+    }
+    recomputeReportSummaries(state.report);
+
     syncParamsControls(state.report);
     populateFilterDropdowns(state.report);
-    renderKPIs(state.report);
     recomputeFilteredList();
+    renderKPIs(state.report);
 
     if (state.selectedExcelRow == null && state.filteredItems.length > 0) {
       state.selectedExcelRow = state.filteredItems[0].excelRow;
@@ -218,22 +389,46 @@
       el('fltWarehouse'),
       rep.warehouses.map((w) => ({ value: w.warehouse, ...w })),
       'Все склады',
-      (w) => `${w.warehouse} (${w.orderItems}/${w.totalItems})`
+      (w) => `${w.warehouse} — ${fmtMoney(w.totalOrderCost)} р. (${w.orderItems}/${w.totalItems})`
     );
-    keepSet(
-      el('fltGroup'),
-      rep.groups.map((g) => ({ value: g.group, ...g })),
-      'Все группы',
-      (g) => `${g.group} (к закупке: ${g.orderItemCount})`
-    );
-    // Уникальные поставщики для выпадающего фильтра на вкладке «Ведомость»
+
+    const selectedWh = el('fltWarehouse').value;
+    if (selectedWh) {
+      const grpByWh = new Map();
+      for (const g of rep.groups) {
+        grpByWh.set(g.group, { value: g.group, group: g.group, orderItemCount: 0, totalCost: 0 });
+      }
+      for (const it of rep.items) {
+        if (it.warehouse !== selectedWh || it.finalOrderQty <= 0) continue;
+        const g = grpByWh.get(it.group) || { value: it.group, group: it.group, orderItemCount: 0, totalCost: 0 };
+        g.orderItemCount += 1;
+        g.totalCost += calcLineSum(it.finalOrderQty, it.purchasePrice);
+        grpByWh.set(it.group, g);
+      }
+      keepSet(
+        el('fltGroup'),
+        [...grpByWh.values()],
+        'Все группы',
+        (g) => `${g.group} (к закупке: ${g.orderItemCount})`
+      );
+    } else {
+      keepSet(
+        el('fltGroup'),
+        rep.groups.map((g) => ({ value: g.group, ...g })),
+        'Все группы',
+        (g) => `${g.group} (к закупке: ${g.orderItemCount})`
+      );
+    }
+
+    // Уникальные поставщики с учётом выбранного склада — полное совпадение сумм с вкладкой «Поставщики и склады»
     const supAgg = new Map();
     for (const s of rep.suppliers) {
+      if (selectedWh && s.warehouse !== selectedWh) continue;
       const prev = supAgg.get(s.supplier);
       if (!prev) {
         supAgg.set(s.supplier, { value: s.supplier, supplier: s.supplier, totalOrderCost: s.totalOrderCost, orderItems: s.orderItems });
       } else {
-        prev.totalOrderCost += s.totalOrderCost;
+        prev.totalOrderCost = Math.round((prev.totalOrderCost + s.totalOrderCost) * 100) / 100;
         prev.orderItems += s.orderItems;
       }
     }
@@ -253,9 +448,16 @@
     el('fileMetaLine').textContent =
       `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)`;
 
-    el('kpiOrderCost').textContent = `${fmtMoney(rep.totalOrderCost)} руб.`;
+    const isFiltered = hasActiveTableFilter();
+    const visibleCost = isFiltered
+      ? Math.round(state.filteredItems.reduce((acc, it) => acc + calcLineSum(it.finalOrderQty, it.purchasePrice), 0) * 100) / 100
+      : rep.totalOrderCost;
+
+    el('kpiOrderCost').textContent = `${fmtMoney(visibleCost)} руб.`;
     const activeSups = rep.suppliers.filter((s) => s.orderItems > 0).length;
-    if (rep.params.budgetCap > 0) {
+    if (isFiltered) {
+      el('kpiBudgetInfo').textContent = `По фильтру • Всего: ${fmtMoney(rep.totalOrderCost)} р.`;
+    } else if (rep.params.budgetCap > 0) {
       el('kpiBudgetInfo').textContent = `Лимит: ${fmtMoney(rep.params.budgetCap)} р. • Поставщиков: ${activeSups}`;
     } else {
       el('kpiBudgetInfo').textContent = `Активных поставщиков: ${activeSups} из ${rep.suppliers.length}`;
@@ -314,10 +516,49 @@
     el('cntTabTable').textContent = list.length;
   }
 
+  function renderTableFooter() {
+    const tfoot = el('tableFoot');
+    const slice = state.filteredItems;
+    const total = slice.length;
+    const allTotal = state.report?.totalItems ?? total;
+
+    if (total === 0) {
+      el('paginationInfo').textContent = 'Нет строк по выбранным фильтрам';
+      if (tfoot) tfoot.innerHTML = '';
+      return;
+    }
+
+    let orderRows = 0;
+    let orderUnits = 0;
+    let orderSum = 0;
+    for (const it of slice) {
+      const qty = Math.max(0, Math.round(Number(it.finalOrderQty) || 0));
+      const lineSum = calcLineSum(qty, it.purchasePrice);
+      if (qty > 0) {
+        orderRows += 1;
+        orderUnits += qty;
+      }
+      orderSum += lineSum;
+    }
+    const roundedOrderSum = Math.round(orderSum * 100) / 100;
+
+    el('paginationInfo').textContent =
+      `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)} • К закупке: ${fmtInt(orderRows)} SKU / ${fmtInt(orderUnits)} шт. • Сумма закупки: ${fmtMoney(roundedOrderSum)} руб.`;
+
+    if (tfoot) {
+      tfoot.innerHTML = `<tr>
+        <td colspan="8" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
+        <td class="num-col col-5digits" style="color:var(--primary)">${fmtInt(orderUnits)}</td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="num-col">${fmtMoney(roundedOrderSum)}</td>
+        <td>руб.</td>
+      </tr>`;
+    }
+  }
+
   function renderTable() {
     const tbody = el('tableBody');
-    const total = state.filteredItems.length;
-    const allTotal = state.report?.totalItems ?? total;
     const slice = state.filteredItems;
 
     // Сохраняем позицию скролла и активное поле ввода, если пользователь перешёл в соседнюю строку
@@ -325,11 +566,11 @@
     const activeEl = document.activeElement;
     const activeQtyRow = activeEl?.dataset?.qtyRow ? Number(activeEl.dataset.qtyRow) : null;
     const activeFresh = activeEl?.dataset?.freshEdit;
+    const activeDirty = activeEl?.dataset?.dirty;
+    const activeOrigQty = activeEl?.dataset?.origQty;
     const activeDraft = activeEl?.dataset?.qtyRow ? activeEl.value : null;
 
-    el('paginationInfo').textContent = total === 0
-      ? 'Нет строк по выбранным фильтрам'
-      : `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)}`;
+    renderTableFooter();
 
     if (slice.length === 0) {
       tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
@@ -380,6 +621,8 @@
       const nextInp = tbody.querySelector(`input[data-qty-row="${activeQtyRow}"]`);
       if (nextInp) {
         nextInp.focus({ preventScroll: true });
+        if (activeOrigQty != null) nextInp.dataset.origQty = activeOrigQty;
+        if (activeDirty === '1') nextInp.dataset.dirty = '1';
         if (activeFresh === '0' && activeDraft !== null) {
           nextInp.value = activeDraft;
           nextInp.dataset.freshEdit = '0';
@@ -582,6 +825,31 @@
         </td>
       </tr>`;
     }).join('');
+
+    let sumSupTotalSKU = 0;
+    let sumSupOrderSKU = 0;
+    let sumSupOrderUnits = 0;
+    let sumSupOrderCost = 0;
+    let sumSupRetailVal = 0;
+    for (const s of rep.suppliers) {
+      sumSupTotalSKU += Number(s.totalItems) || 0;
+      sumSupOrderSKU += Number(s.orderItems) || 0;
+      sumSupOrderUnits += Number(s.totalOrderQty) || 0;
+      sumSupOrderCost += Number(s.totalOrderCost) || 0;
+      sumSupRetailVal += Number(s.totalRetailVal) || 0;
+    }
+    const supFoot = el('suppliersFoot');
+    if (supFoot) {
+      supFoot.innerHTML = `<tr>
+        <td colspan="2" style="text-align:right;color:var(--text-muted)">Итого по всем складам и поставщикам:</td>
+        <td class="num-col">${fmtInt(sumSupTotalSKU)}</td>
+        <td class="num-col">${fmtInt(sumSupOrderSKU)}</td>
+        <td class="num-col" style="color:var(--primary)">${fmtInt(sumSupOrderUnits)}</td>
+        <td class="num-col">${fmtMoney(Math.round(sumSupOrderCost * 100) / 100)} руб.</td>
+        <td class="num-col">${fmtMoney(Math.round(sumSupRetailVal * 100) / 100)} руб.</td>
+        <td colspan="2"></td>
+      </tr>`;
+    }
   }
 
   function renderOverstockView(rep) {
@@ -895,12 +1163,17 @@
     el('inpSearch').addEventListener('input', () => {
       state.page = 1;
       recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
       renderTable();
     });
     ['fltWarehouse', 'fltGroup', 'fltSupplier', 'fltABCXYZ', 'fltStatus'].forEach((id) => {
       el(id).addEventListener('change', () => {
         state.page = 1;
+        if (id === 'fltWarehouse' && state.report) {
+          populateFilterDropdowns(state.report);
+        }
         recomputeFilteredList();
+        if (state.report) renderKPIs(state.report);
         renderTable();
       });
     });
@@ -956,6 +1229,40 @@
 
     let liveOverrideTimer = null;
 
+    async function pushOverrideToServer(rowNum, val, silent = false) {
+      state.pendingOverrides.set(rowNum, val);
+      try {
+        const env = await apiPost('api/override', { excelRow: rowNum, value: val });
+        if (state.pendingOverrides.get(rowNum) === val) {
+          state.pendingOverrides.delete(rowNum);
+        }
+        if (silent) {
+          if (env.report) {
+            state.report = env.report;
+            if (state.pendingOverrides.size > 0) {
+              for (const [r, q] of state.pendingOverrides.entries()) {
+                const t = state.report.items?.find((x) => x.excelRow === r);
+                if (t) {
+                  t.finalOrderQty = q;
+                  t.manualOverride = q;
+                }
+              }
+            }
+            recomputeReportSummaries(state.report);
+            populateFilterDropdowns(state.report);
+            renderKPIs(state.report);
+            renderTableFooter();
+            renderSuppliersView(state.report);
+          }
+        } else {
+          applyEnvelope(env);
+          showToast(`Заказ обновлён: ${fmtInt(val)}`);
+        }
+      } catch (err) {
+        showToast(err.message);
+      }
+    }
+
     function updateRowSumLive(rowNum, qty) {
       if (!state.report?.items) return;
       const it = state.report.items.find((x) => x.excelRow === rowNum);
@@ -975,13 +1282,11 @@
         inp.classList.toggle('has-order', qty > 0);
       }
 
-      const totalBudget = state.report.items.reduce(
-        (acc, x) => acc + calcLineSum(x.finalOrderQty, x.purchasePrice),
-        0
-      );
-      state.report.totalOrderCost = Math.round(totalBudget * 100) / 100;
-      const kpiEl = el('kpiOrderCost');
-      if (kpiEl) kpiEl.textContent = `${fmtMoney(state.report.totalOrderCost)} руб.`;
+      recomputeReportSummaries(state.report);
+      populateFilterDropdowns(state.report);
+      renderKPIs(state.report);
+      renderTableFooter();
+      renderSuppliersView(state.report);
     }
 
     async function commitQtyOverride(inp) {
@@ -992,9 +1297,7 @@
       const val = parseQtyInput(inp.value);
       inp.value = fmtInt(val);
       state.selectedExcelRow = rowNum;
-      const env = await apiPost('api/override', { excelRow: rowNum, value: val });
-      applyEnvelope(env);
-      showToast(`Заказ обновлён: ${fmtInt(val)}`);
+      await pushOverrideToServer(rowNum, val, false);
     }
 
     // Автоматическое удаление старого значения в поле «Заказ» при начале ввода новых данных
@@ -1038,11 +1341,13 @@
       if (e.key === 'Escape') {
         e.preventDefault();
         clearTimeout(liveOverrideTimer);
+        const rowNum = Number(inp.dataset.qtyRow);
         const prevQty = Number(inp.dataset.origQty ?? 0);
+        state.pendingOverrides.delete(rowNum);
         inp.value = inp.dataset.origVal ?? fmtInt(prevQty);
         inp.dataset.freshEdit = '1';
         inp.dataset.dirty = '0';
-        updateRowSumLive(Number(inp.dataset.qtyRow), prevQty);
+        updateRowSumLive(rowNum, prevQty);
         inp.blur();
         return;
       }
@@ -1057,11 +1362,12 @@
           inp.dataset.freshEdit = '0';
           inp.dataset.dirty = '1';
           const rowNum = Number(inp.dataset.qtyRow);
+          state.pendingOverrides.set(rowNum, 0);
           updateRowSumLive(rowNum, 0);
           clearTimeout(liveOverrideTimer);
           liveOverrideTimer = setTimeout(() => {
-            apiPost('api/override', { excelRow: rowNum, value: 0 }).catch(() => {});
-          }, 350);
+            pushOverrideToServer(rowNum, 0, true);
+          }, 280);
         }
       }
     });
@@ -1076,11 +1382,12 @@
       if (inp.value !== formatted) inp.value = formatted;
       const rowNum = Number(inp.dataset.qtyRow);
       const val = parseQtyInput(formatted);
+      state.pendingOverrides.set(rowNum, val);
       updateRowSumLive(rowNum, val);
       clearTimeout(liveOverrideTimer);
       liveOverrideTimer = setTimeout(() => {
-        apiPost('api/override', { excelRow: rowNum, value: val }).catch(() => {});
-      }, 350);
+        pushOverrideToServer(rowNum, val, true);
+      }, 280);
     });
 
     el('tableBody').addEventListener('change', (e) => {
@@ -1114,7 +1421,9 @@
         el('fltSupplier').value = '';
         el('fltABCXYZ').value = '';
         el('fltStatus').value = 'all';
+        if (state.report) populateFilterDropdowns(state.report);
         recomputeFilteredList();
+        if (state.report) renderKPIs(state.report);
         renderTable();
         document.querySelector('.tab-btn[data-tab="table"]').click();
         requestAnimationFrame(() => {
@@ -1126,9 +1435,11 @@
     el('suppliersBody').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
-      el('fltSupplier').value = btn.dataset.filterSup;
       el('fltWarehouse').value = btn.dataset.filterWh || '';
+      if (state.report) populateFilterDropdowns(state.report);
+      el('fltSupplier').value = btn.dataset.filterSup;
       recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
       renderTable();
       document.querySelector('.tab-btn[data-tab="table"]').click();
     });

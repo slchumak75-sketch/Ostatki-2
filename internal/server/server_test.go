@@ -56,13 +56,17 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	var overrideEnv struct {
 		Report *struct {
-			Items []model.CalculatedItem `json:"items"`
+			TotalOrderCost float64                 `json:"totalOrderCost"`
+			Items          []model.CalculatedItem  `json:"items"`
+			Warehouses     []model.WarehouseSummary `json:"warehouses"`
+			Suppliers      []model.SupplierSummary  `json:"suppliers"`
 		} `json:"report"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &overrideEnv); err != nil || overrideEnv.Report == nil {
 		t.Fatalf("unmarshal override envelope failed: %v", err)
 	}
 	foundRow8 := false
+	itemsSum := 0.0
 	for _, it := range overrideEnv.Report.Items {
 		unitPrice := math.Round(it.PurchasePrice*100) / 100
 		expectedSum := math.Round(float64(it.FinalOrderQty)*unitPrice*100) / 100
@@ -70,6 +74,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("row %d: expected OrderCost = FinalOrderQty(%d) * Price(%.2f) = %.2f, got %.2f",
 				it.ExcelRow, it.FinalOrderQty, unitPrice, expectedSum, it.OrderCost)
 		}
+		itemsSum += it.OrderCost
 		if it.ExcelRow == 8 {
 			foundRow8 = true
 			if it.FinalOrderQty != 25 || math.Abs(it.OrderCost-59.25) > 1e-6 {
@@ -79,6 +84,23 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	if !foundRow8 {
 		t.Fatalf("expected ExcelRow 8 in report items")
+	}
+	whSum := 0.0
+	for _, w := range overrideEnv.Report.Warehouses {
+		whSum += w.TotalOrderCost
+	}
+	supSum := 0.0
+	for _, s := range overrideEnv.Report.Suppliers {
+		supSum += s.TotalOrderCost
+	}
+	itemsSum = math.Round(itemsSum*100) / 100
+	whSum = math.Round(whSum*100) / 100
+	supSum = math.Round(supSum*100) / 100
+	if math.Abs(itemsSum-overrideEnv.Report.TotalOrderCost) > 1e-6 ||
+		math.Abs(whSum-overrideEnv.Report.TotalOrderCost) > 1e-6 ||
+		math.Abs(supSum-overrideEnv.Report.TotalOrderCost) > 1e-6 {
+		t.Fatalf("order cost mismatch across tabs: total=%.2f items=%.2f warehouses=%.2f suppliers=%.2f",
+			overrideEnv.Report.TotalOrderCost, itemsSum, whSum, supSum)
 	}
 
 	// 4. GET /api/export/xlsx
@@ -222,6 +244,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`id="ovFltName"`,
 		`id="ovFltSupplier"`,
 		`id="ovInpSearch"`,
+		`<tfoot id="tableFoot"></tfoot>`,
+		`<tfoot id="suppliersFoot"></tfoot>`,
 		`<input type="number" id="inpLeadTime" min="0" max="180" step="1" value="4"`,
 		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
 		`Ведомость <span class="tab-counter" id="cntTabTable">`,
@@ -378,6 +402,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`data-rating-row="${it.excelRow}"`,
 		`data-sum-row="${it.excelRow}"`,
 		"calcLineSum",
+		"recomputeReportSummaries",
+		"renderTableFooter",
 		"updateRowSumLive",
 		"api/clear",
 		"ovFltWarehouse",
