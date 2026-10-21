@@ -1,8 +1,18 @@
 (() => {
   'use strict';
 
+  const VIRTUAL_THRESHOLD = 400;
+  const VIRTUAL_WINDOW = 180;
+  const VIRTUAL_OVERSCAN = 55;
+  const ruCollator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
+  const activeControllers = new Set();
+  let isClearingDatabase = false;
+  let vScrollRaf = null;
+
   const state = {
+    clientEpoch: 0,
     report: null,
+    rowMap: new Map(),
     canSaveInPlace: false,
     desktopMode: false,
     planStartDate: '',
@@ -14,13 +24,41 @@
     pageSize: 100,
     activeTab: 'table',
     debounceTimer: null,
+    searchDebounceTimer: null,
     pendingOverrides: new Map(),
     checkedSuppliers: new Set(),
     lastLoadedFile: null,
     justResizedColumn: false,
+    rowHeightPx: 33,
+    vStart: 0,
+    vEnd: 0,
+    overstockLimit: 500,
   };
 
   const el = (id) => document.getElementById(id);
+
+  function abortActiveRequests() {
+    for (const ctrl of activeControllers) {
+      try { ctrl.abort(); } catch (_) {}
+    }
+    activeControllers.clear();
+  }
+
+  function indexReportItems(rep) {
+    state.rowMap.clear();
+    if (!rep?.items) return;
+    const items = rep.items;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      state.rowMap.set(it.excelRow, it);
+      it._skuLC = String(it.sku || '').toLowerCase();
+      it._nameLC = String(it.name || '').toLowerCase();
+      it._supNorm = it.supplier || '(Поставщик не указан)';
+      if (it.isOverstock) {
+        it._ovSearchLC = `${it.name || ''} ${it.sku || ''} ${it.group || ''} ${it.supplier || ''} ${it.warehouse || ''}`.toLowerCase();
+      }
+    }
+  }
 
   function normalizeSupName(raw) {
     const s = String(raw ?? '').trim();
@@ -181,7 +219,7 @@
         totalRetailVal: Math.round(ws.totalRetailVal * 100) / 100,
         overstockCost: Math.round(ws.overstockCost * 100) / 100,
       }))
-      .sort((a, b) => a.warehouse.localeCompare(b.warehouse, 'ru'));
+      .sort((a, b) => ruCollator.compare(a.warehouse, b.warehouse));
 
     const minSupOrder = Number(rep.params?.minSupplierOrder) || 0;
     rep.suppliers = [...supMap.values()]
@@ -197,8 +235,8 @@
       })
       .sort((a, b) => {
         if (Math.abs(a.totalOrderCost - b.totalOrderCost) > 1e-6) return b.totalOrderCost - a.totalOrderCost;
-        if (a.warehouse !== b.warehouse) return a.warehouse.localeCompare(b.warehouse, 'ru');
-        return a.supplier.localeCompare(b.supplier, 'ru');
+        if (a.warehouse !== b.warehouse) return ruCollator.compare(a.warehouse, b.warehouse);
+        return ruCollator.compare(a.supplier, b.supplier);
       });
 
     if (Array.isArray(rep.groups)) {
@@ -286,76 +324,121 @@
   }
 
   async function apiGet(path) {
-    const res = await fetch(path, { headers: { Accept: 'application/json' } });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Ошибка HTTP ${res.status}`);
-    return data;
+    const ctrl = new AbortController();
+    activeControllers.add(ctrl);
+    try {
+      const res = await fetch(path, {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Ошибка HTTP ${res.status}`);
+      return data;
+    } finally {
+      activeControllers.delete(ctrl);
+    }
   }
 
-  async function apiPost(path, body) {
-    const res = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `Ошибка HTTP ${res.status}`);
-    return data;
+  async function apiPost(path, body, opts = {}) {
+    const ctrl = new AbortController();
+    if (!opts.unabortable) activeControllers.add(ctrl);
+    try {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Ошибка HTTP ${res.status}`);
+      return data;
+    } finally {
+      activeControllers.delete(ctrl);
+    }
+  }
+
+  function resetUIToEmptyDatabase() {
+    hideRatingChartPopover();
+    state.report = null;
+    state.rowMap.clear();
+    state.canSaveInPlace = false;
+    state.filteredItems = [];
+    state.selectedExcelRow = null;
+    state.vStart = 0;
+    state.vEnd = 0;
+    state.overstockLimit = 500;
+    state.pendingOverrides.clear();
+    state.checkedSuppliers.clear();
+    state.lastLoadedFile = null;
+
+    if (el('fileInput')) el('fileInput').value = '';
+    if (el('btnSaveInPlace')) el('btnSaveInPlace').classList.add('hidden');
+    if (el('inpSearchSku')) el('inpSearchSku').value = '';
+    if (el('inpSearch')) el('inpSearch').value = '';
+    if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
+    if (el('fltABCXYZ')) el('fltABCXYZ').value = '';
+    if (el('fltStatus')) el('fltStatus').value = 'all';
+    if (el('fltWarehouse')) el('fltWarehouse').innerHTML = '<option value="">Все склады</option>';
+    if (el('fltGroup')) el('fltGroup').innerHTML = '<option value="">Все группы</option>';
+    if (el('fltSupplier')) el('fltSupplier').innerHTML = '<option value="">Все поставщики</option>';
+    if (el('supplierDropdownLabel')) el('supplierDropdownLabel').textContent = 'Все поставщики';
+    if (el('supplierDropdownList')) el('supplierDropdownList').innerHTML = '';
+    if (el('supplierDropdownMenu')) el('supplierDropdownMenu').classList.add('hidden');
+    if (el('ovFltWarehouse')) el('ovFltWarehouse').innerHTML = '<option value="">Все склады</option>';
+    if (el('ovFltName')) el('ovFltName').innerHTML = '<option value="">Вся номенклатура</option>';
+    if (el('ovFltSupplier')) el('ovFltSupplier').innerHTML = '<option value="">Все поставщики</option>';
+    if (el('ovInpSearch')) el('ovInpSearch').value = '';
+    if (el('btnResetOverstockFilters')) el('btnResetOverstockFilters').classList.add('hidden');
+
+    if (el('fileMetaLine')) el('fileMetaLine').textContent = 'База очищена • Загрузите файл Ведомости (.xlsx) для расчёта';
+    if (el('kpiOrderCost')) el('kpiOrderCost').textContent = '0,00 руб.';
+    if (el('kpiBudgetInfo')) el('kpiBudgetInfo').textContent = 'База пуста';
+    if (el('cntTabTable')) el('cntTabTable').textContent = '0';
+    if (el('cntTabSuppliers')) el('cntTabSuppliers').textContent = '0';
+    if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
+    if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
+    if (el('tableBody')) {
+      el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+    }
+    if (el('tableFoot')) el('tableFoot').innerHTML = '';
+    if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
+    if (el('suppliersBody')) {
+      el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">База данных очищена</td></tr>';
+    }
+    if (el('suppliersFoot')) el('suppliersFoot').innerHTML = '';
+    if (el('overstockContainer')) {
+      el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
+    }
+    window.scrollTo(0, 0);
   }
 
   function applyEnvelope(env) {
+    if (!env) return;
     state.canSaveInPlace = Boolean(env.canSaveInPlace);
     state.desktopMode = Boolean(env.desktopMode);
     state.report = env.report || null;
 
-    el('btnSaveInPlace').classList.toggle('hidden', !state.canSaveInPlace);
-    el('btnCloseApp').classList.toggle('hidden', !state.desktopMode);
+    el('btnSaveInPlace')?.classList.toggle('hidden', !state.canSaveInPlace);
+    el('btnCloseApp')?.classList.toggle('hidden', !state.desktopMode);
     if (!state.report) {
-      hideRatingChartPopover();
-      state.filteredItems = [];
-      state.selectedExcelRow = null;
-      el('inpSearchSku').value = '';
-      el('inpSearch').value = '';
-      el('fltABCXYZ').value = '';
-      el('fltStatus').value = 'all';
-      el('fltWarehouse').innerHTML = '<option value="">Все склады</option>';
-      el('fltGroup').innerHTML = '<option value="">Все группы</option>';
-      el('fltSupplier').innerHTML = '<option value="">Все поставщики</option>';
-      el('supplierDropdownLabel').textContent = 'Все поставщики';
-      el('supplierDropdownList').innerHTML = '';
-      el('ovFltWarehouse').innerHTML = '<option value="">Все склады</option>';
-      el('ovFltName').innerHTML = '<option value="">Вся номенклатура</option>';
-      el('ovFltSupplier').innerHTML = '<option value="">Все поставщики</option>';
-      el('ovInpSearch').value = '';
-      el('btnResetOverstockFilters').classList.add('hidden');
-
-      el('fileMetaLine').textContent = 'База очищена • Загрузите файл Ведомости (.xlsx) для расчёта';
-      el('kpiOrderCost').textContent = '0,00 руб.';
-      el('kpiBudgetInfo').textContent = 'База пуста';
-      el('cntTabTable').textContent = '0';
-      el('cntTabSuppliers').textContent = '0';
-      el('cntTabOverstock').textContent = '0';
-      el('paginationInfo').textContent = 'База очищена (0 строк)';
-      el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
-      el('tableFoot').innerHTML = '';
-      el('warehousesContainer').innerHTML = '';
-      el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">База данных очищена</td></tr>';
-      el('suppliersFoot').innerHTML = '';
-      el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
-      state.checkedSuppliers.clear();
-      state.lastLoadedFile = null;
+      resetUIToEmptyDatabase();
       return;
     }
 
+    indexReportItems(state.report);
+
     if (state.lastLoadedFile !== state.report.fileName) {
       state.lastLoadedFile = state.report.fileName;
+      state.overstockLimit = 500;
       state.checkedSuppliers.clear();
       syncSelectedSuppliersToServer();
     }
 
     if (state.pendingOverrides.size > 0) {
       for (const [rNum, qty] of state.pendingOverrides.entries()) {
-        const target = state.report.items?.find((x) => x.excelRow === rNum);
+        const target = state.rowMap.get(rNum);
         if (target) {
           target.finalOrderQty = qty;
           target.manualOverride = qty;
@@ -461,7 +544,7 @@
         prev.orderItems += s.orderItems;
       }
     }
-    const uniqueSuppliers = [...supAgg.values()].sort((a, b) => b.totalOrderCost - a.totalOrderCost || a.supplier.localeCompare(b.supplier, 'ru'));
+    const uniqueSuppliers = [...supAgg.values()].sort((a, b) => b.totalOrderCost - a.totalOrderCost || ruCollator.compare(a.supplier, b.supplier));
 
     keepSet(
       el('fltSupplier'),
@@ -574,28 +657,29 @@
     const sup = el('fltSupplier').value;
     const seg = el('fltABCXYZ').value;
     const status = el('fltStatus').value;
+    const segNumFilter = seg !== '' ? Number(seg) : null;
 
-    const list = state.report.items.filter((it) => {
-      if (wh && it.warehouse !== wh) return false;
-      if (grp && it.group !== grp) return false;
-      const itemSup = it.supplier || '(Поставщик не указан)';
-      if (sup && itemSup !== sup) return false;
-      if (seg !== '' && String(it.salesSegment) !== seg && it.salesSegmentLabel !== seg) return false;
+    const src = state.report.items;
+    const list = [];
+    for (let i = 0; i < src.length; i++) {
+      const it = src[i];
+      if (wh && it.warehouse !== wh) continue;
+      if (grp && it.group !== grp) continue;
+      const itemSup = it._supNorm || it.supplier || '(Поставщик не указан)';
+      if (sup && itemSup !== sup) continue;
+      if (seg !== '' && it.salesSegment !== segNumFilter && String(it.salesSegment) !== seg && it.salesSegmentLabel !== seg) continue;
 
-      if (status === 'order' && it.finalOrderQty <= 0) return false;
-      if (status === 'outliers' && it.outlierMonths <= 0) return false;
-      if (status === 'overstock' && !it.isOverstock) return false;
-      if (status === 'zero' && it.closingStock > 0) return false;
-      if (status === 'manual' && it.manualOverride == null) return false;
+      if (status === 'order' && it.finalOrderQty <= 0) continue;
+      if (status === 'outliers' && it.outlierMonths <= 0) continue;
+      if (status === 'overstock' && !it.isOverstock) continue;
+      if (status === 'zero' && it.closingStock > 0) continue;
+      if (status === 'manual' && it.manualOverride == null) continue;
 
-      if (qSku) {
-        if (!String(it.sku || '').toLowerCase().includes(qSku)) return false;
-      }
-      if (qName) {
-        if (!String(it.name || '').toLowerCase().includes(qName)) return false;
-      }
-      return true;
-    });
+      if (qSku && !(it._skuLC ?? String(it.sku || '').toLowerCase()).includes(qSku)) continue;
+      if (qName && !(it._nameLC ?? String(it.name || '').toLowerCase()).includes(qName)) continue;
+
+      list.push(it);
+    }
 
     const key = state.sortKey;
     const mult = state.sortDir === 'asc' ? 1 : -1;
@@ -606,10 +690,12 @@
         if (va !== vb) return (va - vb) * mult;
         return a.excelRow - b.excelRow;
       }
-      return String(va ?? '').localeCompare(String(vb ?? ''), 'ru') * mult;
+      return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * mult;
     });
 
     state.filteredItems = list;
+    state.vStart = 0;
+    state.vEnd = 0;
     el('cntTabTable').textContent = list.length;
   }
 
@@ -654,12 +740,76 @@
     }
   }
 
-  function renderTable() {
+  function buildTableRowHTML(it) {
+    const isSelected = it.excelRow === state.selectedExcelRow;
+    const isManual = it.manualOverride != null;
+    const hasAutoOrder = it.autoOrderQty > 0;
+    const segNum = Number(it.salesSegment) || 0;
+    const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
+
+    const rowCls = [
+      hasAutoOrder ? 'auto-order-row' : '',
+      isSelected ? 'selected-row' : '',
+    ].filter(Boolean).join(' ');
+
+    const qtyCls = [
+      'qty-input',
+      it.finalOrderQty > 0 ? 'has-order' : '',
+      isManual ? 'is-manual' : '',
+    ].filter(Boolean).join(' ');
+
+    return `<tr data-row="${it.excelRow}" class="${rowCls}">
+      <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
+      <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
+      <td class="sku-cell">${esc(it.sku)}</td>
+      <td class="name-cell">${esc(it.name)}</td>
+      <td class="unit-cell">шт.</td>
+      <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
+      <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
+      <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
+      <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
+        <div class="qty-editor">
+          ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
+          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
+        </div>
+      </td>
+      <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
+      <td class="num-col">${fmtRetail(it)}</td>
+      <td class="num-col" data-sum-row="${it.excelRow}" style="font-weight:${lineSum > 0 ? '700' : '400'}">${fmtMoney(lineSum)}</td>
+      <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
+    </tr>`;
+  }
+
+  function computeVirtualRange(total) {
+    if (total <= VIRTUAL_THRESHOLD) {
+      return { start: 0, end: total };
+    }
+    const tableEl = el('itemsTable');
+    const rowH = Math.max(24, state.rowHeightPx || 33);
+    let relScrollTop = 0;
+    if (tableEl) {
+      const rect = tableEl.getBoundingClientRect();
+      relScrollTop = Math.max(0, -rect.top);
+    }
+    const firstVisible = Math.floor(relScrollTop / rowH);
+    const viewportRows = Math.ceil((window.innerHeight || 900) / rowH);
+    let start = Math.max(0, firstVisible - VIRTUAL_OVERSCAN);
+    let end = Math.min(total, firstVisible + viewportRows + VIRTUAL_OVERSCAN);
+    if (end - start < VIRTUAL_WINDOW) {
+      end = Math.min(total, start + VIRTUAL_WINDOW);
+      if (end - start < VIRTUAL_WINDOW) {
+        start = Math.max(0, end - VIRTUAL_WINDOW);
+      }
+    }
+    return { start, end };
+  }
+
+  function renderTableBodyWindow(force = true) {
     const tbody = el('tableBody');
     const slice = state.filteredItems;
+    const total = slice.length;
+    if (!tbody || total === 0) return;
 
-    // Сохраняем позицию скролла и активное поле ввода, если пользователь перешёл в соседнюю строку
-    const prevScrollY = window.scrollY;
     const activeEl = document.activeElement;
     const activeQtyRow = activeEl?.dataset?.qtyRow ? Number(activeEl.dataset.qtyRow) : null;
     const activeFresh = activeEl?.dataset?.freshEdit;
@@ -667,52 +817,45 @@
     const activeOrigQty = activeEl?.dataset?.origQty;
     const activeDraft = activeEl?.dataset?.qtyRow ? activeEl.value : null;
 
-    renderTableFooter();
+    if (total <= VIRTUAL_THRESHOLD) {
+      state.vStart = 0;
+      state.vEnd = total;
+      tbody.innerHTML = slice.map(buildTableRowHTML).join('');
+    } else {
+      const { start, end } = computeVirtualRange(total);
+      if (!force && start >= state.vStart && end <= state.vEnd) {
+        return;
+      }
+      if (!force && Math.abs(start - state.vStart) < 20 && state.vEnd > 0) {
+        return;
+      }
+      state.vStart = start;
+      state.vEnd = end;
 
-    if (slice.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
-      return;
+      const rowH = Math.max(24, state.rowHeightPx || 33);
+      const topPx = Math.round(start * rowH);
+      const bottomPx = Math.round((total - end) * rowH);
+
+      const parts = [];
+      if (topPx > 0) {
+        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="13" style="height:${topPx}px"></td></tr>`);
+      }
+      for (let i = start; i < end; i++) {
+        parts.push(buildTableRowHTML(slice[i]));
+      }
+      if (bottomPx > 0) {
+        parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="13" style="height:${bottomPx}px"></td></tr>`);
+      }
+      tbody.innerHTML = parts.join('');
+
+      const sampleRow = tbody.querySelector('tr[data-row]');
+      if (sampleRow) {
+        const measured = sampleRow.getBoundingClientRect().height;
+        if (measured >= 22 && measured <= 80 && Math.abs(measured - state.rowHeightPx) > 1.5) {
+          state.rowHeightPx = measured;
+        }
+      }
     }
-
-    tbody.innerHTML = slice.map((it) => {
-      const isSelected = it.excelRow === state.selectedExcelRow;
-      const isManual = it.manualOverride != null;
-      const hasAutoOrder = it.autoOrderQty > 0;
-      const segNum = Number(it.salesSegment) || 0;
-      const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
-
-      const rowCls = [
-        hasAutoOrder ? 'auto-order-row' : '',
-        isSelected ? 'selected-row' : '',
-      ].filter(Boolean).join(' ');
-
-      const qtyCls = [
-        'qty-input',
-        it.finalOrderQty > 0 ? 'has-order' : '',
-        isManual ? 'is-manual' : '',
-      ].filter(Boolean).join(' ');
-
-      return `<tr data-row="${it.excelRow}" class="${rowCls}">
-        <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
-        <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
-        <td class="sku-cell">${esc(it.sku)}</td>
-        <td class="name-cell">${esc(it.name)}</td>
-        <td class="unit-cell">шт.</td>
-        <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
-        <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
-        <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
-        <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
-          <div class="qty-editor">
-            ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
-            <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
-          </div>
-        </td>
-        <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
-        <td class="num-col">${fmtRetail(it)}</td>
-        <td class="num-col" data-sum-row="${it.excelRow}" style="font-weight:${lineSum > 0 ? '700' : '400'}">${fmtMoney(lineSum)}</td>
-        <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
-      </tr>`;
-    }).join('');
 
     if (activeQtyRow != null) {
       const nextInp = tbody.querySelector(`input[data-qty-row="${activeQtyRow}"]`);
@@ -729,6 +872,24 @@
         }
       }
     }
+  }
+
+  function renderTable() {
+    const tbody = el('tableBody');
+    const slice = state.filteredItems;
+    const prevScrollY = window.scrollY;
+
+    renderTableFooter();
+
+    if (slice.length === 0) {
+      state.vStart = 0;
+      state.vEnd = 0;
+      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
+      return;
+    }
+
+    renderTableBodyWindow(true);
+
     if (window.scrollY !== prevScrollY) {
       window.scrollTo(0, prevScrollY);
     }
@@ -836,7 +997,7 @@
   function showRatingChartPopover(anchorEl, excelRow) {
     const pop = el('ratingChartPopover');
     if (!pop || !state.report) return;
-    const item = state.report.items.find((x) => x.excelRow === excelRow);
+    const item = state.rowMap.get(excelRow) || state.report.items.find((x) => x.excelRow === excelRow);
     if (!item) return;
 
     if (activePopoverRow !== excelRow) {
@@ -1016,13 +1177,13 @@
 
     setSelectOptions(
       el('ovFltWarehouse'),
-      [...whAgg.values()].sort((a, b) => b.frozen - a.frozen || a.warehouse.localeCompare(b.warehouse, 'ru')),
+      [...whAgg.values()].sort((a, b) => b.frozen - a.frozen || ruCollator.compare(a.warehouse, b.warehouse)),
       'Все склады',
       (w) => `${w.warehouse} (${w.count})`
     );
     setSelectOptions(
       el('ovFltSupplier'),
-      [...supAgg.values()].sort((a, b) => b.frozen - a.frozen || a.supplier.localeCompare(b.supplier, 'ru')),
+      [...supAgg.values()].sort((a, b) => b.frozen - a.frozen || ruCollator.compare(a.supplier, b.supplier)),
       'Все поставщики',
       (s) => `${s.supplier} — ${fmtMoney(s.frozen)} р. (${s.count})`
     );
@@ -1036,10 +1197,11 @@
       const sName = it.supplier || '(Поставщик не указан)';
       if (selSup && sName !== selSup) continue;
       if (it.name) nameCandidates.add(it.name);
+      if (nameCandidates.size >= 1500) break;
     }
     setSelectOptions(
       el('ovFltName'),
-      [...nameCandidates].sort((a, b) => a.localeCompare(b, 'ru')),
+      [...nameCandidates].sort((a, b) => ruCollator.compare(a, b)),
       'Вся номенклатура'
     );
 
@@ -1050,11 +1212,11 @@
 
     const over = allOver.filter((it) => {
       if (selWh && it.warehouse !== selWh) return false;
-      const sName = it.supplier || '(Поставщик не указан)';
+      const sName = it._supNorm || it.supplier || '(Поставщик не указан)';
       if (selSup && sName !== selSup) return false;
       if (selName && it.name !== selName) return false;
       if (searchQ) {
-        const hay = `${it.name} ${it.sku} ${it.group} ${it.supplier} ${it.warehouse}`.toLowerCase();
+        const hay = it._ovSearchLC || `${it.name} ${it.sku} ${it.group} ${it.supplier} ${it.warehouse}`.toLowerCase();
         if (!hay.includes(searchQ)) return false;
       }
       return true;
@@ -1064,6 +1226,8 @@
     const totalHint = hasActiveFilter
       ? ` (всего по базе: ${fmtInt(allOver.length)} поз. на ${fmtMoney(rep.overstockFrozenCost)} руб.)`
       : '';
+    const visibleOver = state.overstockLimit > 0 ? over.slice(0, state.overstockLimit) : over;
+    const remainingOver = over.length - visibleOver.length;
 
     el('overstockContainer').innerHTML = `
       <h3>Радар замороженного капитала и неликвидов (&gt; 365 дней продаж или 0 продаж за 12 мес.)</h3>
@@ -1085,9 +1249,9 @@
             </tr>
           </thead>
           <tbody>
-            ${over.length === 0
+            ${visibleOver.length === 0
               ? '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">По выбранным фильтрам позиций не найдено</td></tr>'
-              : over.map((it) => `<tr data-jump-row="${it.excelRow}">
+              : visibleOver.map((it) => `<tr data-jump-row="${it.excelRow}">
               <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
               <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
@@ -1101,6 +1265,10 @@
             </tr>`).join('')}
           </tbody>
         </table>
+        ${remainingOver > 0 ? `<div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+          <button type="button" class="btn btn-beige btn-sm" data-overstock-more="500">Показать ещё ${fmtInt(Math.min(500, remainingOver))} из ${fmtInt(remainingOver)}</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-overstock-more="all">Показать все (${fmtInt(over.length)})</button>
+        </div>` : ''}
       </div>
     `;
   }
@@ -1132,12 +1300,16 @@
   }
 
   function scheduleRecalculate() {
+    if (isClearingDatabase || !state.report) return;
     clearTimeout(state.debounceTimer);
+    const reqEpoch = state.clientEpoch;
     state.debounceTimer = setTimeout(async () => {
       try {
         const env = await apiPost('api/params', collectParamsFromUI());
+        if (reqEpoch !== state.clientEpoch) return;
         applyEnvelope(env);
       } catch (err) {
+        if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
         showToast(err.message);
       }
     }, 110);
@@ -1145,19 +1317,32 @@
 
   async function uploadExcelFile(file) {
     if (!file) return;
+    const reqEpoch = ++state.clientEpoch;
+    abortActiveRequests();
+    const ctrl = new AbortController();
+    activeControllers.add(ctrl);
     const fd = new FormData();
     fd.append('file', file);
     showToast(`Загрузка и расчёт «${file.name}»…`);
     try {
-      const res = await fetch('api/upload', { method: 'POST', body: fd });
+      const res = await fetch('api/upload', {
+        method: 'POST',
+        cache: 'no-store',
+        body: fd,
+        signal: ctrl.signal,
+      });
       const env = await res.json();
       if (!res.ok) throw new Error(env.error || 'Ошибка загрузки файла');
+      if (reqEpoch !== state.clientEpoch) return;
       state.selectedExcelRow = null;
       state.page = 1;
       applyEnvelope(env);
       showToast(`Готово! Столбец 8 рассчитан для ${fmtInt(env.report.totalItems)} позиций`);
     } catch (err) {
+      if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
       showToast(err.message);
+    } finally {
+      activeControllers.delete(ctrl);
     }
   }
 
@@ -1203,13 +1388,42 @@
       });
     });
 
-    el('btnClearDatabase').addEventListener('click', async () => {
+    let liveOverrideTimer = null;
+
+    const btnClear = el('btnClearDatabase');
+    btnClear.addEventListener('pointerdown', () => {
+      isClearingDatabase = true;
+    });
+    btnClear.addEventListener('mousedown', () => {
+      isClearingDatabase = true;
+    });
+    btnClear.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isClearingDatabase = true;
+      state.clientEpoch += 1;
+      clearTimeout(state.debounceTimer);
+      clearTimeout(state.searchDebounceTimer);
+      clearTimeout(liveOverrideTimer);
+      if (vScrollRaf) {
+        cancelAnimationFrame(vScrollRaf);
+        vScrollRaf = null;
+      }
+      abortActiveRequests();
       try {
-        const env = await apiPost('api/clear', {});
-        applyEnvelope(env);
-        showToast('База данных очищена');
-      } catch (err) {
-        showToast(err.message);
+        document.activeElement?.blur?.();
+      } catch (_) {}
+      resetUIToEmptyDatabase();
+      showToast('База данных очищена');
+
+      try {
+        await apiPost(`api/clear?t=${Date.now()}`, {}, { unabortable: true });
+      } catch (_) {
+        try {
+          await fetch(`api/clear?t=${Date.now()}`, { method: 'GET', cache: 'no-store' });
+        } catch (_err2) {}
+      } finally {
+        setTimeout(() => { isClearingDatabase = false; }, 120);
       }
     });
 
@@ -1282,10 +1496,19 @@
 
     ['inpSearchSku', 'inpSearch'].forEach((id) => {
       el(id).addEventListener('input', () => {
-        state.page = 1;
-        recomputeFilteredList();
-        if (state.report) renderKPIs(state.report);
-        renderTable();
+        clearTimeout(state.searchDebounceTimer);
+        const totalRows = state.report?.items?.length || 0;
+        const runSearch = () => {
+          state.page = 1;
+          recomputeFilteredList();
+          if (state.report) renderKPIs(state.report);
+          renderTable();
+        };
+        if (totalRows > 2000) {
+          state.searchDebounceTimer = setTimeout(runSearch, 110);
+        } else {
+          runSearch();
+        }
       });
     });
     ['fltWarehouse', 'fltGroup', 'fltSupplier', 'fltABCXYZ', 'fltStatus'].forEach((id) => {
@@ -1435,25 +1658,35 @@
       hideRatingChartPopover();
     });
 
-    window.addEventListener('scroll', () => {
+    const onVirtualScroll = () => {
       if (activePopoverRow !== null) hideRatingChartPopover();
-    }, { passive: true });
-
-    let liveOverrideTimer = null;
+      if (state.activeTab !== 'table' || state.filteredItems.length <= VIRTUAL_THRESHOLD) return;
+      if (vScrollRaf) return;
+      vScrollRaf = requestAnimationFrame(() => {
+        vScrollRaf = null;
+        renderTableBodyWindow(false);
+      });
+    };
+    window.addEventListener('scroll', onVirtualScroll, { passive: true });
+    window.addEventListener('resize', onVirtualScroll, { passive: true });
 
     async function pushOverrideToServer(rowNum, val, silent = false) {
+      if (isClearingDatabase || !state.report) return;
+      const reqEpoch = state.clientEpoch;
       state.pendingOverrides.set(rowNum, val);
       try {
         const env = await apiPost('api/override', { excelRow: rowNum, value: val });
+        if (reqEpoch !== state.clientEpoch) return;
         if (state.pendingOverrides.get(rowNum) === val) {
           state.pendingOverrides.delete(rowNum);
         }
         if (silent) {
           if (env.report) {
             state.report = env.report;
+            indexReportItems(state.report);
             if (state.pendingOverrides.size > 0) {
               for (const [r, q] of state.pendingOverrides.entries()) {
-                const t = state.report.items?.find((x) => x.excelRow === r);
+                const t = state.rowMap.get(r);
                 if (t) {
                   t.finalOrderQty = q;
                   t.manualOverride = q;
@@ -1471,13 +1704,14 @@
           showToast(`Заказ обновлён: ${fmtInt(val)}`);
         }
       } catch (err) {
+        if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
         showToast(err.message);
       }
     }
 
     function updateRowSumLive(rowNum, qty) {
       if (!state.report?.items) return;
-      const it = state.report.items.find((x) => x.excelRow === rowNum);
+      const it = state.rowMap.get(rowNum) || state.report.items.find((x) => x.excelRow === rowNum);
       if (!it) return;
       const lineSum = calcLineSum(qty, it.purchasePrice);
       it.finalOrderQty = qty;
@@ -1502,14 +1736,27 @@
     }
 
     async function commitQtyOverride(inp) {
-      if (!inp || inp.dataset.dirty !== '1') return;
+      if (isClearingDatabase || !inp || inp.dataset.dirty !== '1') return;
       clearTimeout(liveOverrideTimer);
       inp.dataset.dirty = '0';
       const rowNum = Number(inp.dataset.qtyRow);
       const val = parseQtyInput(inp.value);
       inp.value = fmtInt(val);
       state.selectedExcelRow = rowNum;
-      await pushOverrideToServer(rowNum, val, false);
+      const useFastSilent = (Number(state.report?.params?.budgetCap) || 0) <= 0;
+      if (useFastSilent) {
+        inp.classList.add('is-manual');
+        const editor = inp.closest('.qty-editor');
+        if (editor && !editor.querySelector('[data-reset]')) {
+          const it = state.rowMap.get(rowNum);
+          const autoQty = it ? it.autoOrderQty : 0;
+          editor.insertAdjacentHTML('afterbegin', `<button class="reset-cell-btn" data-reset="${rowNum}" title="Вернуть авторасчёт (${fmtInt(autoQty)})">↺</button>`);
+        }
+        await pushOverrideToServer(rowNum, val, true);
+        showToast(`Заказ обновлён: ${fmtInt(val)}`);
+      } else {
+        await pushOverrideToServer(rowNum, val, false);
+      }
     }
 
     // Автоматическое удаление старого значения в поле «Заказ» при начале ввода новых данных
@@ -1615,8 +1862,19 @@
       commitQtyOverride(inp);
     });
 
-    // Переход по клику на строку во вкладке неликвидов
+    // Переход по клику на строку во вкладке неликвидов и подгрузка больших списков
     document.body.addEventListener('click', (e) => {
+      const moreBtn = e.target.closest('[data-overstock-more]');
+      if (moreBtn) {
+        if (moreBtn.dataset.overstockMore === 'all') {
+          state.overstockLimit = 0;
+        } else {
+          state.overstockLimit = (state.overstockLimit || 500) + Number(moreBtn.dataset.overstockMore || 500);
+        }
+        if (state.report) renderOverstockView(state.report);
+        return;
+      }
+
       const jumpRow = e.target.closest('tr[data-jump-row]');
       if (jumpRow) {
         const rNum = Number(jumpRow.dataset.jumpRow);
@@ -1631,9 +1889,18 @@
         if (state.report) populateFilterDropdowns(state.report);
         recomputeFilteredList();
         if (state.report) renderKPIs(state.report);
-        renderTable();
         document.querySelector('.tab-btn[data-tab="table"]').click();
+        const targetIdx = state.filteredItems.findIndex((x) => x.excelRow === rNum);
+        renderTable();
         requestAnimationFrame(() => {
+          if (targetIdx >= 0 && state.filteredItems.length > VIRTUAL_THRESHOLD) {
+            const tableEl = el('itemsTable');
+            const tableTop = tableEl ? tableEl.getBoundingClientRect().top + window.scrollY : 0;
+            const rowH = Math.max(24, state.rowHeightPx || 33);
+            const approxY = Math.max(0, tableTop + targetIdx * rowH - window.innerHeight * 0.35);
+            window.scrollTo({ top: approxY, behavior: 'auto' });
+            renderTableBodyWindow(true);
+          }
           el('tableBody').querySelector(`tr[data-row="${rNum}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
       }

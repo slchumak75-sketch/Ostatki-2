@@ -1513,3 +1513,16 @@ body.col-resize-active * {
   font-weight: 500;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
 }
+
+.data-table tbody tr.virtual-spacer,
+.data-table tbody tr.virtual-spacer:hover {
+  background: transparent !important;
+  pointer-events: none;
+}
+
+.data-table tbody tr.virtual-spacer td {
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  line-height: 0;
+}
