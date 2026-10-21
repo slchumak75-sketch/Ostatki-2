@@ -16,10 +16,26 @@
     debounceTimer: null,
     pendingOverrides: new Map(),
     checkedSuppliers: new Set(),
+    lastLoadedFile: null,
     justResizedColumn: false,
   };
 
   const el = (id) => document.getElementById(id);
+
+  function normalizeSupName(raw) {
+    const s = String(raw ?? '').trim();
+    return s || '(Поставщик не указан)';
+  }
+
+  function isSupplierChecked(rawSup) {
+    return state.checkedSuppliers.has(normalizeSupName(rawSup));
+  }
+
+  function syncSelectedSuppliersToServer() {
+    return apiPost('api/selected-suppliers', {
+      suppliers: [...state.checkedSuppliers],
+    }).catch(() => {});
+  }
 
   function fmtInt(n) {
     return Math.round(Number(n) || 0).toLocaleString('ru-RU');
@@ -298,18 +314,20 @@
       hideRatingChartPopover();
       state.filteredItems = [];
       state.selectedExcelRow = null;
+      el('inpSearchSku').value = '';
       el('inpSearch').value = '';
       el('fltABCXYZ').value = '';
       el('fltStatus').value = 'all';
       el('fltWarehouse').innerHTML = '<option value="">Все склады</option>';
       el('fltGroup').innerHTML = '<option value="">Все группы</option>';
       el('fltSupplier').innerHTML = '<option value="">Все поставщики</option>';
+      el('supplierDropdownLabel').textContent = 'Все поставщики';
+      el('supplierDropdownList').innerHTML = '';
       el('ovFltWarehouse').innerHTML = '<option value="">Все склады</option>';
       el('ovFltName').innerHTML = '<option value="">Вся номенклатура</option>';
       el('ovFltSupplier').innerHTML = '<option value="">Все поставщики</option>';
       el('ovInpSearch').value = '';
       el('btnResetOverstockFilters').classList.add('hidden');
-      el('btnClearOverrides').classList.add('hidden');
 
       el('fileMetaLine').textContent = 'База очищена • Загрузите файл Ведомости (.xlsx) для расчёта';
       el('kpiOrderCost').textContent = '0,00 руб.';
@@ -324,7 +342,15 @@
       el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">База данных очищена</td></tr>';
       el('suppliersFoot').innerHTML = '';
       el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
+      state.checkedSuppliers.clear();
+      state.lastLoadedFile = null;
       return;
+    }
+
+    if (state.lastLoadedFile !== state.report.fileName) {
+      state.lastLoadedFile = state.report.fileName;
+      state.checkedSuppliers.clear();
+      syncSelectedSuppliersToServer();
     }
 
     if (state.pendingOverrides.size > 0) {
@@ -448,33 +474,18 @@
   }
 
   function renderSupplierDropdownMenu(rep, uniqueSuppliers) {
-    const selectedWh = el('fltWarehouse')?.value || '';
     const activeSup = el('fltSupplier')?.value || '';
     const filterQuery = (el('inpSupplierFilter')?.value || '').trim().toLowerCase();
 
-    // Определяем, у каких поставщиков обнулён автозаказ (manualOverride === 0)
-    const zeroedStats = new Map();
-    for (const it of rep.items || []) {
-      if (selectedWh && it.warehouse !== selectedWh) continue;
-      const supName = it.supplier || '(Поставщик не указан)';
-      let st = zeroedStats.get(supName);
-      if (!st) {
-        st = { zeroedCount: 0, activeCount: 0 };
-        zeroedStats.set(supName, st);
-      }
-      if (it.finalOrderQty > 0) st.activeCount += 1;
-      if (it.manualOverride === 0 && (it.autoOrderQty > 0 || it.finalOrderQty === 0)) {
-        st.zeroedCount += 1;
-      }
-    }
-
-    let fullyZeroedSuppliers = 0;
+    let checkedCount = 0;
+    let checkedSum = 0;
     for (const s of uniqueSuppliers) {
-      const st = zeroedStats.get(s.supplier);
-      if (st && st.activeCount === 0 && st.zeroedCount > 0) {
-        fullyZeroedSuppliers += 1;
+      if (isSupplierChecked(s.supplier)) {
+        checkedCount += 1;
+        checkedSum += Number(s.totalOrderCost) || 0;
       }
     }
+    checkedSum = Math.round(checkedSum * 100) / 100;
 
     const labelEl = el('supplierDropdownLabel');
     if (labelEl) {
@@ -483,8 +494,8 @@
         labelEl.textContent = found
           ? `${found.supplier} — ${fmtMoney(found.totalOrderCost)} р. (${found.orderItems})`
           : activeSup;
-      } else if (fullyZeroedSuppliers > 0) {
-        labelEl.textContent = `Все поставщики (обнулено: ${fullyZeroedSuppliers})`;
+      } else if (checkedCount > 0) {
+        labelEl.textContent = `Выбрано: ${checkedCount} пост. — ${fmtMoney(checkedSum)} р.`;
       } else {
         labelEl.textContent = 'Все поставщики';
       }
@@ -499,25 +510,19 @@
 
     const allRowHtml = `<div class="supplier-dd-row ${activeSup === '' ? 'active-filter' : ''}">
       <button type="button" class="supplier-dd-item-btn" data-sup-select="" style="font-weight:700">
-        Все поставщики (${uniqueSuppliers.length})
+        Показать всех в таблице (${uniqueSuppliers.length})
       </button>
     </div>`;
 
     const rowsHtml = visibleSuppliers.map((s) => {
-      const st = zeroedStats.get(s.supplier) || { zeroedCount: 0, activeCount: 0 };
-      const isZeroed = st.activeCount === 0 && st.zeroedCount > 0;
-      const isChecked = state.checkedSuppliers.has(s.supplier);
+      const isChecked = isSupplierChecked(s.supplier);
       const isActive = activeSup === s.supplier;
-      const actionBtn = isZeroed
-        ? `<button type="button" class="supplier-dd-zero-btn restore" data-sup-restore="${esc(s.supplier)}" title="Вернуть авторасчёт заказа этому поставщику">Авто</button>`
-        : `<button type="button" class="supplier-dd-zero-btn" data-sup-zero="${esc(s.supplier)}" title="Обнулить автозаполнение графы «Заказ» по этому поставщику">Обнулить</button>`;
-
-      return `<div class="supplier-dd-row ${isActive ? 'active-filter' : ''} ${isZeroed ? 'is-zeroed' : ''}">
-        <input type="checkbox" class="supplier-dd-check" data-sup-check="${esc(s.supplier)}" ${isChecked ? 'checked' : ''} title="Отметить поставщика для группового обнуления заказа" />
-        <button type="button" class="supplier-dd-item-btn" data-sup-select="${esc(s.supplier)}" title="${esc(s.supplier)}">
-          ${esc(s.supplier)} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})
+      return `<div class="supplier-dd-row ${isActive ? 'active-filter' : ''}">
+        <input type="checkbox" class="supplier-dd-check" data-sup-check="${esc(s.supplier)}" ${isChecked ? 'checked' : ''} title="Включить заказы поставщика в Бюджет закупки, статус «Готов к отправке» и выгрузку Excel" />
+        <button type="button" class="supplier-dd-item-btn" data-sup-select="${esc(s.supplier)}" title="Фильтр таблицы по поставщику: ${esc(s.supplier)}">
+          ${esc(s.supplier)}
         </button>
-        ${actionBtn}
+        <span class="supplier-dd-sum">${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})</span>
       </div>`;
     }).join('');
 
@@ -531,22 +536,29 @@
       `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)`;
 
     const isFiltered = hasActiveTableFilter();
-    const visibleCost = isFiltered
-      ? Math.round(state.filteredItems.reduce((acc, it) => acc + calcLineSum(it.finalOrderQty, it.purchasePrice), 0) * 100) / 100
-      : rep.totalOrderCost;
+    const sourceItems = isFiltered ? state.filteredItems : (rep.items || []);
 
-    el('kpiOrderCost').textContent = `${fmtMoney(visibleCost)} руб.`;
-    const activeSups = rep.suppliers.filter((s) => s.orderItems > 0).length;
-    if (isFiltered) {
-      el('kpiBudgetInfo').textContent = `По фильтру • Всего: ${fmtMoney(rep.totalOrderCost)} р.`;
-    } else if (rep.params.budgetCap > 0) {
-      el('kpiBudgetInfo').textContent = `Лимит: ${fmtMoney(rep.params.budgetCap)} р. • Поставщиков: ${activeSups}`;
+    let checkedBudget = 0;
+    for (const it of sourceItems) {
+      if (!isSupplierChecked(it.supplier)) continue;
+      checkedBudget += calcLineSum(it.finalOrderQty, it.purchasePrice);
+    }
+    checkedBudget = Math.round(checkedBudget * 100) / 100;
+
+    el('kpiOrderCost').textContent = `${fmtMoney(checkedBudget)} руб.`;
+
+    const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && isSupplierChecked(s.supplier));
+    const uniqueCheckedCount = state.checkedSuppliers.size;
+
+    if (uniqueCheckedCount === 0) {
+      el('kpiBudgetInfo').textContent = `Отметьте галочками поставщиков в «Все поставщики»`;
+    } else if (isFiltered) {
+      el('kpiBudgetInfo').textContent = `По фильтру • Отмечено поставщиков: ${uniqueCheckedCount}`;
     } else {
-      el('kpiBudgetInfo').textContent = `Активных поставщиков: ${activeSups} из ${rep.suppliers.length}`;
+      el('kpiBudgetInfo').textContent = `Отмечено поставщиков: ${uniqueCheckedCount} • Готовы к отправке: ${readyRows.length}`;
     }
 
-    el('btnClearOverrides').classList.toggle('hidden', rep.manualOverrideCount === 0);
-    el('cntTabSuppliers').textContent = activeSups;
+    el('cntTabSuppliers').textContent = readyRows.length;
     el('cntTabOverstock').textContent = rep.overstockItemsCount;
   }
 
@@ -862,42 +874,68 @@
   }
 
   function renderSuppliersView(rep) {
-    el('warehousesContainer').innerHTML = rep.warehouses.map((w) => `
+    // Считаем сводки по складам строго по поставщикам с установленной галочкой
+    const whCheckedStats = new Map();
+    for (const w of rep.warehouses) {
+      whCheckedStats.set(w.warehouse, { orderItems: 0, totalOrderQty: 0, totalOrderCost: 0, totalRetailVal: 0 });
+    }
+    for (const s of rep.suppliers) {
+      if (!isSupplierChecked(s.supplier) || s.orderItems <= 0) continue;
+      const ws = whCheckedStats.get(s.warehouse);
+      if (ws) {
+        ws.orderItems += Number(s.orderItems) || 0;
+        ws.totalOrderQty += Number(s.totalOrderQty) || 0;
+        ws.totalOrderCost = Math.round((ws.totalOrderCost + (Number(s.totalOrderCost) || 0)) * 100) / 100;
+        ws.totalRetailVal = Math.round((ws.totalRetailVal + (Number(s.totalRetailVal) || 0)) * 100) / 100;
+      }
+    }
+
+    el('warehousesContainer').innerHTML = rep.warehouses.map((w) => {
+      const ws = whCheckedStats.get(w.warehouse) || { orderItems: 0, totalOrderQty: 0, totalOrderCost: 0, totalRetailVal: 0 };
+      return `
       <div class="card-block">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
           <div>
             <h3>${esc(w.warehouse)}</h3>
             <p class="muted" style="margin-bottom:8px">Всего: ${fmtInt(w.totalItems)} SKU • 0 остаток: ${fmtInt(w.zeroStockItems)} • Неликвидов: ${fmtInt(w.overstockItems)} (${fmtMoney(w.overstockCost)} р.)</p>
           </div>
-          <a class="btn btn-secondary btn-sm" href="api/export/orders?warehouse=${encodeURIComponent(w.warehouse)}" style="text-decoration:none">
+          ${ws.orderItems > 0 ? `<a class="btn btn-secondary btn-sm" href="api/export/orders?warehouse=${encodeURIComponent(w.warehouse)}" style="text-decoration:none">
             Отчёт склада (.xlsx)
-          </a>
+          </a>` : ''}
         </div>
         <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:4px">
-          <div><span class="field-hint">Позиций к закупке</span><div style="font-size:18px;font-weight:700">${fmtInt(w.orderItems)} SKU</div></div>
-          <div><span class="field-hint">Единиц товара</span><div style="font-size:18px;font-weight:700;color:var(--primary)">${fmtInt(w.totalOrderQty)} ед.</div></div>
-          <div><span class="field-hint">Сумма закупки</span><div style="font-size:18px;font-weight:700">${fmtMoney(w.totalOrderCost)} руб.</div></div>
-          <div><span class="field-hint">Оценка в рознице</span><div style="font-size:18px;font-weight:700;color:var(--success)">${fmtMoney(w.totalRetailVal)} руб.</div></div>
+          <div><span class="field-hint">Позиций к закупке</span><div style="font-size:18px;font-weight:700">${fmtInt(ws.orderItems)} SKU</div></div>
+          <div><span class="field-hint">Единиц товара</span><div style="font-size:18px;font-weight:700;color:var(--primary)">${fmtInt(ws.totalOrderQty)} ед.</div></div>
+          <div><span class="field-hint">Сумма закупки</span><div style="font-size:18px;font-weight:700">${fmtMoney(ws.totalOrderCost)} руб.</div></div>
+          <div><span class="field-hint">Оценка в рознице</span><div style="font-size:18px;font-weight:700;color:var(--success)">${fmtMoney(ws.totalRetailVal)} руб.</div></div>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     el('suppliersBody').innerHTML = rep.suppliers.map((s) => {
+      const isChecked = isSupplierChecked(s.supplier);
+      const isReadyToSend = isChecked && s.orderItems > 0;
       const orderQs = new URLSearchParams();
       if (s.warehouse) orderQs.set('warehouse', s.warehouse);
       if (s.supplier) orderQs.set('supplier', s.supplier);
       const orderHref = `api/export/supplier-order?${orderQs.toString()}`;
       const orderFileName = formatOrderFileName(s.warehouse, s.supplier);
 
-      const statusBadge = s.orderItems === 0
-        ? `<span class="badge" style="color:var(--text-muted)">Нет потребности</span>`
-        : s.belowMinOrder
-          ? `<span class="badge badge-warn">Мелкий заказ (&lt; ${fmtInt(rep.params.minSupplierOrder)} р.)</span>`
-          : `<span class="badge badge-green">Готов к отправке (${s.shareOfBudget.toFixed(1)}%)</span>`;
+      const statusBadge = !isChecked
+        ? `<span class="badge" style="color:var(--text-muted)">Не отмечен</span>`
+        : s.orderItems === 0
+          ? `<span class="badge" style="color:var(--text-muted)">Нет потребности</span>`
+          : `<span class="badge badge-green">Готов к отправке</span>`;
 
       return `<tr>
         <td class="wh-cell" title="${esc(s.warehouse)}">${esc(s.warehouse)}</td>
-        <td><strong>${esc(s.supplier)}</strong></td>
+        <td>
+          <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" class="supplier-dd-check" data-sup-row-check="${esc(s.supplier)}" ${isChecked ? 'checked' : ''} />
+            <strong>${esc(s.supplier)}</strong>
+          </label>
+        </td>
         <td class="num-col">${fmtInt(s.totalItems)}</td>
         <td class="num-col">${fmtInt(s.orderItems)}</td>
         <td class="num-col" style="font-weight:700;color:var(--primary)">${fmtInt(s.totalOrderQty)}</td>
@@ -906,7 +944,7 @@
         <td class="center-col">${statusBadge}</td>
         <td class="right-col" style="white-space:nowrap">
           <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}" data-filter-wh="${esc(s.warehouse || '')}">В таблице</button>
-          ${s.orderItems > 0 ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ .xlsx</a>` : ''}
+          ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ .xlsx</a>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -918,6 +956,7 @@
     let sumSupRetailVal = 0;
     for (const s of rep.suppliers) {
       sumSupTotalSKU += Number(s.totalItems) || 0;
+      if (!isSupplierChecked(s.supplier)) continue;
       sumSupOrderSKU += Number(s.orderItems) || 0;
       sumSupOrderUnits += Number(s.totalOrderQty) || 0;
       sumSupOrderCost += Number(s.totalOrderCost) || 0;
@@ -926,7 +965,7 @@
     const supFoot = el('suppliersFoot');
     if (supFoot) {
       supFoot.innerHTML = `<tr>
-        <td colspan="2" style="text-align:right;color:var(--text-muted)">Итого по всем складам и поставщикам:</td>
+        <td colspan="2" style="text-align:right;color:var(--text-muted)">Итого по отмеченным поставщикам:</td>
         <td class="num-col">${fmtInt(sumSupTotalSKU)}</td>
         <td class="num-col">${fmtInt(sumSupOrderSKU)}</td>
         <td class="num-col" style="color:var(--primary)">${fmtInt(sumSupOrderUnits)}</td>
@@ -1159,13 +1198,6 @@
           el('inpBudgetCap').value = 5000;
           state.planStartDate = '';
           el('selSeasonMode').value = 'hybrid';
-        } else if (preset === 'spring') {
-          const baseYear = (state.report?.periods?.at(-1)?.year || 2026) + 1;
-          state.planStartDate = `${baseYear}-03-01`;
-          el('inpHorizon').value = 21;
-          el('inpLeadTime').value = 4;
-          el('inpSafety').value = 5;
-          el('selSeasonMode').value = 'conservative';
         }
         scheduleRecalculate();
       });
@@ -1293,40 +1325,27 @@
       if (state.report) populateFilterDropdowns(state.report);
     });
 
+    const refreshAfterSupplierCheckChange = () => {
+      syncSelectedSuppliersToServer();
+      if (!state.report) return;
+      populateFilterDropdowns(state.report);
+      renderKPIs(state.report);
+      renderSuppliersView(state.report);
+    };
+
     el('supplierDropdownList').addEventListener('change', (e) => {
       const chk = e.target.closest('input[data-sup-check]');
       if (!chk) return;
-      const sup = chk.dataset.supCheck;
+      const sup = normalizeSupName(chk.dataset.supCheck);
       if (chk.checked) {
         state.checkedSuppliers.add(sup);
       } else {
         state.checkedSuppliers.delete(sup);
       }
+      refreshAfterSupplierCheckChange();
     });
 
-    el('supplierDropdownList').addEventListener('click', async (e) => {
-      const zeroBtn = e.target.closest('[data-sup-zero]');
-      if (zeroBtn) {
-        e.stopPropagation();
-        const sup = zeroBtn.dataset.supZero;
-        const wh = el('fltWarehouse').value || '';
-        const env = await apiPost('api/override', { warehouse: wh, zeroSuppliers: [sup] });
-        applyEnvelope(env);
-        showToast(`Заказ обнулён: ${sup}`);
-        return;
-      }
-
-      const restoreBtn = e.target.closest('[data-sup-restore]');
-      if (restoreBtn) {
-        e.stopPropagation();
-        const sup = restoreBtn.dataset.supRestore;
-        const wh = el('fltWarehouse').value || '';
-        const env = await apiPost('api/override', { warehouse: wh, restoreSuppliers: [sup] });
-        applyEnvelope(env);
-        showToast(`Авторасчёт восстановлен: ${sup}`);
-        return;
-      }
-
+    el('supplierDropdownList').addEventListener('click', (e) => {
       const selBtn = e.target.closest('[data-sup-select]');
       if (selBtn) {
         el('fltSupplier').value = selBtn.dataset.supSelect || '';
@@ -1335,36 +1354,33 @@
       }
     });
 
-    el('btnZeroCheckedSuppliers').addEventListener('click', async (e) => {
+    el('btnCheckAllSuppliers').addEventListener('click', (e) => {
       e.stopPropagation();
-      let targets = [...state.checkedSuppliers];
-      if (targets.length === 0 && el('fltSupplier').value) {
-        targets = [el('fltSupplier').value];
-      }
-      if (targets.length === 0) {
-        showToast('Отметьте галочками избранных поставщиков в списке');
-        return;
-      }
+      if (!state.report) return;
       const wh = el('fltWarehouse').value || '';
-      const env = await apiPost('api/override', { warehouse: wh, zeroSuppliers: targets });
-      applyEnvelope(env);
-      showToast(`Обнулён заказ у поставщиков: ${targets.length}`);
+      const q = (el('inpSupplierFilter')?.value || '').trim().toLowerCase();
+      for (const s of state.report.suppliers) {
+        if (wh && s.warehouse !== wh) continue;
+        if (q && !s.supplier.toLowerCase().includes(q)) continue;
+        state.checkedSuppliers.add(normalizeSupName(s.supplier));
+      }
+      refreshAfterSupplierCheckChange();
     });
 
-    el('btnRestoreCheckedSuppliers').addEventListener('click', async (e) => {
+    el('btnUncheckAllSuppliers').addEventListener('click', (e) => {
       e.stopPropagation();
-      let targets = [...state.checkedSuppliers];
-      if (targets.length === 0 && el('fltSupplier').value) {
-        targets = [el('fltSupplier').value];
-      }
-      if (targets.length === 0) {
-        showToast('Отметьте галочками поставщиков для возврата авторасчёта');
-        return;
-      }
       const wh = el('fltWarehouse').value || '';
-      const env = await apiPost('api/override', { warehouse: wh, restoreSuppliers: targets });
-      applyEnvelope(env);
-      showToast(`Восстановлен авторасчёт у поставщиков: ${targets.length}`);
+      const q = (el('inpSupplierFilter')?.value || '').trim().toLowerCase();
+      if (!wh && !q) {
+        state.checkedSuppliers.clear();
+      } else if (state.report) {
+        for (const s of state.report.suppliers) {
+          if (wh && s.warehouse !== wh) continue;
+          if (q && !s.supplier.toLowerCase().includes(q)) continue;
+          state.checkedSuppliers.delete(normalizeSupName(s.supplier));
+        }
+      }
+      refreshAfterSupplierCheckChange();
     });
 
     document.addEventListener('click', (e) => {
@@ -1599,13 +1615,6 @@
       commitQtyOverride(inp);
     });
 
-    el('btnClearOverrides').addEventListener('click', async () => {
-      state.checkedSuppliers.clear();
-      const env = await apiPost('api/override', { clearAll: true });
-      applyEnvelope(env);
-      showToast('Все ручные корректировки сброшены');
-    });
-
     // Переход по клику на строку во вкладке неликвидов
     document.body.addEventListener('click', (e) => {
       const jumpRow = e.target.closest('tr[data-jump-row]');
@@ -1630,6 +1639,18 @@
       }
     });
 
+    el('suppliersBody').addEventListener('change', (e) => {
+      const chk = e.target.closest('input[data-sup-row-check]');
+      if (!chk) return;
+      const sup = normalizeSupName(chk.dataset.supRowCheck);
+      if (chk.checked) {
+        state.checkedSuppliers.add(sup);
+      } else {
+        state.checkedSuppliers.delete(sup);
+      }
+      refreshAfterSupplierCheckChange();
+    });
+
     el('suppliersBody').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
@@ -1648,11 +1669,21 @@
       e.target.value = '';
     });
 
-    el('btnDownloadXlsx').addEventListener('click', () => {
+    el('btnDownloadXlsx').addEventListener('click', async () => {
+      if (state.checkedSuppliers.size === 0) {
+        showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
+        return;
+      }
+      await syncSelectedSuppliersToServer();
       window.location.href = 'api/export/xlsx';
     });
 
-    el('btnDownloadOrders').addEventListener('click', () => {
+    el('btnDownloadOrders').addEventListener('click', async () => {
+      if (state.checkedSuppliers.size === 0) {
+        showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
+        return;
+      }
+      await syncSelectedSuppliersToServer();
       const wh = el('fltWarehouse').value;
       const sup = el('fltSupplier').value;
       const qs = new URLSearchParams();
@@ -1671,7 +1702,12 @@
     });
 
     el('btnSaveInPlace').addEventListener('click', async () => {
+      if (state.checkedSuppliers.size === 0) {
+        showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
+        return;
+      }
       try {
+        await syncSelectedSuppliersToServer();
         const res = await apiPost('api/save-inplace', {});
         showToast(`Сохранено в «${res.filePath}» (${res.items} поз., ${res.units} ед. в столбце 8)`);
       } catch (err) {
@@ -1773,53 +1809,30 @@
   }
 
   function initColumnResizers() {
-    const STORAGE_KEY = 'ostatki_v4_col_widths';
-    let savedWidths = {};
+    // Сбрасываем любые ранее сохранённые ширины, чтобы при каждом открытии программы
+    // столбцы гарантированно имели эталонную ширину по умолчанию из последнего релиза
     try {
-      savedWidths = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
-    } catch (_) {
-      savedWidths = {};
-    }
-
-    const persistWidths = () => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedWidths));
-      } catch (_) {}
-    };
+      localStorage.removeItem('ostatki_v4_col_widths');
+    } catch (_) {}
 
     document.querySelectorAll('table.data-table').forEach((table) => {
-      const tableId = table.id || 'dataTable';
       const headRow = table.querySelector('thead tr');
       if (!headRow) return;
       const ths = [...headRow.querySelectorAll('th')];
       if (ths.length === 0) return;
 
-      let colgroup = table.querySelector('colgroup');
-      if (!colgroup) {
-        colgroup = document.createElement('colgroup');
-        for (let i = 0; i < ths.length; i++) {
-          colgroup.appendChild(document.createElement('col'));
-        }
-        table.insertBefore(colgroup, table.firstChild);
-      }
-      const cols = [...colgroup.querySelectorAll('col')];
-
-      const stored = savedWidths[tableId];
-      if (Array.isArray(stored) && stored.length === ths.length) {
-        table.classList.add('table-manual-cols');
-        stored.forEach((w, idx) => {
-          if (w && w >= 42) {
-            cols[idx].style.width = `${w}px`;
-            ths[idx].style.width = `${w}px`;
-          }
-        });
-      }
+      const resetTableDefaultWidths = () => {
+        table.classList.remove('table-manual-cols');
+        table.style.width = '';
+        table.querySelector('colgroup')?.remove();
+        ths.forEach((h) => { h.style.width = ''; });
+      };
 
       ths.forEach((th, colIdx) => {
         if (th.querySelector('.col-resizer')) return;
         const handle = document.createElement('span');
         handle.className = 'col-resizer';
-        handle.title = 'Потяните границу для настройки ширины столбца (двойной клик — сброс)';
+        handle.title = 'Потяните границу для настройки ширины столбца (двойной клик — ширина по умолчанию)';
         th.appendChild(handle);
 
         handle.addEventListener('click', (e) => {
@@ -1830,13 +1843,8 @@
         handle.addEventListener('dblclick', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          delete savedWidths[tableId];
-          persistWidths();
-          table.classList.remove('table-manual-cols');
-          table.style.width = '';
-          cols.forEach((c) => { c.style.width = ''; });
-          ths.forEach((h) => { h.style.width = ''; });
-          showToast('Ширина столбцов восстановлена');
+          resetTableDefaultWidths();
+          showToast('Восстановлена ширина столбцов по умолчанию');
         });
 
         handle.addEventListener('mousedown', (e) => {
@@ -1844,17 +1852,26 @@
           e.preventDefault();
           e.stopPropagation();
 
-          // Фиксируем текущие ширины всех столбцов перед началом перетаскивания
           const initialWidths = ths.map((h) => Math.max(44, Math.round(h.getBoundingClientRect().width)));
+          let colgroup = table.querySelector('colgroup');
+          if (!colgroup) {
+            colgroup = document.createElement('colgroup');
+            for (let i = 0; i < ths.length; i++) {
+              colgroup.appendChild(document.createElement('col'));
+            }
+            table.insertBefore(colgroup, table.firstChild);
+          }
+          const cols = [...colgroup.querySelectorAll('col')];
           table.classList.add('table-manual-cols');
           initialWidths.forEach((w, idx) => {
             cols[idx].style.width = `${w}px`;
             ths[idx].style.width = `${w}px`;
           });
+          table.style.width = `${initialWidths.reduce((a, b) => a + b, 0)}px`;
 
           const startX = e.clientX;
           const startWidth = initialWidths[colIdx];
-          let currentWidths = [...initialWidths];
+          const currentWidths = [...initialWidths];
 
           handle.classList.add('resizing');
           document.body.classList.add('col-resize-active');
@@ -1865,8 +1882,7 @@
             currentWidths[colIdx] = nextWidth;
             cols[colIdx].style.width = `${nextWidth}px`;
             ths[colIdx].style.width = `${nextWidth}px`;
-            const totalW = currentWidths.reduce((a, b) => a + b, 0);
-            table.style.width = `${totalW}px`;
+            table.style.width = `${currentWidths.reduce((a, b) => a + b, 0)}px`;
           };
 
           const onMouseUp = () => {
@@ -1874,8 +1890,6 @@
             window.removeEventListener('mouseup', onMouseUp);
             handle.classList.remove('resizing');
             document.body.classList.remove('col-resize-active');
-            savedWidths[tableId] = currentWidths;
-            persistWidths();
             state.justResizedColumn = true;
             setTimeout(() => { state.justResizedColumn = false; }, 180);
           };

@@ -71,7 +71,6 @@
           <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
           <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
           <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
-          <button class="preset-chip" data-preset="spring">Подготовка к весне (Март–Апр)</button>
         </div>
 
         <div class="params-header-right">
@@ -220,7 +219,7 @@
           <select id="fltSupplier" class="sr-only-select" aria-label="Фильтр по поставщику">
             <option value="">Все поставщики</option>
           </select>
-          <button type="button" class="supplier-dd-trigger" id="btnSupplierDropdown" aria-expanded="false" title="Фильтр по поставщику и обнуление графы «Заказ» по избранным поставщикам">
+          <button type="button" class="supplier-dd-trigger" id="btnSupplierDropdown" aria-expanded="false" title="Выберите галочками поставщиков для расчёта бюджета закупки, статуса «Готов к отправке» и формирования Excel-файлов">
             <span class="supplier-dd-label" id="supplierDropdownLabel">Все поставщики</span>
             <span class="supplier-dd-caret">▾</span>
           </button>
@@ -228,8 +227,8 @@
             <div class="supplier-dd-head">
               <input type="search" id="inpSupplierFilter" class="supplier-dd-search" placeholder="Найти поставщика в списке…" />
               <div class="supplier-dd-actions">
-                <button type="button" class="btn btn-beige btn-xs" id="btnZeroCheckedSuppliers" title="Обнулить графу «Заказ» у всех отмеченных галочками поставщиков">Обнулить заказ выбранным</button>
-                <button type="button" class="btn btn-secondary btn-xs" id="btnRestoreCheckedSuppliers" title="Вернуть авторасчёт графы «Заказ» отмеченным поставщикам">Вернуть авто</button>
+                <button type="button" class="btn btn-beige btn-xs" id="btnCheckAllSuppliers" title="Отметить галочками всех поставщиков">Отметить всех</button>
+                <button type="button" class="btn btn-secondary btn-xs" id="btnUncheckAllSuppliers" title="Снять галочки со всех поставщиков">Снять все</button>
               </div>
             </div>
             <div class="supplier-dd-list" id="supplierDropdownList"></div>
@@ -244,8 +243,6 @@
           <option value="zero">Нулевой остаток</option>
           <option value="manual">Изменённые вручную</option>
         </select>
-
-        <button class="btn btn-ghost btn-sm hidden" id="btnClearOverrides">Сбросить ручные правки</button>
       </div>
 
       <div class="table-container">

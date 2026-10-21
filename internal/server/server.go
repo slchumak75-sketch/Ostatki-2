@@ -24,13 +24,15 @@ var embeddedWeb embed.FS
 
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.
 type AppServer struct {
-	mu          sync.RWMutex
-	wb          *model.WorkbookData
-	rawXLSX     []byte
-	params      model.ForecastParams
-	overrides   map[int]int
-	report      *model.CalculationReport
-	desktopMode bool
+	mu                      sync.RWMutex
+	wb                      *model.WorkbookData
+	rawXLSX                 []byte
+	params                  model.ForecastParams
+	overrides               map[int]int
+	selectedSuppliers       map[string]bool
+	supplierSelectionActive bool
+	report                  *model.CalculationReport
+	desktopMode             bool
 
 	hbMu          sync.Mutex
 	hasSeenClient bool
@@ -50,11 +52,12 @@ type stateEnvelope struct {
 // New создаёт новый экземпляр AppServer.
 func New(desktopMode bool) *AppServer {
 	s := &AppServer{
-		params:      model.DefaultParams(),
-		overrides:   make(map[int]int),
-		desktopMode: desktopMode,
-		lastBeat:    time.Now(),
-		shutdownCh:  make(chan struct{}),
+		params:            model.DefaultParams(),
+		overrides:         make(map[int]int),
+		selectedSuppliers: make(map[string]bool),
+		desktopMode:       desktopMode,
+		lastBeat:          time.Now(),
+		shutdownCh:        make(chan struct{}),
 	}
 	return s
 }
@@ -70,6 +73,8 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = make(map[int]int)
+	s.selectedSuppliers = make(map[string]bool)
+	s.supplierSelectionActive = false
 	s.params = model.DefaultParams()
 	s.report = forecast.Calculate(s.wb, s.params, s.overrides)
 	return nil
@@ -86,6 +91,8 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = make(map[int]int)
+	s.selectedSuppliers = make(map[string]bool)
+	s.supplierSelectionActive = false
 	// Сохраняем текущие настройки пользователя, но сбрасываем жёсткую дату на авто из нового файла
 	p := s.params
 	p.PlanStartDate = ""
@@ -102,6 +109,8 @@ func (s *AppServer) ClearDatabase() {
 	s.wb = nil
 	s.rawXLSX = nil
 	s.overrides = make(map[int]int)
+	s.selectedSuppliers = make(map[string]bool)
+	s.supplierSelectionActive = false
 	s.params = model.DefaultParams()
 	s.report = nil
 }
@@ -160,6 +169,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
+	mux.HandleFunc("/api/selected-suppliers", s.handleSelectedSuppliers)
 	mux.HandleFunc("/api/upload", s.handleUpload)
 	mux.HandleFunc("/api/clear", s.handleClearDatabase)
 	mux.HandleFunc("/api/save-inplace", s.handleSaveInPlace)
@@ -229,13 +239,10 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 	s.touchHeartbeat()
 	var req struct {
-		ExcelRow         int      `json:"excelRow"`
-		Value            int      `json:"value"`
-		Clear            bool     `json:"clear"`
-		ClearAll         bool     `json:"clearAll"`
-		Warehouse        string   `json:"warehouse"`
-		ZeroSuppliers    []string `json:"zeroSuppliers"`
-		RestoreSuppliers []string `json:"restoreSuppliers"`
+		ExcelRow int  `json:"excelRow"`
+		Value    int  `json:"value"`
+		Clear    bool `json:"clear"`
+		ClearAll bool `json:"clearAll"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный запрос: "+err.Error())
@@ -250,29 +257,6 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ClearAll {
 		s.overrides = make(map[int]int)
-	} else if len(req.ZeroSuppliers) > 0 || len(req.RestoreSuppliers) > 0 {
-		zeroSet := make(map[string]bool, len(req.ZeroSuppliers))
-		for _, sup := range req.ZeroSuppliers {
-			zeroSet[strings.TrimSpace(sup)] = true
-		}
-		restoreSet := make(map[string]bool, len(req.RestoreSuppliers))
-		for _, sup := range req.RestoreSuppliers {
-			restoreSet[strings.TrimSpace(sup)] = true
-		}
-		for _, item := range s.wb.Items {
-			if req.Warehouse != "" && item.Warehouse != req.Warehouse {
-				continue
-			}
-			supKey := strings.TrimSpace(item.Supplier)
-			if supKey == "" {
-				supKey = "(Поставщик не указан)"
-			}
-			if zeroSet[supKey] {
-				s.overrides[item.ExcelRow] = 0
-			} else if restoreSet[supKey] {
-				delete(s.overrides, item.ExcelRow)
-			}
-		}
 	} else if req.Clear {
 		delete(s.overrides, req.ExcelRow)
 	} else if req.ExcelRow > 0 {
@@ -288,6 +272,63 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 		DesktopMode:    s.desktopMode,
 		Report:         s.report,
 	})
+}
+
+func (s *AppServer) handleSelectedSuppliers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "требуется метод POST")
+		return
+	}
+	s.touchHeartbeat()
+	var req struct {
+		Suppliers []string `json:"suppliers"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "некорректный запрос: "+err.Error())
+		return
+	}
+
+	s.mu.Lock()
+	s.supplierSelectionActive = true
+	s.selectedSuppliers = make(map[string]bool, len(req.Suppliers))
+	for _, sup := range req.Suppliers {
+		trimmed := strings.TrimSpace(sup)
+		if trimmed == "" {
+			trimmed = "(Поставщик не указан)"
+		}
+		s.selectedSuppliers[trimmed] = true
+	}
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":    true,
+		"count": len(req.Suppliers),
+	})
+}
+
+// reportForExportLocked строит срез расчёта для выгрузки в Excel с учётом
+// отмеченных галочками поставщиков (не меняя авторасчёт в самой ведомости).
+func (s *AppServer) reportForExportLocked() *model.CalculationReport {
+	if s.wb == nil || s.report == nil {
+		return nil
+	}
+	if !s.supplierSelectionActive {
+		return s.report
+	}
+	effOverrides := make(map[int]int, len(s.wb.Items))
+	for k, v := range s.overrides {
+		effOverrides[k] = v
+	}
+	for _, item := range s.wb.Items {
+		supKey := strings.TrimSpace(item.Supplier)
+		if supKey == "" {
+			supKey = "(Поставщик не указан)"
+		}
+		if !s.selectedSuppliers[supKey] {
+			effOverrides[item.ExcelRow] = 0
+		}
+	}
+	return forecast.Calculate(s.wb, s.params, effOverrides)
 }
 
 func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) {
@@ -352,7 +393,8 @@ func (s *AppServer) handleSaveInPlace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orders := forecast.ExtractOrdersMap(s.report)
+	exportRep := s.reportForExportLocked()
+	orders := forecast.ExtractOrdersMap(exportRep)
 	outBytes, err := xlsx.WriteOrderColumnLossless(
 		s.rawXLSX,
 		s.wb.HeaderRow,
@@ -384,8 +426,8 @@ func (s *AppServer) handleSaveInPlace(w http.ResponseWriter, r *http.Request) {
 		"saved":     true,
 		"filePath":  s.wb.FilePath,
 		"updatedAt": time.Now().Format("15:04:05"),
-		"units":     s.report.TotalOrderUnits,
-		"items":     s.report.OrderItemsCount,
+		"units":     exportRep.TotalOrderUnits,
+		"items":     exportRep.OrderItemsCount,
 	})
 }
 
@@ -394,7 +436,7 @@ func (s *AppServer) handleExportFilledXLSX(w http.ResponseWriter, r *http.Reques
 	s.mu.RLock()
 	wb := s.wb
 	raw := s.rawXLSX
-	rep := s.report
+	rep := s.reportForExportLocked()
 	params := s.params
 	s.mu.RUnlock()
 
@@ -425,7 +467,7 @@ func (s *AppServer) handleExportFilledXLSX(w http.ResponseWriter, r *http.Reques
 func (s *AppServer) handleExportOrdersXLSX(w http.ResponseWriter, r *http.Request) {
 	s.touchHeartbeat()
 	s.mu.RLock()
-	rep := s.report
+	rep := s.reportForExportLocked()
 	s.mu.RUnlock()
 
 	if rep == nil {
@@ -441,7 +483,7 @@ func (s *AppServer) handleExportOrdersXLSX(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	suffix := "все поставщики"
+	suffix := "выбранные поставщики"
 	if filterSupplier != "" {
 		suffix = sanitizeFilePart(filterSupplier)
 	} else if filterWarehouse != "" {
@@ -453,16 +495,26 @@ func (s *AppServer) handleExportOrdersXLSX(w http.ResponseWriter, r *http.Reques
 
 func (s *AppServer) handleExportSingleSupplierOrderXLSX(w http.ResponseWriter, r *http.Request) {
 	s.touchHeartbeat()
+	filterWarehouse := strings.TrimSpace(r.URL.Query().Get("warehouse"))
+	filterSupplier := strings.TrimSpace(r.URL.Query().Get("supplier"))
+
 	s.mu.RLock()
-	rep := s.report
+	selActive := s.supplierSelectionActive
+	supAllowed := true
+	if selActive && filterSupplier != "" {
+		supAllowed = s.selectedSuppliers[filterSupplier]
+	}
+	rep := s.reportForExportLocked()
 	s.mu.RUnlock()
 
 	if rep == nil {
 		writeError(w, http.StatusBadRequest, "нет данных расчёта")
 		return
 	}
-	filterWarehouse := strings.TrimSpace(r.URL.Query().Get("warehouse"))
-	filterSupplier := strings.TrimSpace(r.URL.Query().Get("supplier"))
+	if !supAllowed {
+		writeError(w, http.StatusBadRequest, "поставщик не отмечен галочкой для формирования заказа")
+		return
+	}
 
 	whForName := filterWarehouse
 	if whForName == "" {

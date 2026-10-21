@@ -66,19 +66,6 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 		t.Fatalf("expected summer forecast units (%d) > November forecast units (%d)", summerRep.TotalOrderUnits, rep.TotalOrderUnits)
 	}
 
-	// 5б. Скорректированный в меньшую сторону режим «Подготовка к весне (Март–Апр)»
-	springParams := model.DefaultParams()
-	springParams.PlanStartDate = "2027-03-01"
-	springParams.HorizonDays = 21
-	springParams.LeadTimeDays = 4
-	springParams.SafetyStockPct = 5
-	springParams.SeasonMode = "conservative"
-	springRep := forecast.Calculate(wb, springParams, nil)
-	if springRep.TotalOrderCost <= 0 || springRep.TotalOrderCost >= summerRep.TotalOrderCost {
-		t.Fatalf("expected moderated spring prep cost in (0, %.2f), got %.2f",
-			summerRep.TotalOrderCost, springRep.TotalOrderCost)
-	}
-
 	// 6. Проверка 6-уровневой шкалы рейтинга продаж (0-Нет продаж .. 5-Высокий)
 	var segCounts [6]int
 	for i := range rep.Items {
