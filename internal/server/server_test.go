@@ -352,20 +352,18 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("expected button sequence Старьё выгрузка (disabled) -> Старьё -> Активно -> Печать inside topbar, got export=%d staryo=%d active=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, activeBtnIdx, printBtnIdx, headerEndIdx)
 	}
 
-	// Проверка столбца «+» строго между столбцами «Группа» и «Артикул»
+	// Проверка порядка столбцов в таблице «Ведомость»:
+	// Группа -> Артикул -> Номенклатура -> Ед. -> Запас -> + -> Рейтинг, а также Цена -> Розница -> Сумма
 	groupColIdx := strings.Index(htmlBody, `<th data-sort="group" class="grp-col">Группа</th>`)
-	plusColIdx := strings.Index(htmlBody, `<th class="plus-col">+</th>`)
 	skuColIdx := strings.Index(htmlBody, `<th data-sort="sku">Артикул</th>`)
-	if !(groupColIdx > 0 && plusColIdx > groupColIdx && skuColIdx > plusColIdx) {
-		t.Fatalf("expected column order Группа -> + -> Артикул, got indices %d, %d, %d", groupColIdx, plusColIdx, skuColIdx)
-	}
-
-	// Проверка порядка столбцов: Номенклатура -> Ед. -> Рейтинг, а также Цена -> Розница -> Сумма
 	nameIdx := strings.Index(htmlBody, `<th data-sort="name" class="col-name">Номенклатура</th>`)
 	unitIdx := strings.Index(htmlBody, `<th data-sort="unit" class="unit-col">Ед.</th>`)
+	surplusIdx := strings.Index(htmlBody, `<th data-sort="surplusStock" class="num-col col-5digits"`)
+	plusColIdx := strings.Index(htmlBody, `<th data-sort="_staryoChecked" class="plus-col"`)
 	ratingIdx := strings.Index(htmlBody, `<th data-sort="salesSegment" class="seg-col"`)
-	if !(nameIdx > 0 && unitIdx > nameIdx && ratingIdx > unitIdx) {
-		t.Fatalf("expected column order Номенклатура -> Ед. -> Рейтинг, got indices %d, %d, %d", nameIdx, unitIdx, ratingIdx)
+	if !(groupColIdx > 0 && skuColIdx > groupColIdx && nameIdx > skuColIdx && unitIdx > nameIdx && surplusIdx > unitIdx && plusColIdx > surplusIdx && ratingIdx > plusColIdx) {
+		t.Fatalf("expected column order Группа -> Артикул -> Номенклатура -> Ед. -> Запас -> + -> Рейтинг, got indices %d, %d, %d, %d, %d, %d, %d",
+			groupColIdx, skuColIdx, nameIdx, unitIdx, surplusIdx, plusColIdx, ratingIdx)
 	}
 	// Проверка, что столбец «Розница» следует сразу после столбца «Цена»
 	priceIdx := strings.Index(htmlBody, `<th data-sort="purchasePrice" class="num-col">Цена</th>`)
@@ -486,7 +484,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"auto-order-row",
 		"salesSegment",
 		"salesSegmentLabel",
+		"it.surplusStock",
 		`<td class="unit-cell">шт.</td>`,
+		`<td class="plus-cell"><input type="checkbox" class="plus-input`,
 		`data-rating-row="${it.excelRow}"`,
 		`data-sum-row="${it.excelRow}"`,
 		"calcLineSum",
@@ -627,7 +627,7 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 	}
 
 	// 2.5 Проверка выгрузки «Старьё выгрузка» (/api/export/staryo):
-	// только строки с внесённым символом «+» и строго 5 столбцов (+, Артикул, Номенклатура, Цена, Розница)
+	// только отмеченные галочкой строки и строго 4 столбца (Артикул, Номенклатура, Цена, Розница)
 	var envCheck struct {
 		Report *model.CalculationReport `json:"report"`
 	}
@@ -661,22 +661,23 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 		}
 	}
 	for _, wantHeader := range []string{
-		`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">+</t></is></c>`,
-		`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
-		`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
-		`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Цена</t></is></c>`,
-		`<c r="E1" s="1" t="inlineStr"><is><t xml:space="preserve">Розница</t></is></c>`,
+		`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
+		`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
+		`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Цена</t></is></c>`,
+		`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Розница</t></is></c>`,
 	} {
 		if !strings.Contains(sheetXML, wantHeader) {
 			t.Fatalf("staryo sheet1.xml missing header %s\ngot: %s", wantHeader, sheetXML)
 		}
 	}
-	if rowTags := strings.Count(sheetXML, `<row r="`); rowTags != 3 {
-		t.Fatalf("expected 1 header row + 2 marked '+' rows = 3 rows, got %d", rowTags)
+	if strings.Contains(sheetXML, `r="E1"`) {
+		t.Fatalf("expected strictly 4 columns (A..D) in staryo sheet1.xml, found E1: %s", sheetXML)
 	}
-	if !strings.Contains(sheetXML, `<c r="A2" s="4" t="inlineStr"><is><t xml:space="preserve">+</t></is></c>`) ||
-		!strings.Contains(sheetXML, `<c r="A3" s="4" t="inlineStr"><is><t xml:space="preserve">+</t></is></c>`) {
-		t.Fatalf("expected '+' symbol in column A for exported rows, got: %s", sheetXML)
+	if rowTags := strings.Count(sheetXML, `<row r="`); rowTags != 3 {
+		t.Fatalf("expected 1 header row + 2 checked rows = 3 rows, got %d", rowTags)
+	}
+	if !strings.Contains(sheetXML, `<c r="B2" s="2" t="inlineStr"><is><t xml:space="preserve">`+rA.Name+`</t></is></c>`) {
+		t.Fatalf("expected first checked item name %q in cell B2, got: %s", rA.Name, sheetXML)
 	}
 
 	// 3. Проверка скорости параллельного расчёта на большой базе: 30 000 SKU × 37 мес. (1 110 000 ячеек)

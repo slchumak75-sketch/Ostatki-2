@@ -431,7 +431,7 @@
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
     if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
     if (el('tableBody')) {
-      el('tableBody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+      el('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
     }
     if (el('tableFoot')) el('tableFoot').innerHTML = '';
     if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
@@ -707,6 +707,12 @@
     const key = state.sortKey;
     const mult = state.sortDir === 'asc' ? 1 : -1;
     list.sort((a, b) => {
+      if (key === '_staryoChecked') {
+        const ca = state.staryoRows.has(a.excelRow) ? 1 : 0;
+        const cb = state.staryoRows.has(b.excelRow) ? 1 : 0;
+        if (ca !== cb) return (ca - cb) * mult;
+        return a.excelRow - b.excelRow;
+      }
       const va = a[key];
       const vb = b[key];
       if (typeof va === 'number' && typeof vb === 'number') {
@@ -751,7 +757,7 @@
     el('paginationInfo').textContent =
       `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)} • К закупке: ${fmtInt(orderRows)} SKU / ${fmtInt(orderUnits)} шт. • Сумма закупки: ${fmtMoney(roundedOrderSum)} руб.`;
 
-    const leadColspan = state.staryoMode ? 9 : 8;
+    const leadColspan = state.staryoMode ? 10 : 9;
     if (tfoot) {
       tfoot.innerHTML = `<tr>
         <td colspan="${leadColspan}" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
@@ -770,6 +776,10 @@
     const hasAutoOrder = it.autoOrderQty > 0;
     const hasPlus = state.staryoRows.has(it.excelRow);
     const segNum = Number(it.salesSegment) || 0;
+    const surplusVal = Number(it.surplusStock) || 0;
+    const surplusTitle = surplusVal > 0 || it.closingStock > 0
+      ? ` title="Излишний запас: ${fmtInt(surplusVal)} шт. (остаток: ${fmtInt(it.closingStock)} шт., сезонная норма: ${fmtNum(it.targetStock, 2)} шт.)"`
+      : '';
     const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
 
     const rowCls = [
@@ -786,10 +796,11 @@
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
       <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
-      <td class="plus-cell" onclick="event.stopPropagation()"><input type="text" maxlength="2" autocomplete="off" class="plus-input${hasPlus ? ' has-plus' : ''}" value="${hasPlus ? '+' : ''}" data-plus-row="${it.excelRow}" aria-label="Символ +" /></td>
       <td class="sku-cell">${esc(it.sku)}</td>
       <td class="name-cell">${esc(it.name)}</td>
       <td class="unit-cell">шт.</td>
+      <td class="num-col col-5digits"${surplusTitle}>${fmtInt(surplusVal)}</td>
+      <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
       <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
       <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
       <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
@@ -862,7 +873,7 @@
       const topPx = Math.round(start * rowH);
       const bottomPx = Math.round((total - end) * rowH);
 
-      const fullColspan = state.staryoMode ? 14 : 13;
+      const fullColspan = state.staryoMode ? 15 : 14;
       const parts = [];
       if (topPx > 0) {
         parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="${fullColspan}" style="height:${topPx}px"></td></tr>`);
@@ -909,7 +920,7 @@
     renderTableFooter();
 
     if (slice.length === 0) {
-      const fullColspan = state.staryoMode ? 14 : 13;
+      const fullColspan = state.staryoMode ? 15 : 14;
       state.vStart = 0;
       state.vEnd = 0;
       tbody.innerHTML = `<tr><td colspan="${fullColspan}" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
@@ -1718,7 +1729,7 @@
           state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
         } else {
           state.sortKey = key;
-          state.sortDir = typeof state.report?.items?.[0]?.[key] === 'number' ? 'desc' : 'asc';
+          state.sortDir = (key === '_staryoChecked' || typeof state.report?.items?.[0]?.[key] === 'number') ? 'desc' : 'asc';
         }
         recomputeFilteredList();
         renderTable();
@@ -1726,6 +1737,15 @@
     });
 
     el('tableBody').addEventListener('click', async (e) => {
+      const plusCell = e.target.closest('td.plus-cell');
+      if (plusCell) {
+        const plusChk = plusCell.querySelector('input[data-plus-row]');
+        if (plusChk && e.target !== plusChk) {
+          plusChk.checked = !plusChk.checked;
+          plusChk.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
       const resetBtn = e.target.closest('[data-reset]');
       if (resetBtn) {
         const rowNum = Number(resetBtn.dataset.reset);
@@ -2044,54 +2064,16 @@
       window.location.href = 'api/export/xlsx';
     });
 
-    // Обработка маленьких квадратных полей в столбце «+»
-    el('tableBody').addEventListener('focusin', (e) => {
-      const plusInp = e.target.closest('input[data-plus-row]');
-      if (!plusInp) return;
-      plusInp.select();
-    });
-
-    el('tableBody').addEventListener('keydown', (e) => {
-      const plusInp = e.target.closest('input[data-plus-row]');
-      if (!plusInp) return;
-      const rowNum = Number(plusInp.dataset.plusRow);
-      if (e.key === '+') {
-        e.preventDefault();
-        plusInp.value = '+';
-        plusInp.classList.add('has-plus');
-        state.staryoRows.add(rowNum);
-        return;
-      }
-      if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') {
-        e.preventDefault();
-        plusInp.value = '';
-        plusInp.classList.remove('has-plus');
-        state.staryoRows.delete(rowNum);
-        return;
-      }
-      if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          plusInp.blur();
-        }
-        return;
-      }
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
-        e.preventDefault();
-      }
-    });
-
-    el('tableBody').addEventListener('input', (e) => {
-      const plusInp = e.target.closest('input[data-plus-row]');
-      if (!plusInp) return;
-      const rowNum = Number(plusInp.dataset.plusRow);
-      if (plusInp.value.includes('+')) {
-        plusInp.value = '+';
-        plusInp.classList.add('has-plus');
+    // Обработка отметок галочкой в столбце «+»
+    el('tableBody').addEventListener('change', (e) => {
+      const plusChk = e.target.closest('input[data-plus-row]');
+      if (!plusChk) return;
+      const rowNum = Number(plusChk.dataset.plusRow);
+      if (plusChk.checked) {
+        plusChk.classList.add('has-plus');
         state.staryoRows.add(rowNum);
       } else {
-        plusInp.value = '';
-        plusInp.classList.remove('has-plus');
+        plusChk.classList.remove('has-plus');
         state.staryoRows.delete(rowNum);
       }
     });
@@ -2109,12 +2091,12 @@
       renderTable();
     });
 
-    // Кнопка «Старьё выгрузка»: выгружает Excel-файл (+, Артикул, Номенклатура, Цена, Розница)
-    // только по строкам, в которых внесён символ «+»
+    // Кнопка «Старьё выгрузка»: выгружает Excel-файл (Артикул, Номенклатура, Цена, Розница)
+    // только по строкам, отмеченным галочкой в столбце «+»
     el('btnDownloadOrders').addEventListener('click', () => {
       if (!state.staryoMode) return;
       if (!state.report || state.staryoRows.size === 0) {
-        showToast('Внесите символ «+» в столбце «+» хотя бы для одной позиции');
+        showToast('Отметьте галочкой хотя бы одну позицию в столбце «+»');
         return;
       }
       const orderedRows = [];
@@ -2132,7 +2114,7 @@
         }
       }
       if (orderedRows.length === 0) {
-        showToast('Внесите символ «+» в столбце «+» хотя бы для одной позиции');
+        showToast('Отметьте галочкой хотя бы одну позицию в столбце «+»');
         return;
       }
       el('staryoExportRows').value = orderedRows.join(',');
