@@ -627,7 +627,7 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 	}
 
 	// 2.5 Проверка выгрузки «Старьё выгрузка» (/api/export/staryo):
-	// только отмеченные галочкой строки и строго 4 столбца (Артикул, Номенклатура, Цена, Розница)
+	// только отмеченные галочкой строки и строго 5 столбцов (Склад, Артикул, Номенклатура, Цена, Розница)
 	var envCheck struct {
 		Report *model.CalculationReport `json:"report"`
 	}
@@ -661,23 +661,25 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 		}
 	}
 	for _, wantHeader := range []string{
-		`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
-		`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
-		`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Цена</t></is></c>`,
-		`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Розница</t></is></c>`,
+		`<c r="A1" s="1" t="inlineStr"><is><t xml:space="preserve">Склад</t></is></c>`,
+		`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
+		`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
+		`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Цена</t></is></c>`,
+		`<c r="E1" s="1" t="inlineStr"><is><t xml:space="preserve">Розница</t></is></c>`,
 	} {
 		if !strings.Contains(sheetXML, wantHeader) {
 			t.Fatalf("staryo sheet1.xml missing header %s\ngot: %s", wantHeader, sheetXML)
 		}
 	}
-	if strings.Contains(sheetXML, `r="E1"`) {
-		t.Fatalf("expected strictly 4 columns (A..D) in staryo sheet1.xml, found E1: %s", sheetXML)
+	if strings.Contains(sheetXML, `r="F1"`) {
+		t.Fatalf("expected strictly 5 columns (A..E) in staryo sheet1.xml, found F1: %s", sheetXML)
 	}
 	if rowTags := strings.Count(sheetXML, `<row r="`); rowTags != 3 {
 		t.Fatalf("expected 1 header row + 2 checked rows = 3 rows, got %d", rowTags)
 	}
-	if !strings.Contains(sheetXML, `<c r="B2" s="2" t="inlineStr"><is><t xml:space="preserve">`+rA.Name+`</t></is></c>`) {
-		t.Fatalf("expected first checked item name %q in cell B2, got: %s", rA.Name, sheetXML)
+	if !strings.Contains(sheetXML, `<c r="A2" s="2" t="inlineStr"><is><t xml:space="preserve">`+rA.Warehouse+`</t></is></c>`) ||
+		!strings.Contains(sheetXML, `<c r="C2" s="2" t="inlineStr"><is><t xml:space="preserve">`+rA.Name+`</t></is></c>`) {
+		t.Fatalf("expected first checked item warehouse %q in A2 and name %q in C2, got: %s", rA.Warehouse, rA.Name, sheetXML)
 	}
 
 	// 3. Проверка скорости параллельного расчёта на большой базе: 30 000 SKU × 37 мес. (1 110 000 ячеек)
