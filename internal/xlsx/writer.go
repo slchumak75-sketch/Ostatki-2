@@ -872,8 +872,8 @@ func emptyStyledCell(ref string, style int) string {
 }
 
 // GenerateStaryoExportXLSX формирует однолистовый Excel-файл «Старьё» без заливки
-// со строго 5 столбцами: «+», «Артикул», «Номенклатура», «Цена», «Розница»
-// только по позициям, в которых пользователем внесён символ «+».
+// со строго 4 столбцами: «Артикул», «Номенклатура», «Цена», «Розница»
+// только по позициям, отмеченным галочкой в столбце «+».
 func GenerateStaryoExportXLSX(markedItems []model.CalculatedItem) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -962,15 +962,14 @@ func GenerateStaryoExportXLSX(markedItems []model.CalculatedItem) ([]byte, error
 	s1.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <cols>
-  <col min="1" max="1" width="6" customWidth="1"/>
-  <col min="2" max="2" width="18" customWidth="1"/>
-  <col min="3" max="3" width="56" customWidth="1"/>
+  <col min="1" max="1" width="18" customWidth="1"/>
+  <col min="2" max="2" width="56" customWidth="1"/>
+  <col min="3" max="3" width="14" customWidth="1"/>
   <col min="4" max="4" width="14" customWidth="1"/>
-  <col min="5" max="5" width="14" customWidth="1"/>
 </cols><sheetData>`)
 
 	s1.WriteString(`<row r="1" ht="24" customHeight="1">`)
-	for i, h := range []string{"+", "Артикул", "Номенклатура", "Цена", "Розница"} {
+	for i, h := range []string{"Артикул", "Номенклатура", "Цена", "Розница"} {
 		s1.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s1.WriteString(`</row>`)
@@ -978,20 +977,19 @@ func GenerateStaryoExportXLSX(markedItems []model.CalculatedItem) ([]byte, error
 	for idx, it := range markedItems {
 		rs := strconv.Itoa(idx + 2)
 		s1.WriteString(`<row r="` + rs + `" ht="20" customHeight="1">`)
-		s1.WriteString(inlineStrCell("A"+rs, 4, "+"))
-		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
-		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
-		s1.WriteString(numCell("D"+rs, 3, math.Round(it.PurchasePrice*100)/100))
+		s1.WriteString(inlineStrCell("A"+rs, 2, it.SKU))
+		s1.WriteString(inlineStrCell("B"+rs, 2, it.Name))
+		s1.WriteString(numCell("C"+rs, 3, math.Round(it.PurchasePrice*100)/100))
 		if it.RetailPrice > 0 || strings.TrimSpace(it.RetailRaw) != "" {
-			s1.WriteString(numCell("E"+rs, 3, math.Round(it.RetailPrice*100)/100))
+			s1.WriteString(numCell("D"+rs, 3, math.Round(it.RetailPrice*100)/100))
 		} else {
-			s1.WriteString(emptyStyledCell("E"+rs, 3))
+			s1.WriteString(emptyStyledCell("D"+rs, 3))
 		}
 		s1.WriteString(`</row>`)
 	}
 	s1.WriteString(`</sheetData>`)
 	if len(markedItems) > 0 {
-		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:E%d"/>`, len(markedItems)+1))
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:D%d"/>`, len(markedItems)+1))
 	}
 	s1.WriteString(`</worksheet>`)
 	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {

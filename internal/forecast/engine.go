@@ -305,6 +305,12 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 				}
 			}
 
+			rawSurplus := math.Max(0, item.ClosingStock-targetStock)
+			surplusQty := 0
+			if autoQty == 0 && rawSurplus > 0 {
+				surplusQty = roundOrderQty(rawSurplus, params.Rounding)
+			}
+
 			cleanSum := 0.0
 			for idx := activeStart; idx < len(cleanSales); idx++ {
 				cleanSum += cleanSales[idx]
@@ -399,6 +405,7 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 				ForecastDemand:    roundTo(demand, 2),
 				SafetyUnits:       roundTo(safetyUnits, 2),
 				TargetStock:       roundTo(targetStock, 2),
+				SurplusStock:      surplusQty,
 				AutoOrderQty:      autoQty,
 				FinalOrderQty:     finalQty,
 				ManualOverride:    overridePtr,

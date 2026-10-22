@@ -163,6 +163,7 @@ type CalculatedItem struct {
 	ForecastDemand    float64     `json:"forecastDemand"`    // Ожидаемый спрос за (HorizonDays + LeadTimeDays)
 	SafetyUnits       float64     `json:"safetyUnits"`       // Страховой запас в единицах
 	TargetStock       float64     `json:"targetStock"`       // Целевой запас на горизонт
+	SurplusStock      int         `json:"surplusStock"`      // Излишний запас с учётом статистики сезонности продаж
 	AutoOrderQty      int         `json:"autoOrderQty"`      // Автоматически рассчитанное значение «Вариант 4»
 	FinalOrderQty     int         `json:"finalOrderQty"`     // Итоговое «К закупкам» (с учётом бюджета и ручных правок)
 	ManualOverride    *int        `json:"manualOverride"`    // Ручная правка пользователя (nil если авто)

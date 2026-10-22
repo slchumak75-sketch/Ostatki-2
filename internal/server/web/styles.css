@@ -1546,33 +1546,45 @@ body.col-resize-active * {
   display: none;
 }
 
+.data-table td.plus-cell {
+  cursor: pointer;
+}
+
 .plus-input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
   width: 20px;
   height: 20px;
   min-width: 20px;
   padding: 0;
   border-radius: 4px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 18px;
-  text-align: center;
+  border: 1.5px solid var(--border-strong);
+  background-color: var(--surface);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 13px 13px;
+  cursor: pointer;
   outline: none;
-  cursor: text;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.plus-input:focus {
+.plus-input:hover {
+  border-color: var(--primary);
+}
+
+.plus-input:focus-visible {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--primary-soft);
 }
 
+.plus-input:checked,
 .plus-input.has-plus {
   border-color: var(--primary);
-  background: var(--primary-soft);
-  color: var(--primary);
+  background-color: var(--primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.2 8.4L6.5 11.7L12.8 4.6' stroke='%23ffffff' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .btn:disabled {

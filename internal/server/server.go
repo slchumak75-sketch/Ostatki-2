@@ -663,7 +663,7 @@ func (s *AppServer) handleExportStaryoXLSX(w http.ResponseWriter, r *http.Reques
 	}
 
 	if len(requestedRows) == 0 {
-		writeError(w, http.StatusBadRequest, "не отмечено ни одной строки с символом «+»")
+		writeError(w, http.StatusBadRequest, "не отмечено галочкой ни одной строки в столбце «+»")
 		return
 	}
 

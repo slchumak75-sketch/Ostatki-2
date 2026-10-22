@@ -58,12 +58,28 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 		t.Fatalf("expected BudgetCap=3000 to pack budget tightly into [2900..3000], got %.2f", cappedRep.TotalOrderCost)
 	}
 
-	// 5. На весенне-летний пик спрос должен кратно расти
+	// 5. На весенне-летний пик спрос должен кратно расти, а суммарный излишний запас — снижаться
 	summerParams := model.DefaultParams()
 	summerParams.PlanStartDate = "2027-05-01"
 	summerRep := forecast.Calculate(wb, summerParams, nil)
 	if summerRep.TotalOrderUnits <= rep.TotalOrderUnits {
 		t.Fatalf("expected summer forecast units (%d) > November forecast units (%d)", summerRep.TotalOrderUnits, rep.TotalOrderUnits)
+	}
+	novSurplusUnits := 0
+	summerSurplusUnits := 0
+	for i := range rep.Items {
+		if rep.Items[i].SurplusStock < 0 || summerRep.Items[i].SurplusStock < 0 {
+			t.Fatalf("row %d negative SurplusStock", rep.Items[i].ExcelRow)
+		}
+		if rep.Items[i].AutoOrderQty > 0 && rep.Items[i].SurplusStock != 0 {
+			t.Fatalf("row %d cannot simultaneously require order (%d) and have surplus (%d)",
+				rep.Items[i].ExcelRow, rep.Items[i].AutoOrderQty, rep.Items[i].SurplusStock)
+		}
+		novSurplusUnits += rep.Items[i].SurplusStock
+		summerSurplusUnits += summerRep.Items[i].SurplusStock
+	}
+	if novSurplusUnits <= summerSurplusUnits {
+		t.Fatalf("expected off-season November surplus units (%d) > peak-season May surplus units (%d)", novSurplusUnits, summerSurplusUnits)
 	}
 
 	// 6. Проверка 6-уровневой шкалы рейтинга продаж (0-Нет продаж .. 5-Высокий)
