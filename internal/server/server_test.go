@@ -279,6 +279,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"Отчёт и заявки",
 		"Алгоритм",
 		"helpModal",
+		"Загрузить .xlsx",
 		"сегмент",
 		"Сегмент",
 		"сегм.",
@@ -293,6 +294,16 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<div class="params-body hidden" id="paramsBody">`,
 		`id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM`,
 		`<button class="btn btn-beige" id="btnUpload"`,
+		`Загрузить новую базу`,
+		`id="btnLoadSavedDb"`,
+		`Загрузить сохраненную базу`,
+		`id="btnSaveDb"`,
+		`Сохранить базу`,
+		`id="savedDbModal"`,
+		`id="closeConfirmModal"`,
+		`Сохранить текущую базу?`,
+		`id="btnCloseSaveYes">ДА</button>`,
+		`id="btnCloseSaveNo">НЕТ</button>`,
 		`<button class="btn btn-beige" id="btnClearDatabase"`,
 		`<button class="btn btn-neutral" id="btnDownloadXlsx"`,
 		`<button class="btn btn-neutral" id="btnDownloadOrders"`,
@@ -335,8 +346,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
 	}
-	// Проверка размещения «Очистить базу», «Старьё выгрузка» (disabled по умолчанию), «Старьё», «Активно» (справа от «Старьё»), «Печать» и «Бюджет закупки» в правом углу (<header class="topbar">)
+	// Проверка строгого порядка кнопок управления базой:
+	// Загрузить новую базу -> Загрузить сохраненную базу -> Сохранить базу -> Очистить базу
 	uploadIdx := strings.Index(htmlBody, `id="btnUpload"`)
+	loadSavedIdx := strings.Index(htmlBody, `id="btnLoadSavedDb"`)
+	saveDbIdx := strings.Index(htmlBody, `id="btnSaveDb"`)
 	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
 	oldExportIdx := strings.Index(htmlBody, `id="btnDownloadOrders" type="button" disabled`)
 	staryoBtnIdx := strings.Index(htmlBody, `>Старьё</button>`)
@@ -345,8 +359,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 	themeBtnIdx := strings.Index(htmlBody, `id="btnTheme"`)
 	budgetCardIdx := strings.Index(htmlBody, `id="budgetInlineCard"`)
 	headerEndIdx := strings.Index(htmlBody, `</header>`)
-	if !(uploadIdx > 0 && clearIdx > uploadIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && headerEndIdx > budgetCardIdx) {
-		t.Fatalf("expected budgetInlineCard in the right corner of topbar after buttons before </header>, got upload=%d clear=%d theme=%d budget=%d headerEnd=%d", uploadIdx, clearIdx, themeBtnIdx, budgetCardIdx, headerEndIdx)
+	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && headerEndIdx > budgetCardIdx) {
+		t.Fatalf("expected topbar order Загрузить новую базу -> Загрузить сохраненную базу -> Сохранить базу -> Очистить базу ... Бюджет закупки, got upload=%d loadSaved=%d saveDb=%d clear=%d theme=%d budget=%d headerEnd=%d", uploadIdx, loadSavedIdx, saveDbIdx, clearIdx, themeBtnIdx, budgetCardIdx, headerEndIdx)
 	}
 	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && activeBtnIdx > staryoBtnIdx && printBtnIdx > activeBtnIdx && headerEndIdx > printBtnIdx) {
 		t.Fatalf("expected button sequence Старьё выгрузка (disabled) -> Старьё -> Активно -> Печать inside topbar, got export=%d staryo=%d active=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, activeBtnIdx, printBtnIdx, headerEndIdx)
@@ -510,6 +524,13 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"freshEdit",
 		"syncStickyHeaderOffset",
 		"Отображены все строки",
+		"AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000",
+		"saveDatabase('autosave')",
+		"api/db/save",
+		"api/db/list",
+		"api/db/load",
+		"api/db/upload",
+		"openCloseConfirmModal",
 	} {
 		if !strings.Contains(jsBody, mustHaveJS) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
@@ -778,3 +799,207 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 		t.Fatalf("expected database to be cleared, got: %s", stRec.Body.String())
 	}
 }
+
+func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
+	saveDir := t.TempDir()
+	app := server.New(true)
+	app.SetSaveDir(saveDir)
+
+	repoFile := filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx")
+	if err := app.LoadWorkbookFromPath(repoFile); err != nil {
+		t.Fatalf("LoadWorkbookFromPath: %v", err)
+	}
+	h := app.Handler()
+
+	// Создаём устаревший файл сохранённой базы для того же склада, чтобы проверить автоматическую перезапись
+	staleFile := filepath.Join(saveDir, "Склад Кореличи, Ведомость сохраненная, 01.01.2026.xlsx")
+	if err := os.WriteFile(staleFile, []byte("stale"), 0o644); err != nil {
+		t.Fatalf("write stale file: %v", err)
+	}
+
+	// Меняем параметры расчёта, ручные заказы, выбор поставщиков и состояние интерфейса
+	customParams := model.DefaultParams()
+	customParams.HorizonDays = 42
+	customParams.LeadTimeDays = 6
+	customParams.SafetyStockPct = 15
+	customParams.SeasonMode = model.SeasonGroupOnly
+	customParams.PackMultiple = 5
+	customParams.MinDisplayStock = 1
+	pBytes, _ := json.Marshal(customParams)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/params", bytes.NewReader(pBytes)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/params failed: %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/override", bytes.NewReader([]byte(`{"excelRow":8,"value":35}`))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/override failed: %d", rec.Code)
+	}
+
+	selRow := 12
+	savePayload := map[string]any{
+		"reason":                  "manual",
+		"pendingOverrides":        map[string]int{"9": 15},
+		"supplierSelectionActive": true,
+		"selectedSuppliers":       []string{`ООО "СИСТЕМА ООО"`, `ООО "ГолдДекор"`},
+		"ui": model.SavedUIState{
+			StaryoMode:         true,
+			StaryoRows:         []int{8, 12, 20},
+			HidePlusSku:        true,
+			ActiveTab:          "overstock",
+			ActivePreset:       "short",
+			ParamsExpanded:     true,
+			SelectedExcelRow:   &selRow,
+			SortKey:            "closingStock",
+			SortDir:            "asc",
+			FltWarehouse:       "Склад Кореличи",
+			FltGroup:           "",
+			FltSupplier:        `ООО "ГолдДекор"`,
+			FltSupplierSearch:  "Голд",
+			FltRating:          "5",
+			FltStatus:          "order",
+			SearchSku:          "100",
+			SearchName:         "автомат",
+			OvFltWarehouse:     "Склад Кореличи",
+			OvFltRating:        "0",
+			OvSearch:           "кабель",
+			OvSortKey:          "closingStock",
+			OvSortDir:          "asc",
+			OverstockLimit:     1000,
+			TableColWidths:     []int{110, 140, 90, 260, 48, 70, 36, 70, 75, 75, 80, 75, 75, 85, 180},
+			SuppliersColWidths: []int{120, 240, 80, 90, 100, 110, 110, 120, 140},
+			OvColWidths:        []int{110, 130, 90, 250, 70, 180, 75, 75, 75, 75, 120},
+			ScrollY:            480,
+		},
+	}
+
+	// 1. Ручное сохранение («Сохранить базу»)
+	saveBody1, _ := json.Marshal(savePayload)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/db/save", bytes.NewReader(saveBody1)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/db/save manual failed: %d %s", rec.Code, rec.Body.String())
+	}
+	var saveResp struct {
+		OK       bool   `json:"ok"`
+		FileName string `json:"fileName"`
+		FilePath string `json:"filePath"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &saveResp); err != nil || !saveResp.OK {
+		t.Fatalf("unexpected save response: err=%v body=%s", err, rec.Body.String())
+	}
+	wantPrefix := "Склад Кореличи, Ведомость сохраненная, "
+	if !strings.HasPrefix(saveResp.FileName, wantPrefix) || !strings.HasSuffix(saveResp.FileName, ".xlsx") {
+		t.Fatalf("unexpected saved database filename: %q (want prefix %q)", saveResp.FileName, wantPrefix)
+	}
+	if _, err := os.Stat(staleFile); !os.IsNotExist(err) {
+		t.Fatalf("expected stale saved file %q to be overwritten/removed", staleFile)
+	}
+
+	// 2. Автосохранение поверх уже сохранённого файла («autosave»)
+	savePayload["reason"] = "autosave"
+	saveBody2, _ := json.Marshal(savePayload)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/db/save", bytes.NewReader(saveBody2)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/db/save autosave failed: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Список сохранённых баз должен содержать ровно 1 актуальный файл (без дублей)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/db/list", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/db/list failed: %d", rec.Code)
+	}
+	var listResp struct {
+		Files []model.SavedDatabaseFileInfo `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("unmarshal /api/db/list failed: %v", err)
+	}
+	if len(listResp.Files) != 1 || listResp.Files[0].FileName != saveResp.FileName {
+		t.Fatalf("expected exactly 1 saved database file %q, got %+v", saveResp.FileName, listResp.Files)
+	}
+
+	// 3. Очищаем базу, затем восстанавливаем через POST /api/db/load
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/clear", strings.NewReader("{}")))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/clear failed: %d", rec.Code)
+	}
+
+	loadBody, _ := json.Marshal(map[string]string{"fileName": saveResp.FileName})
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/db/load", bytes.NewReader(loadBody)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/db/load failed: %d %s", rec.Code, rec.Body.String())
+	}
+
+	verifyRestored := func(bodyBytes []byte, label string) {
+		var restored struct {
+			HasWorkbook             bool                     `json:"hasWorkbook"`
+			SavedFileName           string                   `json:"savedFileName"`
+			Overrides               map[int]int              `json:"overrides"`
+			SupplierSelectionActive bool                     `json:"supplierSelectionActive"`
+			SelectedSuppliers       []string                 `json:"selectedSuppliers"`
+			UIState                 model.SavedUIState       `json:"uiState"`
+			Report                  *model.CalculationReport `json:"report"`
+		}
+		if err := json.Unmarshal(bodyBytes, &restored); err != nil {
+			t.Fatalf("[%s] unmarshal restored state failed: %v", label, err)
+		}
+		if !restored.HasWorkbook || restored.Report == nil {
+			t.Fatalf("[%s] expected active restored report", label)
+		}
+		if restored.Report.Params.HorizonDays != 42 || restored.Report.Params.LeadTimeDays != 6 || restored.Report.Params.PackMultiple != 5 {
+			t.Fatalf("[%s] params not restored: %+v", label, restored.Report.Params)
+		}
+		if restored.Overrides[8] != 35 || restored.Overrides[9] != 15 {
+			t.Fatalf("[%s] manual & pending overrides not restored: %+v", label, restored.Overrides)
+		}
+		if !restored.SupplierSelectionActive || len(restored.SelectedSuppliers) != 2 {
+			t.Fatalf("[%s] selected suppliers not restored: active=%v list=%v", label, restored.SupplierSelectionActive, restored.SelectedSuppliers)
+		}
+		if !restored.UIState.StaryoMode || len(restored.UIState.StaryoRows) != 3 || !restored.UIState.HidePlusSku ||
+			restored.UIState.ActiveTab != "overstock" || restored.UIState.FltWarehouse != "Склад Кореличи" ||
+			restored.UIState.OvSearch != "кабель" || restored.UIState.ScrollY != 480 {
+			t.Fatalf("[%s] UI state not fully restored: %+v", label, restored.UIState)
+		}
+	}
+	verifyRestored(rec.Body.Bytes(), "api/db/load")
+
+	// 4. Также проверяем загрузку сохранённого .xlsx с компьютера через POST /api/db/upload
+	savedDiskBytes, err := os.ReadFile(saveResp.FilePath)
+	if err != nil {
+		t.Fatalf("read saved file from disk: %v", err)
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/clear", strings.NewReader("{}")))
+
+	var mpBuf bytes.Buffer
+	mw := multipart.NewWriter(&mpBuf)
+	fw, _ := mw.CreateFormFile("file", saveResp.FileName)
+	_, _ = fw.Write(savedDiskBytes)
+	_ = mw.Close()
+
+	upReq := httptest.NewRequest(http.MethodPost, "/api/db/upload", &mpBuf)
+	upReq.Header.Set("Content-Type", mw.FormDataContentType())
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, upReq)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/db/upload failed: %d %s", rec.Code, rec.Body.String())
+	}
+	verifyRestored(rec.Body.Bytes(), "api/db/upload")
+
+	// 5. И проверяем прямое открытие сохранённой базы через LoadWorkbookFromPath в новом экземпляре сервера
+	app2 := server.New(true)
+	if err := app2.LoadWorkbookFromPath(saveResp.FilePath); err != nil {
+		t.Fatalf("app2 LoadWorkbookFromPath on saved db failed: %v", err)
+	}
+	rec = httptest.NewRecorder()
+	app2.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/state", nil))
+	verifyRestored(rec.Body.Bytes(), "LoadWorkbookFromPath")
+}
+

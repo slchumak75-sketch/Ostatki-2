@@ -4,9 +4,12 @@
   const VIRTUAL_THRESHOLD = 400;
   const VIRTUAL_WINDOW = 180;
   const VIRTUAL_OVERSCAN = 55;
+  const AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
   const ruCollator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
   const activeControllers = new Set();
   let isClearingDatabase = false;
+  let isClosingConfirmed = false;
+  let isDownloadingFile = false;
   let vScrollRaf = null;
 
   const state = {
@@ -15,6 +18,11 @@
     rowMap: new Map(),
     canSaveInPlace: false,
     desktopMode: false,
+    sourceFileName: '',
+    savedFileName: '',
+    lastSavedAt: '',
+    isSavingDb: false,
+    hasUnsavedChanges: false,
     planStartDate: '',
     filteredItems: [],
     selectedExcelRow: null,
@@ -376,13 +384,105 @@
     table.querySelectorAll('thead th').forEach((h) => { h.style.width = ''; });
   }
 
+  function readTableColumnWidths(table) {
+    if (!table || !table.classList.contains('table-manual-cols')) return null;
+    const cols = [...table.querySelectorAll(':scope > colgroup > col')];
+    if (cols.length === 0) return null;
+    const widths = cols.map((c) => parseInt(c.style.width, 10)).filter((n) => Number.isFinite(n) && n > 0);
+    return widths.length === cols.length ? widths : null;
+  }
+
+  function applyTableColumnWidths(table, widths) {
+    if (!table || !Array.isArray(widths) || widths.length === 0) return;
+    const headRow = table.querySelector('thead tr');
+    if (!headRow) return;
+    const allThs = [...headRow.querySelectorAll('th')];
+    const targetThs = table.id === 'itemsTable' && !state.staryoMode
+      ? allThs.filter((h) => !h.classList.contains('plus-col'))
+      : allThs;
+    if (targetThs.length !== widths.length) return;
+    table.querySelector(':scope > colgroup')?.remove();
+    const colgroup = document.createElement('colgroup');
+    widths.forEach((w, idx) => {
+      const col = document.createElement('col');
+      col.style.width = `${w}px`;
+      colgroup.appendChild(col);
+      targetThs[idx].style.width = `${w}px`;
+    });
+    table.insertBefore(colgroup, table.firstChild);
+    table.classList.add('table-manual-cols');
+    table.style.width = `${widths.reduce((a, b) => a + b, 0)}px`;
+  }
+
+  function switchTabUI(tabName) {
+    const nextTab = ['table', 'suppliers', 'overstock'].includes(tabName) ? tabName : 'table';
+    state.activeTab = nextTab;
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
+    document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
+  }
+
+  function collectPendingOverridesSnapshot() {
+    const out = {};
+    for (const [rNum, qty] of state.pendingOverrides.entries()) {
+      out[rNum] = qty;
+    }
+    const activeInp = document.activeElement?.matches?.('input[data-qty-row]') ? document.activeElement : null;
+    if (activeInp && activeInp.dataset.dirty === '1') {
+      const rNum = Number(activeInp.dataset.qtyRow);
+      if (rNum > 0) {
+        out[rNum] = parseQtyInput(activeInp.value);
+      }
+    }
+    return out;
+  }
+
+  function collectUIState() {
+    return {
+      staryoMode: Boolean(state.staryoMode),
+      staryoRows: [...state.staryoRows].sort((a, b) => a - b),
+      hidePlusSku: Boolean(state.hidePlusSku),
+      activeTab: state.activeTab || 'table',
+      activePreset: document.querySelector('.preset-chip.active')?.dataset.preset || 'standard',
+      paramsExpanded: !el('paramsBody')?.classList.contains('hidden'),
+      selectedExcelRow: state.selectedExcelRow,
+      sortKey: state.sortKey || 'finalOrderQty',
+      sortDir: state.sortDir || 'desc',
+      fltWarehouse: el('fltWarehouse')?.value || '',
+      fltGroup: el('fltGroup')?.value || '',
+      fltSupplier: el('fltSupplier')?.value || '',
+      fltSupplierSearch: el('inpSupplierFilter')?.value || '',
+      fltRating: el('fltABCXYZ')?.value || '',
+      fltStatus: el('fltStatus')?.value || 'all',
+      searchSku: el('inpSearchSku')?.value || '',
+      searchName: el('inpSearch')?.value || '',
+      ovFltWarehouse: el('ovFltWarehouse')?.value || '',
+      ovFltName: el('ovFltName')?.value || '',
+      ovFltRating: el('ovFltRating')?.value || '',
+      ovFltSupplier: el('ovFltSupplier')?.value || '',
+      ovSearch: el('ovInpSearch')?.value || '',
+      ovSortKey: state.ovSortKey || 'overstockValue',
+      ovSortDir: state.ovSortDir || 'desc',
+      overstockLimit: state.overstockLimit ?? 500,
+      tableColWidths: readTableColumnWidths(el('itemsTable')),
+      suppliersColWidths: readTableColumnWidths(el('suppliersTable')),
+      ovColWidths: Array.isArray(state.ovColWidths) ? [...state.ovColWidths] : null,
+      scrollY: Math.round(window.scrollY || 0),
+    };
+  }
+
   function resetUIToEmptyDatabase() {
     hideRatingChartPopover();
     state.report = null;
     state.rowMap.clear();
     state.canSaveInPlace = false;
+    state.sourceFileName = '';
+    state.savedFileName = '';
+    state.lastSavedAt = '';
+    state.hasUnsavedChanges = false;
     state.filteredItems = [];
     state.selectedExcelRow = null;
+    state.sortKey = 'finalOrderQty';
+    state.sortDir = 'desc';
     state.vStart = 0;
     state.vEnd = 0;
     state.overstockLimit = 500;
@@ -400,11 +500,15 @@
       resetTableColumnWidths(el('itemsTable'));
       el('itemsTable').classList.remove('show-plus-col');
     }
+    if (el('suppliersTable')) {
+      resetTableColumnWidths(el('suppliersTable'));
+    }
     if (el('btnHelp')) el('btnHelp').classList.remove('btn-active-toggle');
     if (el('btnActiveFilter')) el('btnActiveFilter').classList.remove('btn-active-toggle');
     if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
     if (el('staryoExportRows')) el('staryoExportRows').value = '';
     if (el('fileInput')) el('fileInput').value = '';
+    if (el('savedDbFileInput')) el('savedDbFileInput').value = '';
     if (el('btnSaveInPlace')) el('btnSaveInPlace').classList.add('hidden');
     if (el('inpSearchSku')) el('inpSearchSku').value = '';
     if (el('inpSearch')) el('inpSearch').value = '';
@@ -423,15 +527,16 @@
     if (el('ovFltSupplier')) el('ovFltSupplier').innerHTML = '<option value="">Все поставщики</option>';
     if (el('ovInpSearch')) el('ovInpSearch').value = '';
     if (el('btnResetOverstockFilters')) el('btnResetOverstockFilters').classList.add('hidden');
+    switchTabUI('table');
 
-    if (el('fileMetaLine')) el('fileMetaLine').textContent = 'База очищена • Загрузите файл Ведомости (.xlsx) для расчёта';
+    if (el('fileMetaLine')) el('fileMetaLine').textContent = 'База очищена • Нажмите «Загрузить новую базу» или «Загрузить сохраненную базу»';
     if (el('kpiOrderCost')) el('kpiOrderCost').textContent = '0,00 руб.';
     if (el('cntTabTable')) el('cntTabTable').textContent = '0';
     if (el('cntTabSuppliers')) el('cntTabSuppliers').textContent = '0';
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
     if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
     if (el('tableBody')) {
-      el('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить .xlsx» или перетащите файл Ведомости</td></tr>';
+      el('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить новую базу», «Загрузить сохраненную базу» или перетащите файл Ведомости</td></tr>';
     }
     if (el('tableFoot')) el('tableFoot').innerHTML = '';
     if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
@@ -445,14 +550,16 @@
     window.scrollTo(0, 0);
   }
 
-  function applyEnvelope(env) {
+  function applyEnvelope(env, opts = {}) {
     if (!env) return;
     state.canSaveInPlace = Boolean(env.canSaveInPlace);
     state.desktopMode = Boolean(env.desktopMode);
+    state.sourceFileName = env.sourceFileName || '';
+    state.savedFileName = env.savedFileName || '';
+    state.lastSavedAt = env.lastSavedAt || '';
     state.report = env.report || null;
 
     el('btnSaveInPlace')?.classList.toggle('hidden', !state.canSaveInPlace);
-    el('btnCloseApp')?.classList.toggle('hidden', !state.desktopMode);
     if (!state.report) {
       resetUIToEmptyDatabase();
       return;
@@ -460,7 +567,48 @@
 
     indexReportItems(state.report);
 
-    if (state.lastLoadedFile !== state.report.fileName) {
+    const shouldRestoreSaved = Boolean(opts.restoreSaved || (opts.initialBoot && env.savedFileName));
+
+    if (opts.freshNewDb) {
+      state.lastLoadedFile = state.report.fileName;
+      state.overstockLimit = 500;
+      state.ovSortKey = 'overstockValue';
+      state.ovSortDir = 'desc';
+      state.ovColWidths = null;
+      state.sortKey = 'finalOrderQty';
+      state.sortDir = 'desc';
+      state.staryoMode = false;
+      state.staryoRows.clear();
+      state.hidePlusSku = false;
+      state.checkedSuppliers.clear();
+      state.hasUnsavedChanges = true;
+      resetTableColumnWidths(el('itemsTable'));
+      resetTableColumnWidths(el('suppliersTable'));
+      el('itemsTable')?.classList.remove('show-plus-col');
+      el('btnHelp')?.classList.remove('btn-active-toggle');
+      el('btnActiveFilter')?.classList.remove('btn-active-toggle');
+      if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
+      if (el('fltWarehouse')) el('fltWarehouse').value = '';
+      if (el('fltGroup')) el('fltGroup').value = '';
+      if (el('fltSupplier')) el('fltSupplier').value = '';
+      if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
+      if (el('fltABCXYZ')) el('fltABCXYZ').value = '';
+      if (el('fltStatus')) el('fltStatus').value = 'all';
+      if (el('inpSearchSku')) el('inpSearchSku').value = '';
+      if (el('inpSearch')) el('inpSearch').value = '';
+      if (el('ovFltWarehouse')) el('ovFltWarehouse').value = '';
+      if (el('ovFltName')) el('ovFltName').value = '';
+      if (el('ovFltRating')) el('ovFltRating').value = '';
+      if (el('ovFltSupplier')) el('ovFltSupplier').value = '';
+      if (el('ovInpSearch')) el('ovInpSearch').value = '';
+      switchTabUI('table');
+      syncSelectedSuppliersToServer();
+    } else if (shouldRestoreSaved) {
+      state.lastLoadedFile = state.report.fileName;
+      state.pendingOverrides.clear();
+      state.checkedSuppliers = new Set((env.selectedSuppliers || []).map(normalizeSupName));
+      state.hasUnsavedChanges = false;
+    } else if (state.lastLoadedFile !== state.report.fileName) {
       state.lastLoadedFile = state.report.fileName;
       state.overstockLimit = 500;
       state.checkedSuppliers.clear();
@@ -478,8 +626,92 @@
       }
     }
     recomputeReportSummaries(state.report);
-
     syncParamsControls(state.report);
+
+    if (shouldRestoreSaved) {
+      const ui = env.uiState || {};
+      state.staryoMode = Boolean(ui.staryoMode);
+      state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
+      state.hidePlusSku = Boolean(ui.hidePlusSku);
+      state.selectedExcelRow = ui.selectedExcelRow ?? null;
+      state.sortKey = ui.sortKey || 'finalOrderQty';
+      state.sortDir = ui.sortDir || 'desc';
+      state.ovSortKey = ui.ovSortKey || 'overstockValue';
+      state.ovSortDir = ui.ovSortDir || 'desc';
+      state.overstockLimit = ui.overstockLimit ?? 500;
+      state.ovColWidths = Array.isArray(ui.ovColWidths) && ui.ovColWidths.length > 0 ? [...ui.ovColWidths] : null;
+
+      resetTableColumnWidths(el('itemsTable'));
+      resetTableColumnWidths(el('suppliersTable'));
+      el('itemsTable')?.classList.toggle('show-plus-col', state.staryoMode);
+      el('btnHelp')?.classList.toggle('btn-active-toggle', state.staryoMode);
+      if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = !state.staryoMode;
+      el('btnActiveFilter')?.classList.toggle('btn-active-toggle', state.hidePlusSku);
+
+      const activePreset = ui.activePreset || 'standard';
+      document.querySelectorAll('.preset-chip').forEach((c) => {
+        c.classList.toggle('active', c.dataset.preset === activePreset);
+      });
+      const paramsBody = el('paramsBody');
+      const expanded = Boolean(ui.paramsExpanded);
+      if (paramsBody) {
+        paramsBody.classList.toggle('hidden', !expanded);
+        el('btnToggleAdvanced')?.setAttribute('aria-expanded', String(expanded));
+        if (el('btnToggleAdvanced')) {
+          el('btnToggleAdvanced').textContent = expanded ? 'Параметры PRO SCM ▾' : 'Параметры PRO SCM ▸';
+        }
+      }
+
+      if (el('inpSupplierFilter')) el('inpSupplierFilter').value = ui.fltSupplierSearch || '';
+      if (el('fltWarehouse')) el('fltWarehouse').value = '';
+      if (el('fltGroup')) el('fltGroup').value = '';
+      if (el('fltSupplier')) el('fltSupplier').value = '';
+      populateFilterDropdowns(state.report);
+
+      if (el('fltWarehouse')) el('fltWarehouse').value = ui.fltWarehouse || '';
+      populateFilterDropdowns(state.report);
+
+      if (el('fltGroup')) el('fltGroup').value = ui.fltGroup || '';
+      if (el('fltSupplier')) el('fltSupplier').value = ui.fltSupplier || '';
+      if (el('fltABCXYZ')) el('fltABCXYZ').value = ui.fltRating || '';
+      if (el('fltStatus')) el('fltStatus').value = ui.fltStatus || 'all';
+      if (el('inpSearchSku')) el('inpSearchSku').value = ui.searchSku || '';
+      if (el('inpSearch')) el('inpSearch').value = ui.searchName || '';
+      populateFilterDropdowns(state.report);
+
+      if (el('ovFltWarehouse')) el('ovFltWarehouse').value = '';
+      if (el('ovFltSupplier')) el('ovFltSupplier').value = '';
+      if (el('ovFltName')) el('ovFltName').value = '';
+      renderOverstockView(state.report);
+      if (el('ovFltWarehouse')) el('ovFltWarehouse').value = ui.ovFltWarehouse || '';
+      if (el('ovFltSupplier')) el('ovFltSupplier').value = ui.ovFltSupplier || '';
+      renderOverstockView(state.report);
+      if (el('ovFltName')) el('ovFltName').value = ui.ovFltName || '';
+      if (el('ovFltRating')) el('ovFltRating').value = ui.ovFltRating || '';
+      if (el('ovInpSearch')) el('ovInpSearch').value = ui.ovSearch || '';
+
+      switchTabUI(ui.activeTab || 'table');
+      recomputeFilteredList();
+      renderKPIs(state.report);
+      if (state.selectedExcelRow == null && state.filteredItems.length > 0) {
+        state.selectedExcelRow = state.filteredItems[0].excelRow;
+      }
+      renderTable();
+      renderSuppliersView(state.report);
+      renderOverstockView(state.report);
+      applyTableColumnWidths(el('itemsTable'), ui.tableColWidths);
+      applyTableColumnWidths(el('suppliersTable'), ui.suppliersColWidths);
+
+      const targetScroll = Number(ui.scrollY) || 0;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: targetScroll, behavior: 'auto' });
+        if (state.filteredItems.length > VIRTUAL_THRESHOLD) {
+          renderTableBodyWindow(true);
+        }
+      });
+      return;
+    }
+
     populateFilterDropdowns(state.report);
     recomputeFilteredList();
     renderKPIs(state.report);
@@ -647,8 +879,11 @@
   function renderKPIs(rep) {
     const firstP = rep.periods[0]?.label || '';
     const lastP = rep.periods[rep.periods.length - 1]?.label || '';
+    const savedSuffix = state.savedFileName
+      ? ` • Сохранено: ${state.savedFileName}${state.lastSavedAt ? ` (${state.lastSavedAt})` : ''}`
+      : '';
     el('fileMetaLine').textContent =
-      `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)`;
+      `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)${savedSuffix}`;
 
     const isFiltered = hasActiveTableFilter();
     const sourceItems = isFiltered ? state.filteredItems : (rep.items || []);
@@ -1395,6 +1630,183 @@
     }, 110);
   }
 
+  function fmtFileSize(bytes) {
+    const b = Number(bytes) || 0;
+    if (b >= 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(2)} МБ`;
+    if (b >= 1024) return `${Math.round(b / 1024)} КБ`;
+    return `${b} Б`;
+  }
+
+  async function saveDatabase(reason = 'manual') {
+    if (!state.report || isClearingDatabase) {
+      if (reason === 'manual') {
+        showToast('Нет активной базы для сохранения');
+      }
+      return false;
+    }
+    if (state.isSavingDb) return false;
+    state.isSavingDb = true;
+    const btnSave = el('btnSaveDb');
+    if (btnSave && reason === 'manual') btnSave.disabled = true;
+    try {
+      const res = await apiPost('api/db/save', {
+        reason,
+        pendingOverrides: collectPendingOverridesSnapshot(),
+        selectedSuppliers: [...state.checkedSuppliers],
+        supplierSelectionActive: true,
+        ui: collectUIState(),
+      }, { unabortable: reason === 'close' });
+
+      state.savedFileName = res.fileName || state.savedFileName;
+      state.lastSavedAt = res.savedAt || state.lastSavedAt;
+      state.hasUnsavedChanges = false;
+      if (state.report) renderKPIs(state.report);
+
+      if (reason === 'manual') {
+        showToast(`База сохранена: «${res.fileName}»`);
+      } else if (reason === 'autosave') {
+        showToast(`Автосохранение базы: «${res.fileName}»`);
+      }
+      return true;
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        showToast(err.message || 'Ошибка сохранения базы');
+      }
+      return false;
+    } finally {
+      state.isSavingDb = false;
+      if (btnSave) btnSave.disabled = false;
+    }
+  }
+
+  async function openSavedDbModal() {
+    const modal = el('savedDbModal');
+    const listEl = el('savedDbList');
+    const hintEl = el('savedDbFolderHint');
+    if (!modal || !listEl) return;
+
+    modal.classList.remove('hidden');
+    listEl.innerHTML = '<div class="muted" style="padding:12px 4px">Поиск сохранённых баз…</div>';
+
+    try {
+      const res = await apiGet('api/db/list');
+      const files = Array.isArray(res.files) ? res.files : [];
+      if (hintEl && res.saveDir) {
+        hintEl.textContent = `Папка автосохранения: ${res.saveDir}`;
+      }
+      if (files.length === 0) {
+        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых баз («Склад, Ведомость сохраненная, дата.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
+        return;
+      }
+      listEl.innerHTML = files.map((f) => `
+        <div class="v4-saved-db-item">
+          <div class="v4-saved-db-info">
+            <div class="v4-saved-db-name">${esc(f.fileName)}</div>
+            <div class="v4-saved-db-meta">
+              Сохранено: ${esc(f.savedAt || '—')}${f.warehouseLabel ? ` • Склад: ${esc(f.warehouseLabel)}` : ''} • Размер: ${fmtFileSize(f.sizeBytes)}
+            </div>
+          </div>
+          <div class="v4-saved-db-btns">
+            <button type="button" class="btn btn-beige btn-sm" data-load-saved="${esc(f.fileName)}">Загрузить</button>
+            <a class="btn btn-secondary btn-sm" href="api/db/download?name=${encodeURIComponent(f.fileName)}" data-dl-saved="1">Скачать .xlsx</a>
+          </div>
+        </div>
+      `).join('');
+    } catch (err) {
+      listEl.innerHTML = `<div class="muted" style="padding:12px 4px;color:var(--danger)">${esc(err.message)}</div>`;
+    }
+  }
+
+  function closeSavedDbModal() {
+    el('savedDbModal')?.classList.add('hidden');
+  }
+
+  async function loadSavedDatabaseByName(fileName) {
+    if (!fileName) return;
+    const reqEpoch = ++state.clientEpoch;
+    abortActiveRequests();
+    closeSavedDbModal();
+    showToast(`Загрузка сохранённой базы «${fileName}»…`);
+    try {
+      const env = await apiPost('api/db/load', { fileName });
+      if (reqEpoch !== state.clientEpoch) return;
+      applyEnvelope(env, { restoreSaved: true });
+      showToast(`Сохранённая база восстановлена: «${fileName}»`);
+    } catch (err) {
+      if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
+      showToast(err.message);
+    }
+  }
+
+  async function uploadSavedDatabaseFile(file) {
+    if (!file) return;
+    const reqEpoch = ++state.clientEpoch;
+    abortActiveRequests();
+    closeSavedDbModal();
+    const ctrl = new AbortController();
+    activeControllers.add(ctrl);
+    const fd = new FormData();
+    fd.append('file', file);
+    showToast(`Восстановление сохранённой базы «${file.name}»…`);
+    try {
+      const res = await fetch('api/db/upload', {
+        method: 'POST',
+        cache: 'no-store',
+        body: fd,
+        signal: ctrl.signal,
+      });
+      const env = await res.json();
+      if (!res.ok) throw new Error(env.error || 'Ошибка загрузки сохранённой базы');
+      if (reqEpoch !== state.clientEpoch) return;
+      applyEnvelope(env, { restoreSaved: true });
+      showToast(`Сохранённая база восстановлена: «${file.name}»`);
+    } catch (err) {
+      if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
+      showToast(err.message);
+    } finally {
+      activeControllers.delete(ctrl);
+    }
+  }
+
+  function openCloseConfirmModal() {
+    const modal = el('closeConfirmModal');
+    const sub = el('closeConfirmSub');
+    if (!modal) return;
+    if (sub) {
+      if (state.report) {
+        const wh = el('fltWarehouse')?.value || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
+        sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Сохранить все текущие заказы, фильтры, отметки и настройки перед выходом?`;
+      } else {
+        sub.textContent = 'Закрыть программу?';
+      }
+    }
+    modal.classList.remove('hidden');
+  }
+
+  function closeCloseConfirmModal() {
+    el('closeConfirmModal')?.classList.add('hidden');
+  }
+
+  async function performFinalAppClose() {
+    isClosingConfirmed = true;
+    closeCloseConfirmModal();
+    await fetch('api/shutdown', { method: 'POST', keepalive: true }).catch(() => {});
+    try {
+      window.close();
+    } catch (_) {}
+    setTimeout(() => {
+      document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);font-family:inherit;padding:24px;text-align:center">
+          <div style="background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;padding:28px 36px;max-width:440px;box-shadow:var(--shadow)">
+            <h2 style="margin:0 0 8px;font-size:18px">Программа закрыта</h2>
+            <p style="margin:0 0 18px;color:var(--text-muted);font-size:13px">Сеанс работы завершён. Вы можете закрыть вкладку или запустить программу снова.</p>
+            <button type="button" class="btn btn-beige" onclick="window.location.reload()">Открыть программу снова</button>
+          </div>
+        </div>
+      `;
+    }, 180);
+  }
+
   async function uploadExcelFile(file) {
     if (!file) return;
     const reqEpoch = ++state.clientEpoch;
@@ -1403,7 +1815,7 @@
     activeControllers.add(ctrl);
     const fd = new FormData();
     fd.append('file', file);
-    showToast(`Загрузка и расчёт «${file.name}»…`);
+    showToast(`Загрузка новой базы «${file.name}»…`);
     try {
       const res = await fetch('api/upload', {
         method: 'POST',
@@ -1416,8 +1828,8 @@
       if (reqEpoch !== state.clientEpoch) return;
       state.selectedExcelRow = null;
       state.page = 1;
-      applyEnvelope(env);
-      showToast(`Готово! Столбец 8 рассчитан для ${fmtInt(env.report.totalItems)} позиций`);
+      applyEnvelope(env, { freshNewDb: true });
+      showToast(`Готово! Новая база загружена (${fmtInt(env.report.totalItems)} позиций)`);
     } catch (err) {
       if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
       showToast(err.message);
@@ -2055,12 +2467,39 @@
       e.target.value = '';
     });
 
+    el('btnLoadSavedDb').addEventListener('click', () => openSavedDbModal());
+    el('btnCloseSavedDbModal').addEventListener('click', () => closeSavedDbModal());
+    el('btnPickSavedDbFile').addEventListener('click', () => el('savedDbFileInput').click());
+    el('savedDbFileInput').addEventListener('change', (e) => {
+      uploadSavedDatabaseFile(e.target.files?.[0]);
+      e.target.value = '';
+    });
+    el('savedDbModal').addEventListener('click', (e) => {
+      if (e.target === el('savedDbModal')) closeSavedDbModal();
+    });
+    el('savedDbList').addEventListener('click', (e) => {
+      const dlLink = e.target.closest('[data-dl-saved]');
+      if (dlLink) {
+        isDownloadingFile = true;
+        setTimeout(() => { isDownloadingFile = false; }, 1500);
+        return;
+      }
+      const loadBtn = e.target.closest('[data-load-saved]');
+      if (loadBtn) {
+        loadSavedDatabaseByName(loadBtn.dataset.loadSaved);
+      }
+    });
+
+    el('btnSaveDb').addEventListener('click', () => saveDatabase('manual'));
+
     el('btnDownloadXlsx').addEventListener('click', async () => {
       if (state.checkedSuppliers.size === 0) {
         showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
         return;
       }
       await syncSelectedSuppliersToServer();
+      isDownloadingFile = true;
+      setTimeout(() => { isDownloadingFile = false; }, 1500);
       window.location.href = 'api/export/xlsx';
     });
 
@@ -2118,6 +2557,8 @@
         return;
       }
       el('staryoExportRows').value = orderedRows.join(',');
+      isDownloadingFile = true;
+      setTimeout(() => { isDownloadingFile = false; }, 1500);
       el('staryoExportForm').submit();
     });
 
@@ -2203,9 +2644,79 @@
       }
     });
 
-    el('btnCloseApp').addEventListener('click', async () => {
-      await fetch('api/shutdown', { method: 'POST', keepalive: true }).catch(() => {});
-      window.close();
+    el('btnCloseApp').addEventListener('click', () => {
+      openCloseConfirmModal();
+    });
+
+    el('btnCloseSaveCancel').addEventListener('click', () => {
+      closeCloseConfirmModal();
+    });
+    el('closeConfirmModal').addEventListener('click', (e) => {
+      if (e.target === el('closeConfirmModal')) closeCloseConfirmModal();
+    });
+    el('btnCloseSaveYes').addEventListener('click', async () => {
+      const yesBtn = el('btnCloseSaveYes');
+      const noBtn = el('btnCloseSaveNo');
+      if (yesBtn) yesBtn.disabled = true;
+      if (noBtn) noBtn.disabled = true;
+      if (state.report) {
+        const ok = await saveDatabase('close');
+        if (!ok) {
+          if (yesBtn) yesBtn.disabled = false;
+          if (noBtn) noBtn.disabled = false;
+          return;
+        }
+      }
+      await performFinalAppClose();
+    });
+    el('btnCloseSaveNo').addEventListener('click', async () => {
+      await performFinalAppClose();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (!el('closeConfirmModal')?.classList.contains('hidden')) {
+          closeCloseConfirmModal();
+        } else if (!el('savedDbModal')?.classList.contains('hidden')) {
+          closeSavedDbModal();
+        }
+      }
+    });
+
+    // Автоматическое автосохранение каждые 3 минуты поверх ранее сохранённых файлов
+    setInterval(() => {
+      if (state.report && !isClearingDatabase && !state.isSavingDb) {
+        saveDatabase('autosave');
+      }
+    }, AUTOSAVE_INTERVAL_MS);
+
+    window.addEventListener('beforeunload', (e) => {
+      if (!isClosingConfirmed && !isDownloadingFile && state.report && state.hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'Сохранить текущую базу?';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const exportLink = e.target.closest('a[href*="api/export/"], a[href*="api/db/download"]');
+      if (exportLink) {
+        isDownloadingFile = true;
+        setTimeout(() => { isDownloadingFile = false; }, 1500);
+        return;
+      }
+      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnHelp, #btnActiveFilter, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-reset]')) {
+        state.hasUnsavedChanges = true;
+      }
+    });
+    document.addEventListener('change', (e) => {
+      if (state.report && e.target.closest('main.workspace, #supplierDropdownMenu')) {
+        state.hasUnsavedChanges = true;
+      }
+    });
+    document.addEventListener('input', (e) => {
+      if (state.report && e.target.closest('main.workspace, #supplierDropdownMenu')) {
+        state.hasUnsavedChanges = true;
+      }
     });
 
     const topbarEl = document.querySelector('.topbar');
@@ -2355,7 +2866,7 @@
     bindEvents();
     try {
       const env = await apiGet('api/state');
-      applyEnvelope(env);
+      applyEnvelope(env, { initialBoot: true });
     } catch (err) {
       el('fileMetaLine').textContent = 'Откройте или перетащите файл Ведомости (.xlsx) для начала работы';
       showToast(err.message);

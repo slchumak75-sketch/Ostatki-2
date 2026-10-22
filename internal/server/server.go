@@ -36,6 +36,12 @@ type AppServer struct {
 	overrides               map[int]int
 	selectedSuppliers       map[string]bool
 	supplierSelectionActive bool
+	sourceFileName          string
+	savedDBPath             string
+	savedDBName             string
+	lastSavedAt             string
+	customSaveDir           string
+	uiState                 model.SavedUIState
 	report                  *model.CalculationReport
 	desktopMode             bool
 
@@ -47,11 +53,18 @@ type AppServer struct {
 }
 
 type stateEnvelope struct {
-	HasWorkbook    bool                     `json:"hasWorkbook"`
-	CanSaveInPlace bool                     `json:"canSaveInPlace"`
-	DesktopMode    bool                     `json:"desktopMode"`
-	FilePath       string                   `json:"filePath,omitempty"`
-	Report         *model.CalculationReport `json:"report,omitempty"`
+	HasWorkbook             bool                     `json:"hasWorkbook"`
+	CanSaveInPlace          bool                     `json:"canSaveInPlace"`
+	DesktopMode             bool                     `json:"desktopMode"`
+	FilePath                string                   `json:"filePath,omitempty"`
+	SourceFileName          string                   `json:"sourceFileName,omitempty"`
+	SavedFileName           string                   `json:"savedFileName,omitempty"`
+	LastSavedAt             string                   `json:"lastSavedAt,omitempty"`
+	Overrides               map[int]int              `json:"overrides,omitempty"`
+	SupplierSelectionActive bool                     `json:"supplierSelectionActive"`
+	SelectedSuppliers       []string                 `json:"selectedSuppliers,omitempty"`
+	UIState                 model.SavedUIState       `json:"uiState"`
+	Report                  *model.CalculationReport `json:"report,omitempty"`
 }
 
 // New создаёт новый экземпляр AppServer.
@@ -60,6 +73,7 @@ func New(desktopMode bool) *AppServer {
 		params:            model.DefaultParams(),
 		overrides:         make(map[int]int),
 		selectedSuppliers: make(map[string]bool),
+		uiState:           defaultSavedUIState(),
 		desktopMode:       desktopMode,
 		lastBeat:          time.Now(),
 		shutdownCh:        make(chan struct{}),
@@ -67,12 +81,49 @@ func New(desktopMode bool) *AppServer {
 	return s
 }
 
-// LoadWorkbookFromPath загружает ведомость с диска и выполняет первичный расчёт.
+func (s *AppServer) buildStateEnvelopeLocked() stateEnvelope {
+	overridesCopy := make(map[int]int, len(s.overrides))
+	for k, v := range s.overrides {
+		overridesCopy[k] = v
+	}
+	env := stateEnvelope{
+		HasWorkbook:             s.wb != nil && s.report != nil,
+		CanSaveInPlace:          s.wb != nil && s.wb.FilePath != "",
+		DesktopMode:             s.desktopMode,
+		SourceFileName:          s.sourceFileName,
+		SavedFileName:           s.savedDBName,
+		LastSavedAt:             s.lastSavedAt,
+		Overrides:               overridesCopy,
+		SupplierSelectionActive: s.supplierSelectionActive,
+		SelectedSuppliers:       s.sortedSelectedSuppliersLocked(),
+		UIState:                 s.uiState,
+		Report:                  s.report,
+	}
+	if s.wb != nil {
+		env.FilePath = s.wb.FilePath
+	}
+	return env
+}
+
+// LoadWorkbookFromPath загружает ведомость с диска и выполняет первичный расчёт
+// (если открыт файл сохранённой базы, автоматически восстанавливает всё её состояние).
 func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	wb, raw, err := xlsx.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
+	if snap, snapErr := xlsx.ExtractSavedDatabaseSnapshot(raw); snapErr == nil && snap != nil {
+		if err := s.restoreSavedDatabaseBytes(raw, filepath.Base(filePath), filePath); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		if s.wb != nil {
+			s.wb.FilePath = filePath
+		}
+		s.mu.Unlock()
+		return nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.wb = wb
@@ -80,12 +131,17 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.overrides = make(map[int]int)
 	s.selectedSuppliers = make(map[string]bool)
 	s.supplierSelectionActive = false
+	s.uiState = defaultSavedUIState()
+	s.sourceFileName = wb.FileName
+	s.savedDBPath = ""
+	s.savedDBName = ""
+	s.lastSavedAt = ""
 	s.params = model.DefaultParams()
 	s.report = forecast.Calculate(s.wb, s.params, s.overrides)
 	return nil
 }
 
-// LoadWorkbookFromBytes загружает ведомость из памяти (например, при загрузке через браузер).
+// LoadWorkbookFromBytes загружает новую ведомость из памяти (кнопка «Загрузить новую базу»).
 // Парсинг и тяжёлый расчёт выполняются вне глобальной блокировки, чтобы кнопка «Очистить базу»
 // срабатывала мгновенно даже при загрузке очень больших ведомостей.
 func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
@@ -98,12 +154,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 		return nil
 	}
 
-	s.mu.RLock()
-	p := s.params
-	s.mu.RUnlock()
-	p.PlanStartDate = ""
-	p.LastMonthDaysElapsed = 0
-
+	p := model.DefaultParams()
 	emptyOverrides := make(map[int]int)
 	rep := forecast.Calculate(wb, p, emptyOverrides)
 
@@ -117,6 +168,11 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	s.overrides = emptyOverrides
 	s.selectedSuppliers = make(map[string]bool)
 	s.supplierSelectionActive = false
+	s.uiState = defaultSavedUIState()
+	s.sourceFileName = fileName
+	s.savedDBPath = ""
+	s.savedDBName = ""
+	s.lastSavedAt = ""
 	s.params = p
 	s.report = rep
 	return nil
@@ -132,6 +188,11 @@ func (s *AppServer) ClearDatabase() {
 	s.overrides = make(map[int]int)
 	s.selectedSuppliers = make(map[string]bool)
 	s.supplierSelectionActive = false
+	s.uiState = defaultSavedUIState()
+	s.sourceFileName = ""
+	s.savedDBPath = ""
+	s.savedDBName = ""
+	s.lastSavedAt = ""
 	s.params = model.DefaultParams()
 	s.report = nil
 	s.mu.Unlock()
@@ -196,6 +257,11 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/selected-suppliers", s.handleSelectedSuppliers)
 	mux.HandleFunc("/api/upload", s.handleUpload)
 	mux.HandleFunc("/api/clear", s.handleClearDatabase)
+	mux.HandleFunc("/api/db/save", s.handleSaveDatabase)
+	mux.HandleFunc("/api/db/list", s.handleListSavedDatabases)
+	mux.HandleFunc("/api/db/load", s.handleLoadSavedDatabaseFromDisk)
+	mux.HandleFunc("/api/db/upload", s.handleUploadSavedDatabase)
+	mux.HandleFunc("/api/db/download", s.handleDownloadSavedDatabase)
 	mux.HandleFunc("/api/save-inplace", s.handleSaveInPlace)
 	mux.HandleFunc("/api/export/xlsx", s.handleExportFilledXLSX)
 	mux.HandleFunc("/api/export/orders", s.handleExportOrdersXLSX)
@@ -224,15 +290,7 @@ var gzipWriterPool = sync.Pool{
 func (s *AppServer) handleGetState(w http.ResponseWriter, r *http.Request) {
 	s.touchHeartbeat()
 	s.mu.RLock()
-	env := stateEnvelope{
-		HasWorkbook:    s.wb != nil && s.report != nil,
-		CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
-		DesktopMode:    s.desktopMode,
-		Report:         s.report,
-	}
-	if s.wb != nil {
-		env.FilePath = s.wb.FilePath
-	}
+	env := s.buildStateEnvelopeLocked()
 	s.mu.RUnlock()
 
 	writeJSONForRequest(w, r, http.StatusOK, env)
@@ -273,23 +331,13 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	if s.epoch.Load() != startEpoch {
 		// Во время расчёта пользователь нажал «Очистить базу» или загрузил другой файл
-		env := stateEnvelope{
-			HasWorkbook:    s.wb != nil && s.report != nil,
-			CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
-			DesktopMode:    s.desktopMode,
-			Report:         s.report,
-		}
+		env := s.buildStateEnvelopeLocked()
 		s.mu.Unlock()
 		writeJSONForRequest(w, r, http.StatusOK, env)
 		return
 	}
 	s.report = rep
-	env := stateEnvelope{
-		HasWorkbook:    s.wb != nil,
-		CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
-		DesktopMode:    s.desktopMode,
-		Report:         s.report,
-	}
+	env := s.buildStateEnvelopeLocked()
 	s.mu.Unlock()
 
 	writeJSONForRequest(w, r, http.StatusOK, env)
@@ -341,23 +389,13 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	if s.epoch.Load() != startEpoch || s.wb == nil {
-		env := stateEnvelope{
-			HasWorkbook:    s.wb != nil && s.report != nil,
-			CanSaveInPlace: s.wb != nil && s.wb.FilePath != "",
-			DesktopMode:    s.desktopMode,
-			Report:         s.report,
-		}
+		env := s.buildStateEnvelopeLocked()
 		s.mu.Unlock()
 		writeJSONForRequest(w, r, http.StatusOK, env)
 		return
 	}
 	s.report = rep
-	env := stateEnvelope{
-		HasWorkbook:    true,
-		CanSaveInPlace: s.wb.FilePath != "",
-		DesktopMode:    s.desktopMode,
-		Report:         s.report,
-	}
+	env := s.buildStateEnvelopeLocked()
 	s.mu.Unlock()
 
 	writeJSONForRequest(w, r, http.StatusOK, env)
@@ -427,12 +465,10 @@ func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) 
 	}
 	s.touchHeartbeat()
 	s.ClearDatabase()
-	writeJSONForRequest(w, r, http.StatusOK, stateEnvelope{
-		HasWorkbook:    false,
-		CanSaveInPlace: false,
-		DesktopMode:    s.desktopMode,
-		Report:         nil,
-	})
+	s.mu.RLock()
+	env := s.buildStateEnvelopeLocked()
+	s.mu.RUnlock()
+	writeJSONForRequest(w, r, http.StatusOK, env)
 }
 
 func (s *AppServer) handleUpload(w http.ResponseWriter, r *http.Request) {
