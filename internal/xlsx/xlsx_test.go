@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -172,5 +173,77 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 				t.Fatalf("single supplier order must contain strictly 5 columns (A..E), found F1")
 			}
 		}
+	}
+
+	// Проверка формирования имени и полного сохранения/восстановления базы («<Склад>, Ведомость сохраненная, <ДД.ММ.ГГГГ>.xlsx»)
+	saveDate := time.Date(2026, time.October, 22, 15, 30, 0, 0, time.UTC)
+	if got := xlsx.FormatSavedDatabaseFilename("Склад Мир", saveDate); got != "Склад Мир, Ведомость сохраненная, 22.10.2026.xlsx" {
+		t.Fatalf("FormatSavedDatabaseFilename mismatch: got %q", got)
+	}
+	if got := xlsx.FormatSavedDatabaseFilename("", saveDate); got != "Все склады, Ведомость сохраненная, 22.10.2026.xlsx" {
+		t.Fatalf("FormatSavedDatabaseFilename empty warehouse fallback mismatch: got %q", got)
+	}
+
+	defParams := model.DefaultParams()
+	selRow := 12
+	snap := &model.SavedDatabaseSnapshot{
+		Version:                 1,
+		SavedAt:                 "22.10.2026 15:30:00",
+		SavedFileName:           "Склад Кореличи, Ведомость сохраненная, 22.10.2026.xlsx",
+		SourceFileName:          "Ведомость с периодом ОК (1).xlsx",
+		WarehouseLabel:          "Склад Кореличи",
+		Params:                  defParams,
+		Overrides:               map[int]int{8: 25, 12: 7},
+		SupplierSelectionActive: true,
+		SelectedSuppliers:       []string{`ООО "ГолдДекор"`},
+		UI: model.SavedUIState{
+			StaryoMode:       true,
+			StaryoRows:       []int{8, 12},
+			HidePlusSku:      true,
+			ActiveTab:        "table",
+			ActivePreset:     "short",
+			ParamsExpanded:   true,
+			SelectedExcelRow: &selRow,
+			SortKey:          "closingStock",
+			SortDir:          "asc",
+			FltWarehouse:     "Склад Кореличи",
+			FltRating:        "5",
+			FltStatus:        "order",
+			SearchSku:        "10",
+			SearchName:       "кабель",
+			TableColWidths:   []int{110, 140, 90, 260, 48, 70, 36, 70, 75, 75, 80, 75, 75, 85, 180},
+			ScrollY:          320,
+		},
+	}
+
+	savedBytes1, err := xlsx.BuildSavedDatabaseXLSX(raw, wb.HeaderRow, wb.OrderCol, defParams.ColumnHeader, orders, true, snap)
+	if err != nil {
+		t.Fatalf("BuildSavedDatabaseXLSX #1 failed: %v", err)
+	}
+	// Повторная перезапись поверх уже сохранённого .xlsx не должна дублировать Extension="json"
+	savedBytes2, err := xlsx.BuildSavedDatabaseXLSX(savedBytes1, wb.HeaderRow, wb.OrderCol, defParams.ColumnHeader, orders, true, snap)
+	if err != nil {
+		t.Fatalf("BuildSavedDatabaseXLSX #2 overwrite failed: %v", err)
+	}
+
+	tmpSavedPath := filepath.Join(t.TempDir(), snap.SavedFileName)
+	if err := os.WriteFile(tmpSavedPath, savedBytes2, 0o644); err != nil {
+		t.Fatalf("write saved db file: %v", err)
+	}
+
+	diskMeta, err := xlsx.ReadSavedDatabaseMetadataFromFile(tmpSavedPath)
+	if err != nil || diskMeta == nil {
+		t.Fatalf("ReadSavedDatabaseMetadataFromFile failed: err=%v meta=%v", err, diskMeta)
+	}
+	if diskMeta.SavedFileName != snap.SavedFileName || diskMeta.UI.FltWarehouse != "Склад Кореличи" || len(diskMeta.UI.StaryoRows) != 2 {
+		t.Fatalf("unexpected disk metadata: %+v", diskMeta)
+	}
+
+	extracted, err := xlsx.ExtractSavedDatabaseSnapshot(savedBytes2)
+	if err != nil || extracted == nil {
+		t.Fatalf("ExtractSavedDatabaseSnapshot failed: err=%v snap=%v", err, extracted)
+	}
+	if extracted.Overrides[8] != 25 || extracted.Overrides[12] != 7 || !extracted.UI.HidePlusSku || extracted.UI.ScrollY != 320 {
+		t.Fatalf("unexpected extracted snapshot: %+v", extracted)
 	}
 }

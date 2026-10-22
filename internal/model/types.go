@@ -251,3 +251,61 @@ type CalculationReport struct {
 	Suppliers             []SupplierSummary  `json:"suppliers"`
 	Items                 []CalculatedItem   `json:"items"`
 }
+
+// SavedUIState хранит полное состояние пользовательского интерфейса сборки «Вариант 4»
+// для 100%-го восстановления при загрузке сохранённой базы.
+type SavedUIState struct {
+	StaryoMode         bool    `json:"staryoMode"`
+	StaryoRows         []int   `json:"staryoRows"`
+	HidePlusSku        bool    `json:"hidePlusSku"`
+	ActiveTab          string  `json:"activeTab"`
+	ActivePreset       string  `json:"activePreset"`
+	ParamsExpanded     bool    `json:"paramsExpanded"`
+	SelectedExcelRow   *int    `json:"selectedExcelRow,omitempty"`
+	SortKey            string  `json:"sortKey"`
+	SortDir            string  `json:"sortDir"`
+	FltWarehouse       string  `json:"fltWarehouse"`
+	FltGroup           string  `json:"fltGroup"`
+	FltSupplier        string  `json:"fltSupplier"`
+	FltSupplierSearch  string  `json:"fltSupplierSearch"`
+	FltRating          string  `json:"fltRating"`
+	FltStatus          string  `json:"fltStatus"`
+	SearchSku          string  `json:"searchSku"`
+	SearchName         string  `json:"searchName"`
+	OvFltWarehouse     string  `json:"ovFltWarehouse"`
+	OvFltName          string  `json:"ovFltName"`
+	OvFltRating        string  `json:"ovFltRating"`
+	OvFltSupplier      string  `json:"ovFltSupplier"`
+	OvSearch           string  `json:"ovSearch"`
+	OvSortKey          string  `json:"ovSortKey"`
+	OvSortDir          string  `json:"ovSortDir"`
+	OverstockLimit     int     `json:"overstockLimit"`
+	TableColWidths     []int   `json:"tableColWidths,omitempty"`
+	SuppliersColWidths []int   `json:"suppliersColWidths,omitempty"`
+	OvColWidths        []int   `json:"ovColWidths,omitempty"`
+	ScrollY            float64 `json:"scrollY"`
+}
+
+// SavedDatabaseSnapshot объединяет все расчётные параметры, ручные правки,
+// выбор поставщиков и состояние интерфейса внутри файла сохранённой базы (.xlsx).
+type SavedDatabaseSnapshot struct {
+	Version                 int            `json:"version"`
+	SavedAt                 string         `json:"savedAt"`
+	SavedFileName           string         `json:"savedFileName"`
+	SourceFileName          string         `json:"sourceFileName"`
+	WarehouseLabel          string         `json:"warehouseLabel"`
+	Params                  ForecastParams `json:"params"`
+	Overrides               map[int]int    `json:"overrides"`
+	SupplierSelectionActive bool           `json:"supplierSelectionActive"`
+	SelectedSuppliers       []string       `json:"selectedSuppliers"`
+	UI                      SavedUIState   `json:"ui"`
+}
+
+// SavedDatabaseFileInfo описывает найденный на диске файл сохранённой базы для списка выбора.
+type SavedDatabaseFileInfo struct {
+	FileName       string `json:"fileName"`
+	SavedAt        string `json:"savedAt"`
+	WarehouseLabel string `json:"warehouseLabel"`
+	SourceFileName string `json:"sourceFileName"`
+	SizeBytes      int64  `json:"sizeBytes"`
+}
