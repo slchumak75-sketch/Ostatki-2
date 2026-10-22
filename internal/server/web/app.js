@@ -35,6 +35,34 @@
     searchDebounceTimer: null,
     pendingOverrides: new Map(),
     checkedSuppliers: new Set(),
+    msFilters: {
+      warehouse: new Set(),
+      group: new Set(),
+      sku: new Set(),
+      nomenclature: new Set(),
+      plus: new Set(),
+      rating: new Set(),
+      status: new Set(),
+    },
+    msOptions: {
+      warehouse: [],
+      group: [],
+      sku: [],
+      nomenclature: [],
+      plus: [],
+      rating: [],
+      status: [],
+    },
+    msLimits: {
+      warehouse: 500,
+      group: 500,
+      sku: 500,
+      nomenclature: 500,
+      plus: 500,
+      rating: 500,
+      status: 500,
+    },
+    searchNameLimit: 300,
     staryoMode: false,
     staryoRows: new Set(),
     hidePlusSku: false,
@@ -106,17 +134,60 @@
     return Math.round(q * p * 100) / 100;
   }
 
+  const MS_META = {
+    warehouse: { labelId: 'lblMsWarehouse', listId: 'listMsWarehouse', menuId: 'menuMsWarehouse', defaultText: 'Все склады', prefix: 'Склады' },
+    group: { labelId: 'lblMsGroup', listId: 'listMsGroup', menuId: 'menuMsGroup', defaultText: 'Все группы', prefix: 'Группы' },
+    sku: { labelId: 'lblMsSku', listId: 'listMsSku', menuId: 'menuMsSku', defaultText: 'Артикул', prefix: 'Артикул' },
+    nomenclature: { labelId: 'lblMsNomenclature', listId: 'listMsNomenclature', menuId: 'menuMsNomenclature', defaultText: 'Номенклатура', prefix: 'Номенклатура' },
+    plus: { labelId: 'lblMsPlus', listId: 'listMsPlus', menuId: 'menuMsPlus', defaultText: '+', prefix: '+' },
+    rating: { labelId: 'lblMsRating', listId: 'listMsRating', menuId: 'menuMsRating', defaultText: 'Рейтинг: Все', prefix: 'Рейтинг' },
+    status: { labelId: 'lblMsStatus', listId: 'listMsStatus', menuId: 'menuMsStatus', defaultText: 'Показать все строки', prefix: 'Строки' },
+  };
+
+  function clearAllMultiSelectFilters() {
+    Object.values(state.msFilters).forEach((s) => s.clear());
+    document.querySelectorAll('[data-ms-search]').forEach((inp) => { inp.value = ''; });
+    if (el('fltWarehouse')) el('fltWarehouse').value = '';
+    if (el('fltGroup')) el('fltGroup').value = '';
+    if (el('fltABCXYZ')) el('fltABCXYZ').value = '';
+    if (el('fltStatus')) el('fltStatus').value = 'all';
+  }
+
   function hasActiveTableFilter() {
     return Boolean(
       state.hidePlusSku ||
-      el('inpSearchSku')?.value.trim() ||
       el('inpSearch')?.value.trim() ||
-      el('fltWarehouse')?.value ||
-      el('fltGroup')?.value ||
       el('fltSupplier')?.value ||
-      el('fltABCXYZ')?.value ||
-      (el('fltStatus')?.value && el('fltStatus').value !== 'all')
+      state.msFilters.warehouse.size > 0 ||
+      state.msFilters.group.size > 0 ||
+      state.msFilters.sku.size > 0 ||
+      state.msFilters.nomenclature.size > 0 ||
+      (state.msFilters.plus.size > 0 && state.msFilters.plus.size < 2) ||
+      state.msFilters.rating.size > 0 ||
+      state.msFilters.status.size > 0
     );
+  }
+
+  function syncZeroRatingButtonState() {
+    const btn = el('btnCheckZeroRating');
+    if (!btn) return;
+    if (!state.report?.items?.length) {
+      btn.classList.remove('btn-active-toggle');
+      return;
+    }
+    let zeroCount = 0;
+    let allChecked = true;
+    for (let i = 0; i < state.report.items.length; i++) {
+      const it = state.report.items[i];
+      if ((Number(it.salesSegment) || 0) === 0) {
+        zeroCount += 1;
+        if (!state.staryoRows.has(it.excelRow)) {
+          allChecked = false;
+          break;
+        }
+      }
+    }
+    btn.classList.toggle('btn-active-toggle', zeroCount > 0 && allChecked);
   }
 
   function recomputeReportSummaries(rep) {
@@ -437,6 +508,13 @@
   }
 
   function collectUIState() {
+    const whArr = [...state.msFilters.warehouse];
+    const grpArr = [...state.msFilters.group];
+    const skuArr = [...state.msFilters.sku];
+    const nomArr = [...state.msFilters.nomenclature];
+    const plusArr = [...state.msFilters.plus];
+    const ratArr = [...state.msFilters.rating];
+    const stArr = [...state.msFilters.status];
     return {
       staryoMode: Boolean(state.staryoMode),
       staryoRows: [...state.staryoRows].sort((a, b) => a - b),
@@ -447,13 +525,20 @@
       selectedExcelRow: state.selectedExcelRow,
       sortKey: state.sortKey || 'finalOrderQty',
       sortDir: state.sortDir || 'desc',
-      fltWarehouse: el('fltWarehouse')?.value || '',
-      fltGroup: el('fltGroup')?.value || '',
+      fltWarehouse: whArr.join(' + '),
+      fltGroup: grpArr[0] || '',
       fltSupplier: el('fltSupplier')?.value || '',
       fltSupplierSearch: el('inpSupplierFilter')?.value || '',
-      fltRating: el('fltABCXYZ')?.value || '',
-      fltStatus: el('fltStatus')?.value || 'all',
-      searchSku: el('inpSearchSku')?.value || '',
+      fltRating: ratArr[0] || '',
+      fltStatus: stArr[0] || 'all',
+      fltWarehouses: whArr,
+      fltGroups: grpArr,
+      fltSkus: skuArr,
+      fltNomenclatures: nomArr,
+      fltPlus: plusArr,
+      fltRatings: ratArr,
+      fltStatuses: stArr,
+      searchSku: '',
       searchName: el('inpSearch')?.value || '',
       ovFltWarehouse: el('ovFltWarehouse')?.value || '',
       ovFltName: el('ovFltName')?.value || '',
@@ -491,6 +576,8 @@
     state.ovColWidths = null;
     state.pendingOverrides.clear();
     state.checkedSuppliers.clear();
+    clearAllMultiSelectFilters();
+    Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
     state.staryoMode = false;
     state.hidePlusSku = false;
@@ -504,14 +591,15 @@
       resetTableColumnWidths(el('suppliersTable'));
     }
     if (el('btnHelp')) el('btnHelp').classList.remove('btn-active-toggle');
+    if (el('btnCheckZeroRating')) el('btnCheckZeroRating').classList.remove('btn-active-toggle');
     if (el('btnActiveFilter')) el('btnActiveFilter').classList.remove('btn-active-toggle');
     if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
     if (el('staryoExportRows')) el('staryoExportRows').value = '';
     if (el('fileInput')) el('fileInput').value = '';
     if (el('savedDbFileInput')) el('savedDbFileInput').value = '';
     if (el('btnSaveInPlace')) el('btnSaveInPlace').classList.add('hidden');
-    if (el('inpSearchSku')) el('inpSearchSku').value = '';
     if (el('inpSearch')) el('inpSearch').value = '';
+    if (el('ddSearchNameMenu')) el('ddSearchNameMenu').classList.add('hidden');
     if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
     if (el('fltABCXYZ')) el('fltABCXYZ').value = '';
     if (el('fltStatus')) el('fltStatus').value = 'all';
@@ -521,6 +609,8 @@
     if (el('supplierDropdownLabel')) el('supplierDropdownLabel').textContent = 'Все поставщики';
     if (el('supplierDropdownList')) el('supplierDropdownList').innerHTML = '';
     if (el('supplierDropdownMenu')) el('supplierDropdownMenu').classList.add('hidden');
+    syncMultiSelectLabels();
+    closeAllMultiSelectMenus();
     if (el('ovFltWarehouse')) el('ovFltWarehouse').innerHTML = '<option value="">Все склады</option>';
     if (el('ovFltName')) el('ovFltName').innerHTML = '<option value="">Вся номенклатура</option>';
     if (el('ovFltRating')) el('ovFltRating').value = '';
@@ -581,21 +671,19 @@
       state.staryoRows.clear();
       state.hidePlusSku = false;
       state.checkedSuppliers.clear();
+      clearAllMultiSelectFilters();
       state.hasUnsavedChanges = true;
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
       el('itemsTable')?.classList.remove('show-plus-col');
       el('btnHelp')?.classList.remove('btn-active-toggle');
+      el('btnCheckZeroRating')?.classList.remove('btn-active-toggle');
       el('btnActiveFilter')?.classList.remove('btn-active-toggle');
       if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
-      if (el('fltWarehouse')) el('fltWarehouse').value = '';
-      if (el('fltGroup')) el('fltGroup').value = '';
       if (el('fltSupplier')) el('fltSupplier').value = '';
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
-      if (el('fltABCXYZ')) el('fltABCXYZ').value = '';
-      if (el('fltStatus')) el('fltStatus').value = 'all';
-      if (el('inpSearchSku')) el('inpSearchSku').value = '';
       if (el('inpSearch')) el('inpSearch').value = '';
+      if (el('ddSearchNameMenu')) el('ddSearchNameMenu').classList.add('hidden');
       if (el('ovFltWarehouse')) el('ovFltWarehouse').value = '';
       if (el('ovFltName')) el('ovFltName').value = '';
       if (el('ovFltRating')) el('ovFltRating').value = '';
@@ -612,6 +700,7 @@
       state.lastLoadedFile = state.report.fileName;
       state.overstockLimit = 500;
       state.checkedSuppliers.clear();
+      clearAllMultiSelectFilters();
       state.staryoRows.clear();
       syncSelectedSuppliersToServer();
     }
@@ -641,10 +730,36 @@
       state.overstockLimit = ui.overstockLimit ?? 500;
       state.ovColWidths = Array.isArray(ui.ovColWidths) && ui.ovColWidths.length > 0 ? [...ui.ovColWidths] : null;
 
+      clearAllMultiSelectFilters();
+      const whList = Array.isArray(ui.fltWarehouses) && ui.fltWarehouses.length
+        ? ui.fltWarehouses
+        : (ui.fltWarehouse ? [ui.fltWarehouse] : []);
+      whList.forEach((v) => state.msFilters.warehouse.add(v));
+
+      const grpList = Array.isArray(ui.fltGroups) && ui.fltGroups.length
+        ? ui.fltGroups
+        : (ui.fltGroup ? [ui.fltGroup] : []);
+      grpList.forEach((v) => state.msFilters.group.add(v));
+
+      (ui.fltSkus || []).forEach((v) => state.msFilters.sku.add(v));
+      (ui.fltNomenclatures || []).forEach((v) => state.msFilters.nomenclature.add(v));
+      (ui.fltPlus || []).forEach((v) => state.msFilters.plus.add(v));
+
+      const ratList = Array.isArray(ui.fltRatings) && ui.fltRatings.length
+        ? ui.fltRatings
+        : (ui.fltRating !== undefined && ui.fltRating !== '' ? [String(ui.fltRating)] : []);
+      ratList.forEach((v) => state.msFilters.rating.add(String(v)));
+
+      const stList = Array.isArray(ui.fltStatuses) && ui.fltStatuses.length
+        ? ui.fltStatuses
+        : (ui.fltStatus && ui.fltStatus !== 'all' ? [ui.fltStatus] : []);
+      stList.forEach((v) => state.msFilters.status.add(v));
+
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
       el('itemsTable')?.classList.toggle('show-plus-col', state.staryoMode);
       el('btnHelp')?.classList.toggle('btn-active-toggle', state.staryoMode);
+      syncZeroRatingButtonState();
       if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = !state.staryoMode;
       el('btnActiveFilter')?.classList.toggle('btn-active-toggle', state.hidePlusSku);
 
@@ -663,19 +778,9 @@
       }
 
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = ui.fltSupplierSearch || '';
-      if (el('fltWarehouse')) el('fltWarehouse').value = '';
-      if (el('fltGroup')) el('fltGroup').value = '';
       if (el('fltSupplier')) el('fltSupplier').value = '';
       populateFilterDropdowns(state.report);
-
-      if (el('fltWarehouse')) el('fltWarehouse').value = ui.fltWarehouse || '';
-      populateFilterDropdowns(state.report);
-
-      if (el('fltGroup')) el('fltGroup').value = ui.fltGroup || '';
       if (el('fltSupplier')) el('fltSupplier').value = ui.fltSupplier || '';
-      if (el('fltABCXYZ')) el('fltABCXYZ').value = ui.fltRating || '';
-      if (el('fltStatus')) el('fltStatus').value = ui.fltStatus || 'all';
-      if (el('inpSearchSku')) el('inpSearchSku').value = ui.searchSku || '';
       if (el('inpSearch')) el('inpSearch').value = ui.searchName || '';
       populateFilterDropdowns(state.report);
 
@@ -712,6 +817,7 @@
       return;
     }
 
+    syncZeroRatingButtonState();
     populateFilterDropdowns(state.report);
     recomputeFilteredList();
     renderKPIs(state.report);
@@ -747,59 +853,273 @@
       : '0 — без ограничения бюджета';
   }
 
-  function populateFilterDropdowns(rep) {
-    const keepSet = (selectEl, items, defaultLabel, formatter) => {
-      const prev = selectEl.value;
-      selectEl.innerHTML = `<option value="">${esc(defaultLabel)}</option>` +
-        items.map((item) => {
-          const val = typeof item === 'string' ? item : item.value;
-          const label = formatter ? formatter(item) : val;
-          return `<option value="${esc(val)}">${esc(label)}</option>`;
-        }).join('');
-      if ([...selectEl.options].some((o) => o.value === prev)) {
-        selectEl.value = prev;
-      }
-    };
+  function syncMultiSelectLabels() {
+    for (const [key, meta] of Object.entries(MS_META)) {
+      const selSet = state.msFilters[key];
+      const lblEl = el(meta.labelId);
+      const trigEl = document.querySelector(`[data-ms-trigger="${key}"]`);
+      if (!lblEl) continue;
 
-    keepSet(
-      el('fltWarehouse'),
-      rep.warehouses.map((w) => ({ value: w.warehouse, ...w })),
-      'Все склады',
-      (w) => `${w.warehouse} — ${fmtMoney(w.totalOrderCost)} р. (${w.orderItems}/${w.totalItems})`
-    );
+      if (key === 'plus' && (selSet.size === 0 || selSet.size >= 2)) {
+        lblEl.textContent = meta.defaultText;
+        trigEl?.classList.remove('has-active-ms');
+        continue;
+      }
+      if (selSet.size === 0) {
+        lblEl.textContent = meta.defaultText;
+        trigEl?.classList.remove('has-active-ms');
+        continue;
+      }
+      trigEl?.classList.add('has-active-ms');
+      if (selSet.size === 1) {
+        const onlyVal = [...selSet][0];
+        const found = (state.msOptions[key] || []).find((o) => o.value === onlyVal);
+        if (key === 'plus') {
+          lblEl.textContent = onlyVal === 'checked' ? '+ : ✓' : '+ : пусто';
+        } else {
+          lblEl.textContent = found ? found.shortLabel || found.label : onlyVal;
+        }
+      } else {
+        lblEl.textContent = `${meta.prefix}: ${selSet.size}`;
+      }
+    }
+  }
 
-    const selectedWh = el('fltWarehouse').value;
-    if (selectedWh) {
-      const grpByWh = new Map();
-      for (const g of rep.groups) {
-        grpByWh.set(g.group, { value: g.group, group: g.group, orderItemCount: 0, totalCost: 0 });
+  function closeAllMultiSelectMenus(exceptKey = null) {
+    for (const [key, meta] of Object.entries(MS_META)) {
+      if (key === exceptKey) continue;
+      const menu = el(meta.menuId);
+      const trig = document.querySelector(`[data-ms-trigger="${key}"]`);
+      if (menu && !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+        trig?.setAttribute('aria-expanded', 'false');
       }
-      for (const it of rep.items) {
-        if (it.warehouse !== selectedWh || it.finalOrderQty <= 0) continue;
-        const g = grpByWh.get(it.group) || { value: it.group, group: it.group, orderItemCount: 0, totalCost: 0 };
-        g.orderItemCount += 1;
-        g.totalCost += calcLineSum(it.finalOrderQty, it.purchasePrice);
-        grpByWh.set(it.group, g);
-      }
-      keepSet(
-        el('fltGroup'),
-        [...grpByWh.values()],
-        'Все группы',
-        (g) => `${g.group} (к закупке: ${g.orderItemCount})`
-      );
-    } else {
-      keepSet(
-        el('fltGroup'),
-        rep.groups.map((g) => ({ value: g.group, ...g })),
-        'Все группы',
-        (g) => `${g.group} (к закупке: ${g.orderItemCount})`
-      );
+    }
+    if (exceptKey !== 'searchName') {
+      el('ddSearchNameMenu')?.classList.add('hidden');
+    }
+  }
+
+  function renderMultiSelectMenu(key) {
+    const meta = MS_META[key];
+    if (!meta) return;
+    const listEl = el(meta.listId);
+    if (!listEl) return;
+
+    const searchInp = document.querySelector(`[data-ms-search="${key}"]`);
+    const q = (searchInp?.value || '').trim().toLowerCase();
+    const opts = state.msOptions[key] || [];
+    const selSet = state.msFilters[key];
+
+    const filtered = q
+      ? opts.filter((o) => o.searchLC.includes(q))
+      : opts;
+
+    const limit = state.msLimits[key] || 500;
+    const visible = filtered.slice(0, limit);
+    const remaining = filtered.length - visible.length;
+
+    if (visible.length === 0) {
+      listEl.innerHTML = '<div class="muted" style="padding:10px 8px;text-align:center">Ничего не найдено</div>';
+      return;
     }
 
-    // Уникальные поставщики с учётом выбранного склада — полное совпадение сумм с вкладкой «Поставщики и склады»
+    const rowsHtml = visible.map((o) => {
+      const checked = selSet.has(o.value);
+      return `<div class="supplier-dd-row ${checked ? 'active-filter' : ''}">
+        <label class="ms-dd-option-label" title="${esc(o.label)}">
+          <input type="checkbox" class="supplier-dd-check" data-ms-check="${key}" value="${esc(o.value)}" ${checked ? 'checked' : ''} />
+          <span class="ms-dd-option-text">${esc(o.label)}</span>
+        </label>
+      </div>`;
+    }).join('');
+
+    const moreHtml = remaining > 0
+      ? `<div style="padding:6px 8px;text-align:center">
+          <button type="button" class="btn btn-beige btn-xs" data-ms-more="${key}">Показать ещё (${fmtInt(remaining)})</button>
+        </div>`
+      : '';
+
+    listEl.innerHTML = rowsHtml + moreHtml;
+  }
+
+  function renderSearchNameDropdown() {
+    const menuEl = el('ddSearchNameMenu');
+    const listEl = el('listSearchNameMatches');
+    if (!menuEl || !listEl || !state.report) return;
+
+    const q = (el('inpSearch')?.value || '').trim().toLowerCase();
+    const opts = state.msOptions.nomenclature || [];
+    const selSet = state.msFilters.nomenclature;
+
+    const matches = q
+      ? opts.filter((o) => o.searchLC.includes(q))
+      : opts;
+
+    const visible = matches.slice(0, state.searchNameLimit || 300);
+    const remaining = matches.length - visible.length;
+
+    if (visible.length === 0) {
+      listEl.innerHTML = '<div class="muted" style="padding:10px 8px;text-align:center">Совпадений по номенклатуре не найдено</div>';
+      return;
+    }
+
+    const rowsHtml = visible.map((o) => {
+      const checked = selSet.has(o.value);
+      return `<div class="supplier-dd-row ${checked ? 'active-filter' : ''}">
+        <label class="ms-dd-option-label" title="${esc(o.label)}">
+          <input type="checkbox" class="supplier-dd-check" data-search-name-check="1" value="${esc(o.value)}" ${checked ? 'checked' : ''} />
+          <span class="ms-dd-option-text">${esc(o.label)}</span>
+        </label>
+      </div>`;
+    }).join('');
+
+    const moreHtml = remaining > 0
+      ? `<div style="padding:6px 8px;text-align:center">
+          <button type="button" class="btn btn-beige btn-xs" id="btnSearchNameMore">Показать ещё (${fmtInt(remaining)})</button>
+        </div>`
+      : '';
+
+    listEl.innerHTML = rowsHtml + moreHtml;
+  }
+
+  function populateFilterDropdowns(rep) {
+    const whSet = state.msFilters.warehouse;
+    const grpSet = state.msFilters.group;
+    const skuSet = state.msFilters.sku;
+
+    state.msOptions.warehouse = (rep.warehouses || []).map((w) => {
+      const label = `${w.warehouse} — ${fmtMoney(w.totalOrderCost)} р. (${w.orderItems}/${w.totalItems})`;
+      return { value: w.warehouse, shortLabel: w.warehouse, label, searchLC: w.warehouse.toLowerCase() };
+    });
+
+    const grpAgg = new Map();
+    for (const g of rep.groups || []) {
+      grpAgg.set(g.group, { group: g.group, orderItemCount: 0 });
+    }
+    const skuAgg = new Map();
+    const nomAgg = new Map();
+    let plusCheckedTotal = 0;
+    let plusUncheckedTotal = 0;
+    const ratingCounts = [0, 0, 0, 0, 0, 0];
+    let cntOrder = 0;
+    let cntOutliers = 0;
+    let cntOverstock = 0;
+    let cntZero = 0;
+    let cntManual = 0;
+
+    for (let i = 0; i < rep.items.length; i++) {
+      const it = rep.items[i];
+      if (state.hidePlusSku && it._startsWithPlus) continue;
+      if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
+
+      if (it.finalOrderQty > 0) {
+        const gEntry = grpAgg.get(it.group) || { group: it.group, orderItemCount: 0 };
+        gEntry.orderItemCount += 1;
+        grpAgg.set(it.group, gEntry);
+      } else if (!grpAgg.has(it.group)) {
+        grpAgg.set(it.group, { group: it.group, orderItemCount: 0 });
+      }
+
+      if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
+
+      const rawSku = String(it.sku || '').trim();
+      if (rawSku) {
+        let sEntry = skuAgg.get(rawSku);
+        if (!sEntry) {
+          sEntry = { sku: rawSku, orderItemCount: 0 };
+          skuAgg.set(rawSku, sEntry);
+        }
+        if (it.finalOrderQty > 0) sEntry.orderItemCount += 1;
+      }
+
+      if (skuSet.size > 0 && !skuSet.has(rawSku)) continue;
+
+      const rawName = String(it.name || '').trim();
+      if (rawName) {
+        let nEntry = nomAgg.get(rawName);
+        if (!nEntry) {
+          nEntry = { name: rawName, orderItemCount: 0 };
+          nomAgg.set(rawName, nEntry);
+        }
+        if (it.finalOrderQty > 0) nEntry.orderItemCount += 1;
+      }
+
+      if (state.staryoRows.has(it.excelRow)) plusCheckedTotal += 1;
+      else plusUncheckedTotal += 1;
+
+      const seg = Math.min(5, Math.max(0, Number(it.salesSegment) || 0));
+      ratingCounts[seg] += 1;
+      if (it.finalOrderQty > 0) cntOrder += 1;
+      if (it.outlierMonths > 0) cntOutliers += 1;
+      if (it.isOverstock) cntOverstock += 1;
+      if (it.closingStock <= 0) cntZero += 1;
+      if (it.manualOverride != null) cntManual += 1;
+    }
+
+    state.msOptions.group = [...grpAgg.values()].map((g) => ({
+      value: g.group,
+      shortLabel: g.group,
+      label: `${g.group} (к закупке: ${g.orderItemCount})`,
+      searchLC: g.group.toLowerCase(),
+    }));
+
+    const skuList = [...skuAgg.values()].sort((a, b) => ruCollator.compare(a.sku, b.sku));
+    state.msOptions.sku = skuList.map((s) => ({
+      value: s.sku,
+      shortLabel: s.sku,
+      label: `${s.sku} (к закупке: ${s.orderItemCount})`,
+      searchLC: s.sku.toLowerCase(),
+    }));
+
+    const nomList = [...nomAgg.values()].sort((a, b) => ruCollator.compare(a.name, b.name));
+    state.msOptions.nomenclature = nomList.map((n) => ({
+      value: n.name,
+      shortLabel: n.name,
+      label: `${n.name} (к закупке: ${n.orderItemCount})`,
+      searchLC: n.name.toLowerCase(),
+    }));
+
+    state.msOptions.plus = [
+      { value: 'checked', shortLabel: '+ : ✓', label: `Отмеченные галочкой «✓» (${fmtInt(plusCheckedTotal)})`, searchLC: 'отмеченные галочкой +' },
+      { value: 'unchecked', shortLabel: '+ : пусто', label: `Без галочки (${fmtInt(plusUncheckedTotal)})`, searchLC: 'без галочки пустые' },
+    ];
+
+    state.msOptions.rating = [
+      { value: '5', shortLabel: '5-Высокий', label: `5-Высокий (${fmtInt(ratingCounts[5])})`, searchLC: '5-высокий' },
+      { value: '4', shortLabel: '4-Выше среднего', label: `4-Выше среднего (${fmtInt(ratingCounts[4])})`, searchLC: '4-выше среднего' },
+      { value: '3', shortLabel: '3-Средний', label: `3-Средний (${fmtInt(ratingCounts[3])})`, searchLC: '3-средний' },
+      { value: '2', shortLabel: '2-Ниже среднего', label: `2-Ниже среднего (${fmtInt(ratingCounts[2])})`, searchLC: '2-ниже среднего' },
+      { value: '1', shortLabel: '1-Низкий', label: `1-Низкий (${fmtInt(ratingCounts[1])})`, searchLC: '1-низкий' },
+      { value: '0', shortLabel: '0-Нет продаж', label: `0-Нет продаж (${fmtInt(ratingCounts[0])})`, searchLC: '0-нет продаж' },
+    ];
+
+    state.msOptions.status = [
+      { value: 'order', shortLabel: 'Только Заказ > 0', label: `Только Заказ > 0 (${fmtInt(cntOrder)})`, searchLC: 'только заказ > 0' },
+      { value: 'outliers', shortLabel: 'Подавленные выбросы', label: `⚡ Подавленные опт-выбросы (${fmtInt(cntOutliers)})`, searchLC: 'подавленные опт-выбросы' },
+      { value: 'overstock', shortLabel: 'Неликвиды / избыток', label: `Неликвиды / избыток (${fmtInt(cntOverstock)})`, searchLC: 'неликвиды избыток' },
+      { value: 'zero', shortLabel: 'Нулевой остаток', label: `Нулевой остаток (${fmtInt(cntZero)})`, searchLC: 'нулевой остаток' },
+      { value: 'manual', shortLabel: 'Изменённые вручную', label: `Изменённые вручную (${fmtInt(cntManual)})`, searchLC: 'изменённые вручную' },
+    ];
+
+    if (el('fltWarehouse')) {
+      el('fltWarehouse').value = whSet.size === 1 ? [...whSet][0] : '';
+    }
+
+    syncMultiSelectLabels();
+    for (const [key, meta] of Object.entries(MS_META)) {
+      if (!el(meta.menuId)?.classList.contains('hidden')) {
+        renderMultiSelectMenu(key);
+      }
+    }
+    if (!el('ddSearchNameMenu')?.classList.contains('hidden')) {
+      renderSearchNameDropdown();
+    }
+
+    // Уникальные поставщики с учётом выбранных складов (поле «Все поставщики» остаётся без изменений)
     const supAgg = new Map();
     for (const s of rep.suppliers) {
-      if (selectedWh && s.warehouse !== selectedWh) continue;
+      if (whSet.size > 0 && !whSet.has(s.warehouse)) continue;
       const prev = supAgg.get(s.supplier);
       if (!prev) {
         supAgg.set(s.supplier, { value: s.supplier, supplier: s.supplier, totalOrderCost: s.totalOrderCost, orderItems: s.orderItems });
@@ -810,12 +1130,14 @@
     }
     const uniqueSuppliers = [...supAgg.values()].sort((a, b) => b.totalOrderCost - a.totalOrderCost || ruCollator.compare(a.supplier, b.supplier));
 
-    keepSet(
-      el('fltSupplier'),
-      uniqueSuppliers,
-      'Все поставщики',
-      (s) => `${s.supplier} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})`
-    );
+    const prevSup = el('fltSupplier')?.value || '';
+    if (el('fltSupplier')) {
+      el('fltSupplier').innerHTML = `<option value="">Все поставщики</option>` +
+        uniqueSuppliers.map((s) => `<option value="${esc(s.supplier)}">${esc(s.supplier)} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})</option>`).join('');
+      if ([...el('fltSupplier').options].some((o) => o.value === prevSup)) {
+        el('fltSupplier').value = prevSup;
+      }
+    }
 
     renderSupplierDropdownMenu(rep, uniqueSuppliers);
   }
@@ -907,34 +1229,66 @@
       state.filteredItems = [];
       return;
     }
-    const qSku = (el('inpSearchSku')?.value || '').trim().toLowerCase();
-    const qName = el('inpSearch').value.trim().toLowerCase();
-    const wh = el('fltWarehouse').value;
-    const grp = el('fltGroup').value;
-    const sup = el('fltSupplier').value;
-    const seg = el('fltABCXYZ').value;
-    const status = el('fltStatus').value;
-    const segNumFilter = seg !== '' ? Number(seg) : null;
+    const qName = (el('inpSearch')?.value || '').trim().toLowerCase();
+    const whSet = state.msFilters.warehouse;
+    const grpSet = state.msFilters.group;
+    const skuSet = state.msFilters.sku;
+    const nomSet = state.msFilters.nomenclature;
+    const plusSet = state.msFilters.plus;
+    const ratSet = state.msFilters.rating;
+    const stSet = state.msFilters.status;
+    const sup = el('fltSupplier')?.value || '';
+
+    let anyCheckedMatchesSearch = false;
+    if (nomSet.size > 0 && qName) {
+      for (const n of nomSet) {
+        if (n.toLowerCase().includes(qName)) {
+          anyCheckedMatchesSearch = true;
+          break;
+        }
+      }
+    }
 
     const src = state.report.items;
     const list = [];
     for (let i = 0; i < src.length; i++) {
       const it = src[i];
       if (state.hidePlusSku && (it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))) continue;
-      if (wh && it.warehouse !== wh) continue;
-      if (grp && it.group !== grp) continue;
+      if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
+      if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
+      if (skuSet.size > 0 && !skuSet.has(String(it.sku || '').trim())) continue;
+
+      if (nomSet.size > 0) {
+        const nameKey = String(it.name || '').trim();
+        if (!qName || anyCheckedMatchesSearch) {
+          if (!nomSet.has(nameKey)) continue;
+        } else if (!nomSet.has(nameKey) && !(it._nameLC ?? String(it.name || '').toLowerCase()).includes(qName)) {
+          continue;
+        }
+      } else if (qName && !(it._nameLC ?? String(it.name || '').toLowerCase()).includes(qName)) {
+        continue;
+      }
+
+      if (plusSet.size === 1) {
+        const hasPlus = state.staryoRows.has(it.excelRow);
+        if (plusSet.has('checked') && !hasPlus) continue;
+        if (plusSet.has('unchecked') && hasPlus) continue;
+      }
+
       const itemSup = it._supNorm || it.supplier || '(Поставщик не указан)';
       if (sup && itemSup !== sup) continue;
-      if (seg !== '' && it.salesSegment !== segNumFilter && String(it.salesSegment) !== seg && it.salesSegmentLabel !== seg) continue;
 
-      if (status === 'order' && it.finalOrderQty <= 0) continue;
-      if (status === 'outliers' && it.outlierMonths <= 0) continue;
-      if (status === 'overstock' && !it.isOverstock) continue;
-      if (status === 'zero' && it.closingStock > 0) continue;
-      if (status === 'manual' && it.manualOverride == null) continue;
+      if (ratSet.size > 0 && !ratSet.has(String(it.salesSegment))) continue;
 
-      if (qSku && !(it._skuLC ?? String(it.sku || '').toLowerCase()).includes(qSku)) continue;
-      if (qName && !(it._nameLC ?? String(it.name || '').toLowerCase()).includes(qName)) continue;
+      if (stSet.size > 0) {
+        const matchStatus =
+          (stSet.has('order') && it.finalOrderQty > 0) ||
+          (stSet.has('outliers') && it.outlierMonths > 0) ||
+          (stSet.has('overstock') && it.isOverstock) ||
+          (stSet.has('zero') && it.closingStock <= 0) ||
+          (stSet.has('manual') && it.manualOverride != null);
+        if (!matchStatus) continue;
+      }
 
       list.push(it);
     }
@@ -1774,7 +2128,7 @@
     if (!modal) return;
     if (sub) {
       if (state.report) {
-        const wh = el('fltWarehouse')?.value || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
+        const wh = [...state.msFilters.warehouse].join(' + ') || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
         sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Сохранить все текущие заказы, фильтры, отметки и настройки перед выходом?`;
       } else {
         sub.textContent = 'Закрыть программу?';
@@ -2015,33 +2369,202 @@
       showToast('Восстановлены настройки по умолчанию');
     });
 
-    ['inpSearchSku', 'inpSearch'].forEach((id) => {
-      el(id).addEventListener('input', () => {
-        clearTimeout(state.searchDebounceTimer);
-        const totalRows = state.report?.items?.length || 0;
-        const runSearch = () => {
-          state.page = 1;
-          recomputeFilteredList();
-          if (state.report) renderKPIs(state.report);
-          renderTable();
-        };
-        if (totalRows > 2000) {
-          state.searchDebounceTimer = setTimeout(runSearch, 110);
+    // Интерактивный поиск по номенклатуре по мере ввода каждого символа (мгновенно в таблице + выпадающий список с галочками)
+    const runInteractiveNameSearch = (openMenu = true) => {
+      state.page = 1;
+      state.searchNameLimit = 300;
+      recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
+      renderTable();
+      if (openMenu && state.report) {
+        closeAllMultiSelectMenus('searchName');
+        el('supplierDropdownMenu')?.classList.add('hidden');
+        const qVal = (el('inpSearch')?.value || '').trim();
+        if (qVal.length > 0) {
+          el('ddSearchNameMenu')?.classList.remove('hidden');
+          renderSearchNameDropdown();
         } else {
-          runSearch();
+          el('ddSearchNameMenu')?.classList.add('hidden');
+        }
+      }
+    };
+
+    el('inpSearch').addEventListener('input', () => {
+      runInteractiveNameSearch(true);
+    });
+    el('inpSearch').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        el('ddSearchNameMenu')?.classList.add('hidden');
+      }
+    });
+    el('btnSearchNameDropdown').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = el('ddSearchNameMenu');
+      if (!menu) return;
+      const isHidden = menu.classList.toggle('hidden');
+      if (!isHidden) {
+        closeAllMultiSelectMenus('searchName');
+        el('supplierDropdownMenu')?.classList.add('hidden');
+        if (state.report) renderSearchNameDropdown();
+      }
+    });
+    el('ddSearchNameMenu').addEventListener('change', (e) => {
+      const chk = e.target.closest('input[data-search-name-check]');
+      if (!chk) return;
+      if (chk.checked) {
+        state.msFilters.nomenclature.add(chk.value);
+      } else {
+        state.msFilters.nomenclature.delete(chk.value);
+      }
+      chk.closest('.supplier-dd-row')?.classList.toggle('active-filter', chk.checked);
+      syncMultiSelectLabels();
+      recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
+      renderTable();
+    });
+    el('ddSearchNameMenu').addEventListener('click', (e) => {
+      if (e.target.id === 'btnSearchNameMore') {
+        state.searchNameLimit = (state.searchNameLimit || 300) + 500;
+        renderSearchNameDropdown();
+      }
+    });
+    el('btnSearchCheckAll').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const q = (el('inpSearch')?.value || '').trim().toLowerCase();
+      const opts = state.msOptions.nomenclature || [];
+      for (const o of opts) {
+        if (!q || o.searchLC.includes(q)) {
+          state.msFilters.nomenclature.add(o.value);
+        }
+      }
+      renderSearchNameDropdown();
+      syncMultiSelectLabels();
+      recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
+      renderTable();
+    });
+    el('btnSearchUncheckAll').addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.msFilters.nomenclature.clear();
+      if (el('inpSearch')) el('inpSearch').value = '';
+      renderSearchNameDropdown();
+      syncMultiSelectLabels();
+      recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
+      renderTable();
+    });
+
+    // Обработчики всех выпадающих списков с галочками на горизонтальной плашке
+    const applyAfterMultiSelectChange = (changedKey) => {
+      state.page = 1;
+      if (changedKey === 'plus' && state.msFilters.plus.has('checked') && !state.staryoMode) {
+        state.staryoMode = true;
+        const tableEl = el('itemsTable');
+        if (tableEl) {
+          resetTableColumnWidths(tableEl);
+          tableEl.classList.add('show-plus-col');
+        }
+        el('btnHelp')?.classList.add('btn-active-toggle');
+        if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = false;
+      }
+      if (state.report) {
+        populateFilterDropdowns(state.report);
+      }
+      recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
+      renderTable();
+    };
+
+    document.querySelectorAll('[data-ms-trigger]').forEach((trig) => {
+      trig.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = trig.dataset.msTrigger;
+        const meta = MS_META[key];
+        const menu = meta ? el(meta.menuId) : null;
+        if (!menu) return;
+        const isHidden = menu.classList.toggle('hidden');
+        trig.setAttribute('aria-expanded', String(!isHidden));
+        if (!isHidden) {
+          closeAllMultiSelectMenus(key);
+          el('supplierDropdownMenu')?.classList.add('hidden');
+          state.msLimits[key] = 500;
+          if (state.report) populateFilterDropdowns(state.report);
+          renderMultiSelectMenu(key);
+          const sInp = menu.querySelector('[data-ms-search]');
+          if (sInp) requestAnimationFrame(() => sInp.focus());
         }
       });
     });
-    ['fltWarehouse', 'fltGroup', 'fltSupplier', 'fltABCXYZ', 'fltStatus'].forEach((id) => {
-      el(id).addEventListener('change', () => {
-        state.page = 1;
-        if (state.report) {
-          populateFilterDropdowns(state.report);
-        }
-        recomputeFilteredList();
-        if (state.report) renderKPIs(state.report);
-        renderTable();
+
+    document.querySelectorAll('[data-ms-search]').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const key = inp.dataset.msSearch;
+        state.msLimits[key] = 500;
+        renderMultiSelectMenu(key);
       });
+    });
+
+    document.querySelectorAll('[data-ms-all]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = btn.dataset.msAll;
+        const q = (document.querySelector(`[data-ms-search="${key}"]`)?.value || '').trim().toLowerCase();
+        for (const o of (state.msOptions[key] || [])) {
+          if (!q || o.searchLC.includes(q)) {
+            state.msFilters[key].add(o.value);
+          }
+        }
+        applyAfterMultiSelectChange(key);
+      });
+    });
+
+    document.querySelectorAll('[data-ms-none]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const key = btn.dataset.msNone;
+        const q = (document.querySelector(`[data-ms-search="${key}"]`)?.value || '').trim().toLowerCase();
+        if (!q) {
+          state.msFilters[key].clear();
+        } else {
+          for (const o of (state.msOptions[key] || [])) {
+            if (o.searchLC.includes(q)) {
+              state.msFilters[key].delete(o.value);
+            }
+          }
+        }
+        applyAfterMultiSelectChange(key);
+      });
+    });
+
+    document.querySelector('.toolbar')?.addEventListener('change', (e) => {
+      const chk = e.target.closest('input[data-ms-check]');
+      if (!chk) return;
+      const key = chk.dataset.msCheck;
+      if (chk.checked) {
+        state.msFilters[key].add(chk.value);
+      } else {
+        state.msFilters[key].delete(chk.value);
+      }
+      applyAfterMultiSelectChange(key);
+    });
+
+    document.querySelector('.toolbar')?.addEventListener('click', (e) => {
+      const moreBtn = e.target.closest('[data-ms-more]');
+      if (!moreBtn) return;
+      e.stopPropagation();
+      const key = moreBtn.dataset.msMore;
+      state.msLimits[key] = (state.msLimits[key] || 500) + 500;
+      renderMultiSelectMenu(key);
+    });
+
+    el('fltSupplier').addEventListener('change', () => {
+      state.page = 1;
+      if (state.report) {
+        populateFilterDropdowns(state.report);
+      }
+      recomputeFilteredList();
+      if (state.report) renderKPIs(state.report);
+      renderTable();
     });
 
     // Кастомный выпадающий список «Все поставщики» с обнулением автозаполнения заказа по избранным поставщикам
@@ -2101,10 +2624,10 @@
     el('btnCheckAllSuppliers').addEventListener('click', (e) => {
       e.stopPropagation();
       if (!state.report) return;
-      const wh = el('fltWarehouse').value || '';
+      const whSet = state.msFilters.warehouse;
       const q = (el('inpSupplierFilter')?.value || '').trim().toLowerCase();
       for (const s of state.report.suppliers) {
-        if (wh && s.warehouse !== wh) continue;
+        if (whSet.size > 0 && !whSet.has(s.warehouse)) continue;
         if (q && !s.supplier.toLowerCase().includes(q)) continue;
         state.checkedSuppliers.add(normalizeSupName(s.supplier));
       }
@@ -2113,13 +2636,13 @@
 
     el('btnUncheckAllSuppliers').addEventListener('click', (e) => {
       e.stopPropagation();
-      const wh = el('fltWarehouse').value || '';
+      const whSet = state.msFilters.warehouse;
       const q = (el('inpSupplierFilter')?.value || '').trim().toLowerCase();
-      if (!wh && !q) {
+      if (whSet.size === 0 && !q) {
         state.checkedSuppliers.clear();
       } else if (state.report) {
         for (const s of state.report.suppliers) {
-          if (wh && s.warehouse !== wh) continue;
+          if (whSet.size > 0 && !whSet.has(s.warehouse)) continue;
           if (q && !s.supplier.toLowerCase().includes(q)) continue;
           state.checkedSuppliers.delete(normalizeSupName(s.supplier));
         }
@@ -2130,6 +2653,19 @@
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#supplierDropdown')) {
         closeSupplierDropdown();
+      }
+      if (!e.target.closest('.ms-dropdown')) {
+        for (const [key, meta] of Object.entries(MS_META)) {
+          const menu = el(meta.menuId);
+          const trig = document.querySelector(`[data-ms-trigger="${key}"]`);
+          if (menu && !menu.classList.contains('hidden')) {
+            menu.classList.add('hidden');
+            trig?.setAttribute('aria-expanded', 'false');
+          }
+        }
+      }
+      if (!e.target.closest('#searchNameCombo')) {
+        el('ddSearchNameMenu')?.classList.add('hidden');
       }
     });
 
@@ -2410,13 +2946,9 @@
         if (state.justResizedColumn || e.target.closest('.col-resizer')) return;
         const rNum = Number(jumpRow.dataset.jumpRow);
         state.selectedExcelRow = rNum;
-        el('inpSearchSku').value = '';
+        clearAllMultiSelectFilters();
         el('inpSearch').value = '';
-        el('fltWarehouse').value = '';
-        el('fltGroup').value = '';
         el('fltSupplier').value = '';
-        el('fltABCXYZ').value = '';
-        el('fltStatus').value = 'all';
         if (state.report) populateFilterDropdowns(state.report);
         recomputeFilteredList();
         if (state.report) renderKPIs(state.report);
@@ -2452,7 +2984,8 @@
     el('suppliersBody').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
-      el('fltWarehouse').value = btn.dataset.filterWh || '';
+      state.msFilters.warehouse.clear();
+      if (btn.dataset.filterWh) state.msFilters.warehouse.add(btn.dataset.filterWh);
       if (state.report) populateFilterDropdowns(state.report);
       el('fltSupplier').value = btn.dataset.filterSup;
       recomputeFilteredList();
@@ -2515,6 +3048,13 @@
         plusChk.classList.remove('has-plus');
         state.staryoRows.delete(rowNum);
       }
+      syncZeroRatingButtonState();
+      if (state.report) populateFilterDropdowns(state.report);
+      if (state.msFilters.plus.size === 1) {
+        recomputeFilteredList();
+        if (state.report) renderKPIs(state.report);
+        renderTable();
+      }
     });
 
     // Кнопка «Старьё»: показывает/скрывает столбец «+» и активирует кнопку «Старьё выгрузка»
@@ -2527,6 +3067,54 @@
       }
       el('btnHelp').classList.toggle('btn-active-toggle', state.staryoMode);
       el('btnDownloadOrders').disabled = !state.staryoMode;
+      renderTable();
+    });
+
+    // Кнопка «+»: проставляет галочки в столбце «+» всей номенклатуре с рейтингом «0»
+    el('btnCheckZeroRating').addEventListener('click', () => {
+      if (!state.report?.items?.length) {
+        showToast('Сначала загрузите файл Ведомости (.xlsx)');
+        return;
+      }
+      if (!state.staryoMode) {
+        state.staryoMode = true;
+        const tableEl = el('itemsTable');
+        if (tableEl) {
+          resetTableColumnWidths(tableEl);
+          tableEl.classList.add('show-plus-col');
+        }
+        el('btnHelp')?.classList.add('btn-active-toggle');
+        if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = false;
+      }
+
+      const zeroRows = [];
+      let allZeroAlreadyChecked = true;
+      for (let i = 0; i < state.report.items.length; i++) {
+        const it = state.report.items[i];
+        if ((Number(it.salesSegment) || 0) === 0) {
+          zeroRows.push(it.excelRow);
+          if (!state.staryoRows.has(it.excelRow)) {
+            allZeroAlreadyChecked = false;
+          }
+        }
+      }
+      if (zeroRows.length === 0) {
+        showToast('Позиции с рейтингом «0» не найдены');
+        return;
+      }
+
+      if (allZeroAlreadyChecked) {
+        for (const r of zeroRows) state.staryoRows.delete(r);
+        showToast(`Сняты галочки в столбце «+» с позиций рейтинга «0»: ${fmtInt(zeroRows.length)}`);
+      } else {
+        for (const r of zeroRows) state.staryoRows.add(r);
+        showToast(`В столбце «+» проставлены галочки номенклатуре с рейтингом «0»: ${fmtInt(zeroRows.length)} поз.`);
+      }
+
+      syncZeroRatingButtonState();
+      populateFilterDropdowns(state.report);
+      recomputeFilteredList();
+      renderKPIs(state.report);
       renderTable();
     });
 
@@ -2576,7 +3164,9 @@
     });
 
     el('btnPrintOrder').addEventListener('click', () => {
-      el('fltStatus').value = 'order';
+      state.msFilters.status.clear();
+      state.msFilters.status.add('order');
+      syncMultiSelectLabels();
       recomputeFilteredList();
       renderTable();
       document.querySelector('.tab-btn[data-tab="table"]').click();
@@ -2704,7 +3294,7 @@
         setTimeout(() => { isDownloadingFile = false; }, 1500);
         return;
       }
-      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnHelp, #btnActiveFilter, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-reset]')) {
+      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnHelp, #btnCheckZeroRating, #btnActiveFilter, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll, [data-reset]')) {
         state.hasUnsavedChanges = true;
       }
     });

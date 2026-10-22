@@ -99,6 +99,10 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 		if it.SumSalesLast6M > 0 && it.SalesSegment == 0 {
 			t.Fatalf("row %d has positive 6m sales (%v), must be in 1..5, got 0", it.ExcelRow, it.SumSalesLast6M)
 		}
+		if it.SalesSegment == 0 && (it.AutoOrderQty != 0 || it.FinalOrderQty != 0) {
+			t.Fatalf("row %d has rating 0, expected autoOrderQty=0 & finalOrderQty=0, got auto=%d final=%d",
+				it.ExcelRow, it.AutoOrderQty, it.FinalOrderQty)
+		}
 		segCounts[it.SalesSegment]++
 	}
 	for seg, cnt := range segCounts {

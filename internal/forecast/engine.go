@@ -304,6 +304,10 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 					autoQty += params.PackMultiple - rem
 				}
 			}
+			// Номенклатуру с рейтингом «0» (нет продаж за 6 мес.) не заполняем автоматически в столбце «Заказ»
+			if salesSegments[i] == 0 {
+				autoQty = 0
+			}
 
 			rawSurplus := math.Max(0, item.ClosingStock-targetStock)
 			surplusQty := 0

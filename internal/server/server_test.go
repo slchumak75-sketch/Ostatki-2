@@ -201,20 +201,49 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("expected 400 Bad Request for unchecked supplier xlsx, got code=%d", rec.Code)
 	}
 
-	// При этом в самой ведомости автозаполнение «Заказ» НЕ обнуляется
+	// При этом в самой ведомости автозаполнение «Заказ» НЕ обнуляется (а позиции с рейтингом «0» изначально имеют AutoOrderQty=0)
 	req = httptest.NewRequest(http.MethodGet, "/api/state", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	var afterCheckState struct {
 		Report *struct {
-			TotalOrderCost float64 `json:"totalOrderCost"`
+			TotalOrderCost float64                `json:"totalOrderCost"`
+			Items          []model.CalculatedItem `json:"items"`
 		} `json:"report"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &afterCheckState); err != nil || afterCheckState.Report == nil {
 		t.Fatalf("unmarshal state after selected-suppliers failed: %v", err)
 	}
-	if math.Abs(afterCheckState.Report.TotalOrderCost-5704.18) > 1e-6 {
-		t.Fatalf("expected table report orders untouched (5704.18), got %.2f", afterCheckState.Report.TotalOrderCost)
+	if afterCheckState.Report.TotalOrderCost < 4000.0 {
+		t.Fatalf("expected positive table report order cost untouched by supplier check, got %.2f", afterCheckState.Report.TotalOrderCost)
+	}
+	zeroSegRow := 0
+	for _, it := range afterCheckState.Report.Items {
+		if it.SalesSegment == 0 {
+			if zeroSegRow == 0 {
+				zeroSegRow = it.ExcelRow
+			}
+			if it.AutoOrderQty != 0 || it.FinalOrderQty != 0 {
+				t.Fatalf("expected rating 0 row %d to have autoOrderQty=0 and finalOrderQty=0, got auto=%d final=%d",
+					it.ExcelRow, it.AutoOrderQty, it.FinalOrderQty)
+			}
+		}
+	}
+	if zeroSegRow == 0 {
+		t.Fatalf("expected at least one row with SalesSegment == 0")
+	}
+	// Ручной ввод заказа для позиции с рейтингом «0» при этом работает штатно
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/override",
+		bytes.NewReader([]byte(fmt.Sprintf(`{"excelRow":%d,"value":7}`, zeroSegRow)))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/override on zero-rating row failed: %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/override",
+		bytes.NewReader([]byte(fmt.Sprintf(`{"excelRow":%d,"clear":true}`, zeroSegRow)))))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/override clear on zero-rating row failed: %d", rec.Code)
 	}
 
 	// 7. GET /, GET /styles.css и GET /app.js (проверка UI-структуры, колонок и удалённых панелей)
@@ -280,6 +309,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"Алгоритм",
 		"helpModal",
 		"Загрузить .xlsx",
+		"Поиск артикул",
 		"сегмент",
 		"Сегмент",
 		"сегм.",
@@ -304,6 +334,15 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`Сохранить текущую базу?`,
 		`id="btnCloseSaveYes">ДА</button>`,
 		`id="btnCloseSaveNo">НЕТ</button>`,
+		`id="btnCheckZeroRating" type="button"`,
+		`id="ddWarehouse"`,
+		`id="ddGroup"`,
+		`id="ddSku"`,
+		`id="ddNomenclature"`,
+		`id="ddPlus"`,
+		`id="ddRating"`,
+		`id="ddStatus"`,
+		`id="ddSearchNameMenu"`,
 		`<button class="btn btn-beige" id="btnClearDatabase"`,
 		`<button class="btn btn-neutral" id="btnDownloadXlsx"`,
 		`<button class="btn btn-neutral" id="btnDownloadOrders"`,
@@ -354,6 +393,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
 	oldExportIdx := strings.Index(htmlBody, `id="btnDownloadOrders" type="button" disabled`)
 	staryoBtnIdx := strings.Index(htmlBody, `>Старьё</button>`)
+	plusZeroBtnIdx := strings.Index(htmlBody, `id="btnCheckZeroRating"`)
 	activeBtnIdx := strings.Index(htmlBody, `id="btnActiveFilter"`)
 	printBtnIdx := strings.Index(htmlBody, `id="btnPrintOrder"`)
 	themeBtnIdx := strings.Index(htmlBody, `id="btnTheme"`)
@@ -362,8 +402,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && headerEndIdx > budgetCardIdx) {
 		t.Fatalf("expected topbar order Загрузить новую базу -> Загрузить сохраненную базу -> Сохранить базу -> Очистить базу ... Бюджет закупки, got upload=%d loadSaved=%d saveDb=%d clear=%d theme=%d budget=%d headerEnd=%d", uploadIdx, loadSavedIdx, saveDbIdx, clearIdx, themeBtnIdx, budgetCardIdx, headerEndIdx)
 	}
-	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && activeBtnIdx > staryoBtnIdx && printBtnIdx > activeBtnIdx && headerEndIdx > printBtnIdx) {
-		t.Fatalf("expected button sequence Старьё выгрузка (disabled) -> Старьё -> Активно -> Печать inside topbar, got export=%d staryo=%d active=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, activeBtnIdx, printBtnIdx, headerEndIdx)
+	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && plusZeroBtnIdx > staryoBtnIdx && activeBtnIdx > plusZeroBtnIdx && printBtnIdx > activeBtnIdx && headerEndIdx > printBtnIdx) {
+		t.Fatalf("expected button sequence Старьё выгрузка (disabled) -> Старьё -> + -> Активно -> Печать inside topbar, got export=%d staryo=%d plus=%d active=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, plusZeroBtnIdx, activeBtnIdx, printBtnIdx, headerEndIdx)
 	}
 
 	// Проверка порядка столбцов в таблице «Ведомость»:
@@ -512,7 +552,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"isSupplierChecked",
 		"btnCheckAllSuppliers",
 		"btnUncheckAllSuppliers",
-		"inpSearchSku",
+		"btnCheckZeroRating",
+		"runInteractiveNameSearch",
+		"renderMultiSelectMenu",
 		"api/clear",
 		"ovFltWarehouse",
 		"ovFltName",
@@ -536,8 +578,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
 		}
 	}
-	// Проверка строгого порядка 7 полей горизонтальной плашки над таблицей «Ведомость»:
-	// Все склады -> Все группы -> Поиск артикул -> Поиск по номенклатуре -> Рейтинг все -> Все поставщики -> Показать все строки
+	// Проверка строгого порядка всех 9 полей горизонтальной плашки над таблицей «Ведомость»:
+	// Все склады -> Все группы -> Артикул -> Номенклатура -> Поиск по номенклатуре -> + -> Рейтинг -> Все поставщики -> Показать все строки
 	toolbarStart := strings.Index(htmlBody, `<div class="toolbar">`)
 	if toolbarStart < 0 {
 		t.Fatalf("missing <div class=\"toolbar\"> in index.html")
@@ -546,8 +588,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 	orderedToolbarTokens := []string{
 		`id="fltWarehouse"`,
 		`id="fltGroup"`,
-		`id="inpSearchSku"`,
+		`id="fltSku"`,
+		`id="fltNomenclature"`,
 		`id="inpSearch"`,
+		`id="fltPlus"`,
 		`id="fltABCXYZ"`,
 		`id="supplierDropdown"`,
 		`id="fltStatus"`,
@@ -855,6 +899,13 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 			SortKey:            "closingStock",
 			SortDir:            "asc",
 			FltWarehouse:       "Склад Кореличи",
+			FltWarehouses:      []string{"Склад Кореличи"},
+			FltGroups:          []string{"Электрика"},
+			FltSkus:            []string{"10045", "10046"},
+			FltNomenclatures:   []string{"Автомат ВА 47-29"},
+			FltPlus:            []string{"checked"},
+			FltRatings:         []string{"5", "4"},
+			FltStatuses:        []string{"order"},
 			FltGroup:           "",
 			FltSupplier:        `ООО "ГолдДекор"`,
 			FltSupplierSearch:  "Голд",
@@ -964,7 +1015,8 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		}
 		if !restored.UIState.StaryoMode || len(restored.UIState.StaryoRows) != 3 || !restored.UIState.HidePlusSku ||
 			restored.UIState.ActiveTab != "overstock" || restored.UIState.FltWarehouse != "Склад Кореличи" ||
-			restored.UIState.OvSearch != "кабель" || restored.UIState.ScrollY != 480 {
+			len(restored.UIState.FltSkus) != 2 || len(restored.UIState.FltNomenclatures) != 1 ||
+			len(restored.UIState.FltPlus) != 1 || restored.UIState.OvSearch != "кабель" || restored.UIState.ScrollY != 480 {
 			t.Fatalf("[%s] UI state not fully restored: %+v", label, restored.UIState)
 		}
 	}

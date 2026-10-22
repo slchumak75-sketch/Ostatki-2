@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Остатки 2 (Вариант 4 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M6 23V15h4v8H6zm6 0V9h4v14h-4zm6 0v-9h4v9h-4zm6 0V6h2v17h-2z' fill='%23fff'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css?v=4.13" />
+  <link rel="stylesheet" href="styles.css?v=4.14" />
 </head>
 <body>
   <div id="dropOverlay" class="drop-overlay hidden">
@@ -65,6 +65,7 @@
         Старьё выгрузка
       </button>
       <button class="btn btn-ghost" id="btnHelp" type="button" title="Показать столбец «+» и активировать «Старьё выгрузка»">Старьё</button>
+      <button class="btn btn-ghost" id="btnCheckZeroRating" type="button" title="Проставить галочки в столбце «+» всей номенклатуре с рейтингом «0»">+</button>
       <button class="btn btn-ghost" id="btnActiveFilter" type="button" title="Скрыть номенклатуру, у которой артикул начинается с символа «+»">Активно</button>
       <button class="btn btn-ghost" id="btnPrintOrder" title="Печатный бланк заявки на закупку (Печать / PDF)">Печать</button>
       <button class="btn btn-ghost icon-only" id="btnFullscreen" title="Полноэкранный / оконный режим (F11)" aria-label="Полный экран">⛶</button>
@@ -197,33 +198,146 @@
     <!-- ВКЛАДКА 1: ОСНОВНАЯ ТАБЛИЦА ВЕДОМОСТИ -->
     <section class="tab-view active" id="view-table">
       <div class="toolbar">
-        <select id="fltWarehouse" aria-label="Фильтр по складу">
-          <option value="">Все склады</option>
-        </select>
-
-        <select id="fltGroup" aria-label="Фильтр по группе">
-          <option value="">Все группы</option>
-        </select>
-
-        <div class="search-box search-sku-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" id="inpSearchSku" placeholder="Поиск артикул" aria-label="Поиск артикул" />
+        <div class="ms-dropdown ms-dd-warehouse" id="ddWarehouse" data-ms-key="warehouse">
+          <select id="fltWarehouse" class="sr-only-select" aria-label="Фильтр по складу">
+            <option value="">Все склады</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="warehouse" aria-expanded="false">
+            <span class="supplier-dd-label" id="lblMsWarehouse">Все склады</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu hidden" id="menuMsWarehouse">
+            <div class="supplier-dd-head">
+              <input type="search" class="supplier-dd-search" data-ms-search="warehouse" placeholder="Найти склад…" />
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="warehouse">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="warehouse">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsWarehouse"></div>
+          </div>
         </div>
 
-        <div class="search-box search-name-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" id="inpSearch" placeholder="Поиск по номенклатуре" aria-label="Поиск по номенклатуре" />
+        <div class="ms-dropdown ms-dd-group" id="ddGroup" data-ms-key="group">
+          <select id="fltGroup" class="sr-only-select" aria-label="Фильтр по группе">
+            <option value="">Все группы</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="group" aria-expanded="false">
+            <span class="supplier-dd-label" id="lblMsGroup">Все группы</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu hidden" id="menuMsGroup">
+            <div class="supplier-dd-head">
+              <input type="search" class="supplier-dd-search" data-ms-search="group" placeholder="Найти группу…" />
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="group">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="group">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsGroup"></div>
+          </div>
         </div>
 
-        <select id="fltABCXYZ" aria-label="Рейтинг" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
-          <option value="">Рейтинг: Все</option>
-          <option value="5">5-Высокий</option>
-          <option value="4">4-Выше среднего</option>
-          <option value="3">3-Средний</option>
-          <option value="2">2-Ниже среднего</option>
-          <option value="1">1-Низкий</option>
-          <option value="0">0-Нет продаж</option>
-        </select>
+        <div class="ms-dropdown ms-dd-sku" id="ddSku" data-ms-key="sku">
+          <select id="fltSku" class="sr-only-select" aria-label="Артикул">
+            <option value="">Артикул</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="sku" aria-expanded="false">
+            <span class="supplier-dd-label" id="lblMsSku">Артикул</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu hidden" id="menuMsSku">
+            <div class="supplier-dd-head">
+              <input type="search" class="supplier-dd-search" data-ms-search="sku" placeholder="Найти артикул…" />
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="sku">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="sku">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsSku"></div>
+          </div>
+        </div>
+
+        <div class="ms-dropdown ms-dd-nomenclature" id="ddNomenclature" data-ms-key="nomenclature">
+          <select id="fltNomenclature" class="sr-only-select" aria-label="Номенклатура">
+            <option value="">Номенклатура</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="nomenclature" aria-expanded="false">
+            <span class="supplier-dd-label" id="lblMsNomenclature">Номенклатура</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu hidden" id="menuMsNomenclature">
+            <div class="supplier-dd-head">
+              <input type="search" class="supplier-dd-search" data-ms-search="nomenclature" placeholder="Найти номенклатуру…" />
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="nomenclature">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="nomenclature">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsNomenclature"></div>
+          </div>
+        </div>
+
+        <div class="search-name-combo" id="searchNameCombo">
+          <div class="search-box search-name-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="inpSearch" placeholder="Поиск по номенклатуре" aria-label="Поиск по номенклатуре" autocomplete="off" />
+            <button type="button" class="search-combo-caret-btn" id="btnSearchNameDropdown" aria-label="Открыть выпадающий список номенклатуры">▾</button>
+          </div>
+          <div class="supplier-dd-menu ms-dd-menu search-name-dd-menu hidden" id="ddSearchNameMenu">
+            <div class="supplier-dd-head">
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" id="btnSearchCheckAll">Отметить найденные</button>
+                <button type="button" class="btn btn-secondary btn-xs" id="btnSearchUncheckAll">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listSearchNameMatches"></div>
+          </div>
+        </div>
+
+        <div class="ms-dropdown ms-dd-plus" id="ddPlus" data-ms-key="plus">
+          <select id="fltPlus" class="sr-only-select" aria-label="Фильтр по столбцу +">
+            <option value="">+</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="plus" aria-expanded="false" title="Фильтр по отметкам галочкой в столбце «+»">
+            <span class="supplier-dd-label" id="lblMsPlus">+</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu hidden" id="menuMsPlus">
+            <div class="supplier-dd-head">
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="plus">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="plus">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsPlus"></div>
+          </div>
+        </div>
+
+        <div class="ms-dropdown ms-dd-rating" id="ddRating" data-ms-key="rating">
+          <select id="fltABCXYZ" class="sr-only-select" aria-label="Рейтинг" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+            <option value="">Рейтинг: Все</option>
+            <option value="5">5-Высокий</option>
+            <option value="4">4-Выше среднего</option>
+            <option value="3">3-Средний</option>
+            <option value="2">2-Ниже среднего</option>
+            <option value="1">1-Низкий</option>
+            <option value="0">0-Нет продаж</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="rating" aria-expanded="false" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+            <span class="supplier-dd-label" id="lblMsRating">Рейтинг: Все</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu ms-dd-align-right hidden" id="menuMsRating">
+            <div class="supplier-dd-head">
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="rating">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="rating">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsRating"></div>
+          </div>
+        </div>
 
         <div class="supplier-dropdown" id="supplierDropdown">
           <select id="fltSupplier" class="sr-only-select" aria-label="Фильтр по поставщику">
@@ -245,14 +359,29 @@
           </div>
         </div>
 
-        <select id="fltStatus" aria-label="Статус закупки">
-          <option value="all">Показать все строки</option>
-          <option value="order">Только Заказ &gt; 0</option>
-          <option value="outliers">⚡ Подавленные опт-выбросы</option>
-          <option value="overstock">Неликвиды / избыток (&gt;365 дн.)</option>
-          <option value="zero">Нулевой остаток</option>
-          <option value="manual">Изменённые вручную</option>
-        </select>
+        <div class="ms-dropdown ms-dd-status" id="ddStatus" data-ms-key="status">
+          <select id="fltStatus" class="sr-only-select" aria-label="Статус закупки">
+            <option value="all">Показать все строки</option>
+            <option value="order">Только Заказ &gt; 0</option>
+            <option value="outliers">⚡ Подавленные опт-выбросы</option>
+            <option value="overstock">Неликвиды / избыток (&gt;365 дн.)</option>
+            <option value="zero">Нулевой остаток</option>
+            <option value="manual">Изменённые вручную</option>
+          </select>
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="status" aria-expanded="false">
+            <span class="supplier-dd-label" id="lblMsStatus">Показать все строки</span>
+            <span class="supplier-dd-caret">▾</span>
+          </button>
+          <div class="supplier-dd-menu ms-dd-menu ms-dd-align-right hidden" id="menuMsStatus">
+            <div class="supplier-dd-head">
+              <div class="supplier-dd-actions">
+                <button type="button" class="btn btn-beige btn-xs" data-ms-all="status">Отметить все</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-ms-none="status">Снять все</button>
+              </div>
+            </div>
+            <div class="supplier-dd-list" id="listMsStatus"></div>
+          </div>
+        </div>
       </div>
 
       <div class="table-container">
@@ -388,6 +517,6 @@
 
   <div id="ratingChartPopover" class="rating-chart-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=4.13"></script>
+  <script src="app.js?v=4.14"></script>
 </body>
 </html>
