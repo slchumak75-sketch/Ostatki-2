@@ -264,14 +264,21 @@ type SavedUIState struct {
 	SelectedExcelRow   *int    `json:"selectedExcelRow,omitempty"`
 	SortKey            string  `json:"sortKey"`
 	SortDir            string  `json:"sortDir"`
-	FltWarehouse       string  `json:"fltWarehouse"`
-	FltGroup           string  `json:"fltGroup"`
-	FltSupplier        string  `json:"fltSupplier"`
-	FltSupplierSearch  string  `json:"fltSupplierSearch"`
-	FltRating          string  `json:"fltRating"`
-	FltStatus          string  `json:"fltStatus"`
-	SearchSku          string  `json:"searchSku"`
-	SearchName         string  `json:"searchName"`
+	FltWarehouse       string   `json:"fltWarehouse"`
+	FltGroup           string   `json:"fltGroup"`
+	FltSupplier        string   `json:"fltSupplier"`
+	FltSupplierSearch  string   `json:"fltSupplierSearch"`
+	FltRating          string   `json:"fltRating"`
+	FltStatus          string   `json:"fltStatus"`
+	FltWarehouses      []string `json:"fltWarehouses,omitempty"`
+	FltGroups          []string `json:"fltGroups,omitempty"`
+	FltSkus            []string `json:"fltSkus,omitempty"`
+	FltNomenclatures   []string `json:"fltNomenclatures,omitempty"`
+	FltPlus            []string `json:"fltPlus,omitempty"`
+	FltRatings         []string `json:"fltRatings,omitempty"`
+	FltStatuses        []string `json:"fltStatuses,omitempty"`
+	SearchSku          string   `json:"searchSku"`
+	SearchName         string   `json:"searchName"`
 	OvFltWarehouse     string  `json:"ovFltWarehouse"`
 	OvFltName          string  `json:"ovFltName"`
 	OvFltRating        string  `json:"ovFltRating"`

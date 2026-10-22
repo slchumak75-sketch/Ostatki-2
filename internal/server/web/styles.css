@@ -1767,3 +1767,103 @@ body.col-resize-active * {
   color: var(--danger);
 }
 
+/* Выпадающие списки с галочками на горизонтальной плашке */
+.ms-dropdown {
+  position: relative;
+  min-width: 96px;
+}
+
+.ms-dd-warehouse { flex: 0 1 136px; min-width: 108px; }
+.ms-dd-group { flex: 0 1 140px; min-width: 108px; }
+.ms-dd-sku { flex: 0 1 120px; min-width: 96px; }
+.ms-dd-nomenclature { flex: 0 1 146px; min-width: 112px; }
+.ms-dd-plus { flex: 0 0 66px; min-width: 60px; max-width: 96px; }
+.ms-dd-rating { flex: 0 1 124px; min-width: 102px; }
+.ms-dd-status { flex: 0 1 158px; min-width: 126px; }
+
+.ms-dropdown .ms-dd-trigger.has-active-ms {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 600;
+}
+
+.ms-dd-menu {
+  left: 0;
+  right: auto;
+  width: 390px;
+  max-width: calc(100vw - 24px);
+}
+
+.ms-dd-menu.ms-dd-align-right {
+  left: auto;
+  right: 0;
+}
+
+.ms-dd-plus .ms-dd-menu {
+  width: 280px;
+}
+
+.ms-dd-rating .ms-dd-menu {
+  width: 280px;
+}
+
+.ms-dd-status .ms-dd-menu {
+  width: 320px;
+}
+
+.ms-dd-option-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+}
+
+.ms-dd-option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.search-name-combo {
+  position: relative;
+  flex: 1 1 185px;
+  min-width: 150px;
+}
+
+.search-name-combo .search-name-box {
+  width: 100%;
+}
+
+.search-combo-caret-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.search-combo-caret-btn:hover {
+  color: var(--primary);
+}
+
+.search-name-dd-menu {
+  left: 0;
+  right: auto;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+}
+
+.search-name-dd-menu .supplier-dd-list {
+  max-height: 240px;
+}
+
+
