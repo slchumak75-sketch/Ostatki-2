@@ -277,6 +277,7 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/excel-filters.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/relevant-items.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/nomenclature-properties.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/clear-database.cjs
 
       - name: Кросс-компиляция Windows x64 — «Вариант 4»
         run: |

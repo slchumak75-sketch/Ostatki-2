@@ -2389,41 +2389,68 @@
     let liveOverrideTimer = null;
 
     const btnClear = el('btnClearDatabase');
-    btnClear.addEventListener('pointerdown', () => {
-      isClearingDatabase = true;
-    });
-    btnClear.addEventListener('mousedown', () => {
-      isClearingDatabase = true;
-    });
-    btnClear.addEventListener('click', async (e) => {
+    let clearConfirmBusy = false;
+    const clearModal = el('clearConfirmModal');
+    function closeClearConfirm() {
+      if (clearConfirmBusy) return;
+      clearModal.classList.add('hidden');
+      btnClear.focus();
+    }
+    btnClear.addEventListener('click', e => {
       e.preventDefault();
-      e.stopPropagation();
-      isClearingDatabase = true;
-      state.clientEpoch += 1;
-      clearTimeout(state.debounceTimer);
-      clearTimeout(state.searchDebounceTimer);
-      clearTimeout(liveOverrideTimer);
-      if (vScrollRaf) {
-        cancelAnimationFrame(vScrollRaf);
-        vScrollRaf = null;
-      }
-      abortActiveRequests();
-      try {
-        document.activeElement?.blur?.();
-      } catch (_) {}
-      resetUIToEmptyDatabase();
-      showToast('База данных очищена');
-
-      try {
-        await apiPost(`api/clear?t=${Date.now()}`, {}, { unabortable: true });
-      } catch (_) {
-        try {
-          await fetch(`api/clear?t=${Date.now()}`, { method: 'GET', cache: 'no-store' });
-        } catch (_err2) {}
-      } finally {
-        setTimeout(() => { isClearingDatabase = false; }, 120);
+      if (clearConfirmBusy || isClearingDatabase) return;
+      clearModal.classList.remove('hidden');
+      el('btnClearSaveCancel').focus();
+    });
+    el('btnClearSaveCancel').addEventListener('click', closeClearConfirm);
+    clearModal.addEventListener('click', e => {
+      if (e.target === clearModal) closeClearConfirm();
+    });
+    clearModal.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeClearConfirm(); }
+      if (e.key === 'Tab') {
+        const buttons = [...clearModal.querySelectorAll('button:not(:disabled)')];
+        if (!buttons.length) { e.preventDefault(); return; }
+        const index = buttons.indexOf(document.activeElement);
+        const next = (index + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
+        e.preventDefault(); buttons[next].focus();
       }
     });
+    async function confirmClearDatabase(save) {
+      if (clearConfirmBusy) return;
+      if (state.isSavingDb) { showToast('Дождитесь завершения сохранения базы'); return; }
+      clearConfirmBusy = true;
+      btnClear.disabled = true;
+      clearModal.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
+      try {
+        if (save) {
+          if (!(await saveProperties(false))) return;
+          if (state.report && !(await saveDatabase('manual'))) return;
+        }
+        isClearingDatabase = true;
+        state.clientEpoch += 1;
+        clearTimeout(state.debounceTimer);
+        clearTimeout(state.searchDebounceTimer);
+        clearTimeout(liveOverrideTimer);
+        if (vScrollRaf) { cancelAnimationFrame(vScrollRaf); vScrollRaf = null; }
+        abortActiveRequests();
+        await apiPost(`api/clear?t=${Date.now()}`, {}, { unabortable: true });
+        resetUIToEmptyDatabase();
+        clearModal.classList.add('hidden');
+        showToast('База данных очищена');
+      } catch (err) {
+        showToast(`Не удалось очистить базу: ${err.message}`);
+      } finally {
+        isClearingDatabase = false;
+        clearConfirmBusy = false;
+        btnClear.disabled = false;
+        clearModal.querySelectorAll('button').forEach(btn => { btn.disabled = false; });
+        if (!clearModal.classList.contains('hidden')) el('btnClearSaveCancel').focus();
+        else btnClear.focus();
+      }
+    }
+    el('btnClearSaveYes').addEventListener('click', () => confirmClearDatabase(true));
+    el('btnClearSaveNo').addEventListener('click', () => confirmClearDatabase(false));
 
     ['ovFltWarehouse', 'ovFltName', 'ovFltRating', 'ovFltSupplier'].forEach((id) => {
       el(id).addEventListener('change', () => {
