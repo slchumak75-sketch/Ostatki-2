@@ -3536,7 +3536,18 @@
   }
   function excelMatches() {
     const q = el('efSearchInput').value.trim().toLocaleLowerCase('ru');
-    return excelMenu.options.filter(o => o.label.toLocaleLowerCase('ru').includes(q));
+    const matches = excelMenu.options.filter(o => o.label.toLocaleLowerCase('ru').includes(q));
+    if (excelMenu.key === 'supplier' && excelMenu.sumSort) {
+      // Один проход по базе: агрегируем все строки каждого поставщика.
+      const sums = new Map();
+      for (const it of state.report?.items || []) {
+        const supplier = normalizeSupName(it.supplier);
+        sums.set(supplier, (sums.get(supplier) || 0) + calcLineSum(it.finalOrderQty, it.purchasePrice));
+      }
+      const direction = excelMenu.sumSort === 'asc' ? 1 : -1;
+      matches.sort((a, b) => direction * (Math.round((sums.get(a.value) || 0) * 100) - Math.round((sums.get(b.value) || 0) * 100)) || ruCollator.compare(a.label, b.label));
+    }
+    return matches;
   }
   function renderExcelOptions() {
     if (!excelMenu) return;
@@ -3577,8 +3588,10 @@
     el('efSearchInput').value = '';
     el('efAddToFilterWrap').classList.add('hidden');
     const context = el('efContextBar');
-    context.classList.add('hidden');
-    context.innerHTML = '';
+    context.classList.toggle('hidden', key !== 'supplier');
+    context.innerHTML = key === 'supplier'
+      ? '<button type="button" class="ef-quick-chip" data-supplier-sum-sort="desc" aria-pressed="false">Сумма заказа ↓</button><button type="button" class="ef-quick-chip" data-supplier-sum-sort="asc" aria-pressed="false">Сумма заказа ↑</button>'
+      : '';
     const pop = el('excelFilterPopover');
     pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
     pop.classList.remove('hidden');
@@ -3591,6 +3604,18 @@
   }
   function bindExcelFilters() {
     document.querySelectorAll('[data-filter-col]').forEach(btn => btn.addEventListener('click', e => {e.stopPropagation();openExcelFilter(btn);}));
+    el('efContextBar').addEventListener('click', e => {
+      const button = e.target.closest('[data-supplier-sum-sort]');
+      if (!button || excelMenu?.key !== 'supplier') return;
+      excelMenu.sumSort = button.dataset.supplierSumSort;
+      excelMenu.limit = 500;
+      el('efContextBar').querySelectorAll('[data-supplier-sum-sort]').forEach(btn => {
+        const active = btn === button;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', String(active));
+      });
+      renderExcelOptions();
+    });
     ['efCloseBtn','efBtnCancel'].forEach(id => el(id).addEventListener('click',closeExcelFilter));
     el('efSearchInput').addEventListener('input', () => {
       excelMenu.limit = 500;
