@@ -4,17 +4,32 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const dom = new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'), {url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window, d=w.document;
-const item=(row,name,stock)=>({excelRow:row,name,closingStock:stock,sku:String(row),warehouse:'Склад',group:'Группа',supplier:row === 8 ? 'Первый' : 'Второй',salesSegment:0,finalOrderQty:row === 8 ? 2 : 3,purchasePrice:1,monthlySales:[]});
-w.fetch=async()=>({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});
+const item=(row,name,stock)=>({excelRow:row,name,closingStock:stock,sku:String(row),warehouse:'Склад',group:'Группа',supplier:row === 8 ? 'Первый' : 'Второй',sumSalesLast12M:row === 10 ? 0 : 5,salesSegment:0,finalOrderQty:row === 10 ? 0 : (row === 8 ? 2 : 3),purchasePrice:1,monthlySales:[]});
+w.fetch=async()=>({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2),item(10,'Без продаж',0)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});
 w.scrollTo=()=>{};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
  await tick();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Default excludes products without 12-month sales');
+ d.getElementById('btnRelevant').click();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,3);
+ assert.ok(d.getElementById('btnRelevant').classList.contains('btn-show-all'));
+ assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2','3']);
+ d.getElementById('btnRelevant').click();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
+ assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2']);
+ d.getElementById('btnHelp').click();
+ const allPlus = d.getElementById('chkAllPlus');
+ allPlus.checked=true;allPlus.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,2);
+ allPlus.checked=false;allPlus.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,0);
+
  const paramsButton = d.getElementById('btnToggleAdvanced');
  assert.ok(paramsButton.closest('.topbar-actions'));
  for (const id of ['btnDownloadXlsx','btnTheme','btnPrintOrder']) assert.equal(d.getElementById(id),null);
- for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating']) assert.ok(d.getElementById(id).closest('#paramsPanel'));
+ for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating','btnRelevant']) assert.ok(d.getElementById(id).closest('#paramsPanel'));
 
  assert.equal(paramsButton.textContent,'Параметры ▸');
  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));

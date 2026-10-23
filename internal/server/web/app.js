@@ -66,6 +66,7 @@
     searchNameLimit: 300,
     staryoMode: false,
     staryoRows: new Set(),
+    showAllItems: false,
     hidePlusSku: false,
     lastLoadedFile: null,
     justResizedColumn: false,
@@ -532,6 +533,7 @@
       colFilters: state.colFilters,
       staryoMode: Boolean(state.staryoMode),
       staryoRows: [...state.staryoRows].sort((a, b) => a - b),
+      showAllItems: Boolean(state.showAllItems),
       hidePlusSku: Boolean(state.hidePlusSku),
       activeTab: state.activeTab || 'table',
       activePreset: document.querySelector('.preset-chip.active')?.dataset.preset || 'standard',
@@ -594,6 +596,8 @@
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
     state.staryoMode = false;
+    state.showAllItems = false;
+    syncRelevantButton();
     state.hidePlusSku = false;
     state.lastLoadedFile = null;
 
@@ -641,7 +645,7 @@
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
     if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
     if (el('tableBody')) {
-      el('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить новую базу», «Загрузить сохраненную базу» или перетащите файл Ведомости</td></tr>';
+      el('tableBody').innerHTML = '<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить новую базу», «Загрузить сохраненную базу» или перетащите файл Ведомости</td></tr>';
     }
     if (el('tableFoot')) el('tableFoot').innerHTML = '';
     if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
@@ -684,6 +688,8 @@
       state.sortDir = 'desc';
       state.staryoMode = false;
       state.staryoRows.clear();
+      state.showAllItems = false;
+      syncRelevantButton();
       state.hidePlusSku = false;
       state.checkedSuppliers.clear();
       clearAllMultiSelectFilters();
@@ -736,6 +742,8 @@
       const ui = env.uiState || {};
       state.staryoMode = Boolean(ui.staryoMode);
       state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
+      state.showAllItems = Boolean(ui.showAllItems);
+      syncRelevantButton();
       state.hidePlusSku = Boolean(ui.hidePlusSku);
       state.selectedExcelRow = ui.selectedExcelRow ?? null;
       state.sortKey = ui.sortKey || 'finalOrderQty';
@@ -1033,6 +1041,7 @@
 
     for (let i = 0; i < rep.items.length; i++) {
       const it = rep.items[i];
+      if (!state.showAllItems && !(Number(it.sumSalesLast12M) > 0)) continue;
       if (state.hidePlusSku && it._startsWithPlus) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
 
@@ -1277,6 +1286,7 @@
     const list = [];
     for (let i = 0; i < src.length; i++) {
       const it = src[i];
+      if (!state.showAllItems && !(Number(it.sumSalesLast12M) > 0)) continue;
       if (state.hidePlusSku && (it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
       if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
@@ -1371,7 +1381,7 @@
     el('paginationInfo').textContent =
       `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)} • К закупке: ${fmtInt(orderRows)} SKU / ${fmtInt(orderUnits)} шт. • Сумма закупки: ${fmtMoney(roundedOrderSum)} руб.`;
 
-    const leadColspan = state.staryoMode ? 10 : 9;
+    const leadColspan = state.staryoMode ? 11 : 10;
     if (tfoot) {
       tfoot.innerHTML = `<tr>
         <td colspan="${leadColspan}" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
@@ -1384,7 +1394,7 @@
     }
   }
 
-  function buildTableRowHTML(it) {
+  function buildTableRowHTML(it, index) {
     const isSelected = it.excelRow === state.selectedExcelRow;
     const isManual = it.manualOverride != null;
     const hasAutoOrder = it.autoOrderQty > 0;
@@ -1408,6 +1418,7 @@
     ].filter(Boolean).join(' ');
 
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
+      <td class="row-number-cell">${index + 1}</td>
       <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
       <td class="sku-cell">${esc(it.sku)}</td>
@@ -1486,13 +1497,13 @@
       const topPx = Math.round(start * rowH);
       const bottomPx = Math.round((total - end) * rowH);
 
-      const fullColspan = state.staryoMode ? 15 : 14;
+      const fullColspan = state.staryoMode ? 16 : 15;
       const parts = [];
       if (topPx > 0) {
         parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="${fullColspan}" style="height:${topPx}px"></td></tr>`);
       }
       for (let i = start; i < end; i++) {
-        parts.push(buildTableRowHTML(slice[i]));
+        parts.push(buildTableRowHTML(slice[i], i));
       }
       if (bottomPx > 0) {
         parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="${fullColspan}" style="height:${bottomPx}px"></td></tr>`);
@@ -1531,10 +1542,11 @@
     const prevScrollY = el('tableScrollContainer').scrollTop;
 
     syncExcelHeaders();
+    syncAllPlusCheckbox();
     renderTableFooter();
 
     if (slice.length === 0) {
-      const fullColspan = state.staryoMode ? 15 : 14;
+      const fullColspan = state.staryoMode ? 16 : 15;
       state.vStart = 0;
       state.vEnd = 0;
       tbody.innerHTML = `<tr><td colspan="${fullColspan}" style="text-align:center;padding:32px;color:var(--text-muted)">По заданным условиям фильтрации позиций не найдено</td></tr>`;
@@ -2215,7 +2227,35 @@
     }
   }
 
+  function syncRelevantButton() {
+    el('btnRelevant')?.classList.toggle('btn-show-all', state.showAllItems);
+    el('btnRelevant')?.setAttribute('aria-pressed', String(state.showAllItems));
+  }
+  function syncAllPlusCheckbox() {
+    const checkbox = el('chkAllPlus');
+    if (!checkbox) return;
+    const count = state.filteredItems.filter(it => state.staryoRows.has(it.excelRow)).length;
+    checkbox.checked = count > 0 && count === state.filteredItems.length;
+    checkbox.indeterminate = count > 0 && count < state.filteredItems.length;
+    checkbox.disabled = state.filteredItems.length === 0;
+  }
+
   function bindEvents() {
+    el('btnRelevant').addEventListener('click', () => {
+      state.showAllItems = !state.showAllItems;
+      syncRelevantButton();
+      refreshExcelTable();
+    });
+    el('chkAllPlus').addEventListener('click', e => e.stopPropagation());
+    el('chkAllPlus').addEventListener('change', e => {
+      for (const it of state.filteredItems) {
+        if (e.target.checked) state.staryoRows.add(it.excelRow);
+        else state.staryoRows.delete(it.excelRow);
+      }
+      state.hasUnsavedChanges = true;
+      syncZeroRatingButtonState();
+      refreshExcelTable();
+    });
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activeTab = btn.dataset.tab;
@@ -3073,6 +3113,7 @@
         state.staryoRows.delete(rowNum);
       }
       syncZeroRatingButtonState();
+      syncAllPlusCheckbox();
       if (state.report) populateFilterDropdowns(state.report);
       if (state.msFilters.plus.size === 1) {
         recomputeFilteredList();
@@ -3542,6 +3583,7 @@
     if (excelMenu?.key === key) { closeExcelFilter(); return; }
     const counts = new Map();
     for (const it of state.report.items) {
+      if (!state.showAllItems && !(Number(it.sumSalesLast12M) > 0)) continue;
       if (state.hidePlusSku && it._startsWithPlus) continue;
       if (!matchesExcelFilters(it, key)) continue;
       const value = excelValue(it, key);
