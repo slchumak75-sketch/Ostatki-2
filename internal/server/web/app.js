@@ -81,15 +81,29 @@
   };
 
   let nomenclatureProperties = {};
+  const retiredGlobalPropertyKeys = new Set();
   let propertiesQueue = Promise.resolve();
   let propertiesDirty = false;
   let propertiesRevision = 0;
   function propertyKey(it) {
     const sku = String(it.sku || '').trim();
-    return sku ? JSON.stringify(['sku', sku]) : JSON.stringify(['name', String(it.group || '').trim(), String(it.name || '').trim()]);
+    return sku ? JSON.stringify(['sku', sku, String(it.warehouse || '').trim()]) : JSON.stringify(['name', String(it.group || '').trim(), String(it.name || '').trim(), String(it.warehouse || '').trim()]);
   }
   function applyNomenclatureProperties() {
     if (!state.report) return;
+    // Однократный перенос старых общих отметок в отдельные свойства известных складов.
+    const migrated = new Set();
+    for (const it of state.report.items) {
+      const parts = JSON.parse(propertyKey(it)); parts.pop();
+      const oldKey = JSON.stringify(parts);
+      if (Object.hasOwn(nomenclatureProperties, oldKey)) {
+        const key = propertyKey(it);
+        if (!Object.hasOwn(nomenclatureProperties, key)) nomenclatureProperties[key] = nomenclatureProperties[oldKey];
+        migrated.add(oldKey);
+      }
+    }
+    for (const key of migrated) { delete nomenclatureProperties[key]; retiredGlobalPropertyKeys.add(key); }
+    if (migrated.size) { propertiesDirty = true; propertiesRevision += 1; }
     for (const it of state.report.items) {
       const key = propertyKey(it);
       if (!Object.hasOwn(nomenclatureProperties, key)) continue;
@@ -99,7 +113,7 @@
   }
   function rememberNomenclatureProperties(items = state.report?.items || []) {
     if (!state.report) return;
-    // Изменённые строки задают одно свойство для всех складов.
+    // Свойство относится только к товару на конкретном складе.
     for (const it of items) {
       const checked = state.staryoRows.has(it.excelRow);
       const key = propertyKey(it);
@@ -112,7 +126,7 @@
   }
   function syncProperties(save = false) {
     const snapshot = {...nomenclatureProperties};
-    const request = propertiesQueue.catch(() => {}).then(() => apiPost('api/properties', {properties:snapshot,save}, {unabortable:true}));
+    const request = propertiesQueue.catch(() => {}).then(() => apiPost('api/properties', {properties:snapshot,save,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true}));
     propertiesQueue = request;
     return request;
   }
@@ -524,6 +538,35 @@
     fitTableToViewport(table);
   }
 
+  const COLUMN_WIDTHS_KEY = 'ostatki.savedColumnWidths.v1';
+  let savedColumnWidths = {};
+  function restoreSavedFields() {
+    try {
+      const saved = savedColumnWidths;
+      for (const id of ['itemsTable','suppliersTable']) {
+        const widths = saved[id];
+        if (Array.isArray(widths) && widths.every(n => Number.isFinite(n) && n > 0)) applyTableColumnWidths(el(id), widths);
+      }
+    } catch (_) { /* Отсутствие настроек не мешает загрузке базы. */ }
+  }
+  async function saveFields() {
+    try {
+      const saved = {...savedColumnWidths};
+      for (const id of ['itemsTable','suppliersTable']) {
+        const table = el(id);
+        if (!table) continue;
+        const cols = [...table.querySelectorAll(':scope > colgroup > col')];
+        const widths = cols.length ? cols.map(col => parseFloat(col.style.width)) : [...table.querySelectorAll('thead tr:first-child th')].map(th => th.getBoundingClientRect().width);
+        if (widths.length && widths.every(n => Number.isFinite(n) && n > 0)) saved[id] = widths;
+      }
+      await apiPost('api/column-widths', {widths:saved});
+      savedColumnWidths = saved;
+      try { localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(saved)); } catch (_) {}
+      state.hasUnsavedChanges = true;
+      showToast('Ширина столбцов сохранена');
+    } catch (err) { showToast(`Не удалось сохранить поля: ${err.message}`); }
+  }
+
   function switchTabUI(tabName) {
     const nextTab = ['table', 'suppliers', 'overstock'].includes(tabName) ? tabName : 'table';
     state.activeTab = nextTab;
@@ -776,7 +819,7 @@
         c.classList.toggle('active', c.dataset.preset === activePreset);
       });
       const paramsBody = el('paramsBody');
-      const expanded = Boolean(ui.paramsExpanded);
+      const expanded = false;
       if (paramsBody) {
         paramsBody.classList.toggle('hidden', !expanded);
         el('paramsPanel').classList.toggle('hidden', !expanded);
@@ -824,6 +867,7 @@
       renderOverstockView(state.report);
       applyTableColumnWidths(el('itemsTable'), ui.tableColWidths);
       applyTableColumnWidths(el('suppliersTable'), ui.suppliersColWidths);
+      restoreSavedFields();
 
       const targetScroll = Number(ui.scrollY) || 0;
       requestAnimationFrame(() => {
@@ -847,6 +891,7 @@
     renderTable();
     renderSuppliersView(state.report);
     renderOverstockView(state.report);
+    restoreSavedFields();
   }
 
   function syncParamsControls(rep) {
@@ -1221,7 +1266,7 @@
     const firstP = rep.periods[0]?.label || '';
     const lastP = rep.periods[rep.periods.length - 1]?.label || '';
     const savedSuffix = state.savedFileName
-      ? ` • Сохранено: ${state.savedFileName}${state.lastSavedAt ? ` (${state.lastSavedAt})` : ''}`
+      ? ` • Сохранено: ${state.savedFileName}${state.lastSavedAt ? ` (${state.lastSavedAt.split(' ')[0]})` : ''}`
       : '';
     el('fileMetaLine').textContent =
       `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)${savedSuffix}`;
@@ -2070,7 +2115,7 @@
         hintEl.textContent = `Папка автосохранения: ${res.saveDir}`;
       }
       if (files.length === 0) {
-        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых баз («Ведомость сохранена, дата, время.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
+        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых баз («Ведомость сохранена, дата.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
         return;
       }
       listEl.innerHTML = files.map((f) => `
@@ -2222,6 +2267,8 @@
   }
 
   function bindEvents() {
+    el('btnSaveFields').addEventListener('click', saveFields);
+    let paramsClicks = 0;
     for (const [id, field] of [['btnSales12','sales12Only'], ['btnRelevant','unmarkedOnly']]) {
       el(id).addEventListener('click', () => {
         state[field] = !state[field];
@@ -2389,6 +2436,10 @@
     });
 
     el('btnToggleAdvanced').addEventListener('click', () => {
+      paramsClicks += 1;
+      if (paramsClicks < 4) return;
+      paramsClicks = 0;
+      if (el('paramsPanel').classList.contains('hidden')) window.alert('Только для Администратора');
       const body = el('paramsBody');
       const isHidden = body.classList.toggle('hidden');
       el('paramsPanel').classList.toggle('hidden', isHidden);
@@ -3235,7 +3286,7 @@
 
     window.addEventListener('pagehide', () => {
       if (!isClosingConfirmed && navigator.sendBeacon) {
-        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:nomenclatureProperties,save:true})], {type:'application/json'}));
+        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:nomenclatureProperties,save:true,removeKeys:[...retiredGlobalPropertyKeys]})], {type:'application/json'}));
       }
     });
 
@@ -3536,6 +3587,11 @@
       if (e.target.closest('#efFillAllPlus, #efClearAllPlus') && excelMenu?.key === 'plus') {
         // Берём всю текущую выборку, а не только отрисованные виртуальные строки.
         const clear = Boolean(e.target.closest('#efClearAllPlus'));
+        if (clear) {
+          excelMenu.clearClicks = (excelMenu.clearClicks || 0) + 1;
+          if (excelMenu.clearClicks < 4) return;
+          excelMenu.clearClicks = 0;
+        }
         for (const it of state.filteredItems) {
           if (clear) state.staryoRows.delete(it.excelRow);
           else state.staryoRows.add(it.excelRow);
@@ -3632,6 +3688,8 @@
       if (properties.directory) {
         el('propertiesStorageHint').title = `Папка свойств: ${properties.directory}`;
       }
+      const fields = await apiGet('api/column-widths');
+      savedColumnWidths = fields.widths || {};
       const env = await apiGet('api/state');
       applyEnvelope(env, { initialBoot: true });
     } catch (err) {

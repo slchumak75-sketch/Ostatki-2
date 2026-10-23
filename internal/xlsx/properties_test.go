@@ -7,9 +7,10 @@ import (
 
 func TestPropertiesExcelRoundTrip(t *testing.T) {
 	props := map[string]bool{
-		NomenclaturePropertyKey("00123", "", "Товар"):               true,
-		NomenclaturePropertyKey("+Арт", "", ""):                     false,
-		NomenclaturePropertyKey("", "Группа & <1>", "Без артикула"): true,
+		NomenclaturePropertyKey("00123", "", "Товар", "Склад Б"):               false,
+		NomenclaturePropertyKey("00123", "", "Товар", "Склад А"):               true,
+		NomenclaturePropertyKey("+Арт", "", "", "Склад А"):                     false,
+		NomenclaturePropertyKey("", "Группа & <1>", "Без артикула", "Склад А"): true,
 	}
 	raw, err := GeneratePropertiesXLSX(props, []model.CalculatedItem{})
 	if err != nil {

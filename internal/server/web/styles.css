@@ -1655,8 +1655,8 @@ body.col-resize-active * {
 
 .plus-input:checked,
 .plus-input.has-plus {
-  border-color: var(--primary);
-  background-color: var(--primary);
+  border-color: #b91c1c;
+  background-color: #dc2626;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.2 8.4L6.5 11.7L12.8 4.6' stroke='%23ffffff' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -2337,3 +2337,5 @@ body.col-resize-active * {
 #itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }
 
 .btn.property-filter-active { background:#16a34a; border-color:#15803d; color:#fff; }
+
+input[type="checkbox"] { accent-color: #dc2626; }
