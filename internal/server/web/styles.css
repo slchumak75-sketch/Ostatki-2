@@ -2350,3 +2350,14 @@ input[type="checkbox"] { accent-color: #dc2626; }
 /* Virtual rows are their own scroll anchor; do not let browser anchoring fight it. */
 #tableScrollContainer { overflow-anchor: none; }
 #propertiesStorageHint { display: block; flex-basis: 100%; min-height: 18px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* One immutable CSS-pixel height for rendered rows and virtual spacers.
+   Measuring a new sample on every wheel tick changes scrollHeight and moves the thumb. */
+#itemsTable tbody tr[data-row],
+#itemsTable tbody tr[data-row] > td {
+  box-sizing: border-box;
+  height: var(--item-row-height, 24px);
+  max-height: var(--item-row-height, 24px);
+  white-space: nowrap;
+}
+#itemsTable tbody tr.virtual-spacer { border: 0; }
