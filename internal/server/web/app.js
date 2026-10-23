@@ -79,6 +79,52 @@
     ovColWidths: null,
   };
 
+  let nomenclatureProperties = {};
+  let propertiesQueue = Promise.resolve();
+  let propertiesDirty = false;
+  let propertiesRevision = 0;
+  function propertyKey(it) {
+    const sku = String(it.sku || '').trim();
+    return sku ? JSON.stringify(['sku', sku]) : JSON.stringify(['name', String(it.group || '').trim(), String(it.name || '').trim()]);
+  }
+  function applyNomenclatureProperties() {
+    if (!state.report) return;
+    for (const it of state.report.items) {
+      const key = propertyKey(it);
+      if (!Object.hasOwn(nomenclatureProperties, key)) continue;
+      if (nomenclatureProperties[key]) state.staryoRows.add(it.excelRow);
+      else state.staryoRows.delete(it.excelRow);
+    }
+  }
+  function rememberNomenclatureProperties(items = state.report?.items || []) {
+    if (!state.report) return;
+    // Изменённые строки задают одно свойство для всех складов.
+    for (const it of items) {
+      const checked = state.staryoRows.has(it.excelRow);
+      const key = propertyKey(it);
+      if (checked !== Boolean(nomenclatureProperties[key])) nomenclatureProperties[key] = checked;
+    }
+    applyNomenclatureProperties();
+    propertiesRevision += 1;
+    propertiesDirty = true;
+    state.hasUnsavedChanges = true;
+  }
+  function syncProperties(save = false) {
+    const snapshot = {...nomenclatureProperties};
+    const request = propertiesQueue.catch(() => {}).then(() => apiPost('api/properties', {properties:snapshot,save}, {unabortable:true}));
+    propertiesQueue = request;
+    return request;
+  }
+  async function saveProperties(notify = true) {
+    try {
+      const revision = propertiesRevision;
+      const res = await syncProperties(true);
+      if (revision === propertiesRevision) propertiesDirty = false;
+      if (notify) showToast(`Свойства сохранены: ${res.fileName}`);
+      return true;
+    } catch (err) { showToast(`Ошибка сохранения свойств: ${err.message}`); return false; }
+  }
+
   const el = (id) => document.getElementById(id);
 
   function abortActiveRequests() {
@@ -826,6 +872,16 @@
       if (el('ovFltRating')) el('ovFltRating').value = ui.ovFltRating || '';
       if (el('ovInpSearch')) el('ovInpSearch').value = ui.ovSearch || '';
 
+      for (const it of state.report.items) {
+        const key = propertyKey(it);
+        if (!Object.hasOwn(nomenclatureProperties, key) && state.staryoRows.has(it.excelRow)) {
+          nomenclatureProperties[key] = true;
+          propertiesDirty = true;
+          propertiesRevision += 1;
+        }
+      }
+      applyNomenclatureProperties();
+      syncZeroRatingButtonState();
       switchTabUI(ui.activeTab || 'table');
       recomputeFilteredList();
       renderKPIs(state.report);
@@ -848,6 +904,7 @@
       return;
     }
 
+    applyNomenclatureProperties();
     syncZeroRatingButtonState();
     populateFilterDropdowns(state.report);
     recomputeFilteredList();
@@ -2163,11 +2220,12 @@
     if (sub) {
       if (state.report) {
         const wh = [...state.msFilters.warehouse].join(' + ') || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
-        sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Сохранить все текущие заказы, фильтры, отметки и настройки перед выходом?`;
+        sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Сохранить текущую базу и отдельные свойства номенклатуры (галочки «+») перед выходом?`;
       } else {
-        sub.textContent = 'Закрыть программу?';
+        sub.textContent = 'Сохранить свойства номенклатуры перед выходом?';
       }
     }
+    el('closeConfirmTitle').textContent = state.report ? 'Сохранить текущую базу?' : 'Сохранить свойства номенклатуры?';
     modal.classList.remove('hidden');
   }
 
@@ -3083,6 +3141,7 @@
       }
     });
 
+    el('btnSaveProperties').addEventListener('click', () => saveProperties());
     el('btnSaveDb').addEventListener('click', () => saveDatabase('manual'));
 
     // Обработка отметок галочкой в столбце «+»
@@ -3097,13 +3156,15 @@
         plusChk.classList.remove('has-plus');
         state.staryoRows.delete(rowNum);
       }
+      rememberNomenclatureProperties([state.rowMap.get(rowNum)]);
+      syncProperties().catch(err => showToast(err.message));
       syncZeroRatingButtonState();
       if (state.report) populateFilterDropdowns(state.report);
-      if (state.msFilters.plus.size === 1) {
+      if (state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
         recomputeFilteredList();
         if (state.report) renderKPIs(state.report);
-        renderTable();
       }
+      renderTable();
     });
 
     // Кнопка «Старьё»: показывает/скрывает столбец «+» и активирует кнопку «Старьё выгрузка»
@@ -3160,6 +3221,8 @@
         showToast(`В столбце «+» проставлены галочки номенклатуре с рейтингом «0»: ${fmtInt(zeroRows.length)} поз.`);
       }
 
+      rememberNomenclatureProperties(zeroRows.map(row => state.rowMap.get(row)));
+      syncProperties().catch(err => showToast(err.message));
       syncZeroRatingButtonState();
       populateFilterDropdowns(state.report);
       recomputeFilteredList();
@@ -3280,6 +3343,11 @@
       const noBtn = el('btnCloseSaveNo');
       if (yesBtn) yesBtn.disabled = true;
       if (noBtn) noBtn.disabled = true;
+      if (!(await saveProperties(false))) {
+        if (yesBtn) yesBtn.disabled = false;
+        if (noBtn) noBtn.disabled = false;
+        return;
+      }
       if (state.report) {
         const ok = await saveDatabase('close');
         if (!ok) {
@@ -3306,13 +3374,14 @@
 
     // Автоматическое автосохранение каждые 3 минуты поверх ранее сохранённых файлов
     setInterval(() => {
+      if (Object.keys(nomenclatureProperties).length) saveProperties(false);
       if (state.report && !isClearingDatabase && !state.isSavingDb) {
         saveDatabase('autosave');
       }
     }, AUTOSAVE_INTERVAL_MS);
 
     window.addEventListener('beforeunload', (e) => {
-      if (!isClosingConfirmed && !isDownloadingFile && state.report && state.hasUnsavedChanges) {
+      if (!isClosingConfirmed && !isDownloadingFile && (propertiesDirty || (state.report && state.hasUnsavedChanges))) {
         e.preventDefault();
         e.returnValue = 'Сохранить текущую базу?';
       }
@@ -3612,6 +3681,8 @@
           if (clear) state.staryoRows.delete(it.excelRow);
           else state.staryoRows.add(it.excelRow);
         }
+        rememberNomenclatureProperties(state.filteredItems);
+        syncProperties().catch(err => showToast(err.message));
         closeExcelFilter();
         syncZeroRatingButtonState();
         refreshExcelTable();
@@ -3698,6 +3769,11 @@
     initColumnResizers();
     bindEvents();
     try {
+      const properties = await apiGet('api/properties');
+      nomenclatureProperties = properties.properties || {};
+      if (properties.directory) {
+        el('propertiesStorageHint').title = `Папка свойств: ${properties.directory}`;
+      }
       const env = await apiGet('api/state');
       applyEnvelope(env, { initialBoot: true });
     } catch (err) {

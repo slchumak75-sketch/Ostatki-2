@@ -28,6 +28,8 @@ var embeddedWeb embed.FS
 
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.
 type AppServer struct {
+	properties              map[string]bool
+	propertiesLoaded        bool
 	mu                      sync.RWMutex
 	epoch                   atomic.Uint64
 	wb                      *model.WorkbookData
@@ -251,6 +253,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
+	mux.HandleFunc("/api/properties", s.handleProperties)
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
