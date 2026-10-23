@@ -1542,7 +1542,6 @@
     const prevScrollY = el('tableScrollContainer').scrollTop;
 
     syncExcelHeaders();
-    syncAllPlusCheckbox();
     renderTableFooter();
 
     if (slice.length === 0) {
@@ -2236,29 +2235,10 @@
     el('btnRelevant')?.classList.toggle('btn-show-all', state.showAllItems);
     el('btnRelevant')?.setAttribute('aria-pressed', String(state.showAllItems));
   }
-  function syncAllPlusCheckbox() {
-    const checkbox = el('chkAllPlus');
-    if (!checkbox) return;
-    const count = state.filteredItems.filter(it => state.staryoRows.has(it.excelRow)).length;
-    checkbox.checked = count > 0 && count === state.filteredItems.length;
-    checkbox.indeterminate = count > 0 && count < state.filteredItems.length;
-    checkbox.disabled = state.filteredItems.length === 0;
-  }
-
   function bindEvents() {
     el('btnRelevant').addEventListener('click', () => {
       state.showAllItems = !state.showAllItems;
       syncRelevantButton();
-      refreshExcelTable();
-    });
-    el('chkAllPlus').addEventListener('click', e => e.stopPropagation());
-    el('chkAllPlus').addEventListener('change', e => {
-      for (const it of state.filteredItems) {
-        if (e.target.checked) state.staryoRows.add(it.excelRow);
-        else state.staryoRows.delete(it.excelRow);
-      }
-      state.hasUnsavedChanges = true;
-      syncZeroRatingButtonState();
       refreshExcelTable();
     });
     document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -3118,7 +3098,6 @@
         state.staryoRows.delete(rowNum);
       }
       syncZeroRatingButtonState();
-      syncAllPlusCheckbox();
       if (state.report) populateFilterDropdowns(state.report);
       if (state.msFilters.plus.size === 1) {
         recomputeFilteredList();
@@ -3609,10 +3588,10 @@
     el('efSearchInput').value = '';
     el('efAddToFilterWrap').classList.add('hidden');
     const context = el('efContextBar');
-    context.classList.toggle('hidden', key !== 'supplier');
+    context.classList.toggle('hidden', key !== 'supplier' && key !== 'plus');
     context.innerHTML = key === 'supplier'
       ? '<button type="button" class="ef-quick-chip" data-supplier-sum-sort="desc" aria-pressed="false">Сумма заказа ↓</button><button type="button" class="ef-quick-chip" data-supplier-sum-sort="asc" aria-pressed="false">Сумма заказа ↑</button>'
-      : '';
+      : key === 'plus' ? '<button type="button" class="ef-menu-cmd" id="efFillAllPlus">Заполнить всё</button><button type="button" class="ef-menu-cmd" id="efClearAllPlus">Отменить</button>' : '';
     const pop = el('excelFilterPopover');
     pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
     pop.classList.remove('hidden');
@@ -3626,6 +3605,19 @@
   function bindExcelFilters() {
     document.querySelectorAll('[data-filter-col]').forEach(btn => btn.addEventListener('click', e => {e.stopPropagation();openExcelFilter(btn);}));
     el('efContextBar').addEventListener('click', e => {
+      if (e.target.closest('#efFillAllPlus, #efClearAllPlus') && excelMenu?.key === 'plus') {
+        // Берём всю текущую выборку, а не только отрисованные виртуальные строки.
+        const clear = Boolean(e.target.closest('#efClearAllPlus'));
+        for (const it of state.filteredItems) {
+          if (clear) state.staryoRows.delete(it.excelRow);
+          else state.staryoRows.add(it.excelRow);
+        }
+        closeExcelFilter();
+        syncZeroRatingButtonState();
+        refreshExcelTable();
+        return;
+      }
+
       const button = e.target.closest('[data-supplier-sum-sort]');
       if (!button || excelMenu?.key !== 'supplier') return;
       excelMenu.sumSort = button.dataset.supplierSumSort;

@@ -2335,5 +2335,4 @@ body.col-resize-active * {
 #btnRelevant.btn-show-all { background:#dc2626; border-color:#b91c1c; color:#fff; }
 #itemsTable:not(.table-manual-cols) th.row-number-col { width:3%; }
 .row-number-cell, .row-number-col { text-align:center !important; color:var(--text-muted); }
-#chkAllPlus { width:13px; height:13px; margin:0; flex:0 0 auto; accent-color:var(--primary); cursor:pointer; }
-#itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:5%; }
+#itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }
