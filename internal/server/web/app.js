@@ -64,7 +64,7 @@
       status: 500,
     },
     searchNameLimit: 300,
-    staryoMode: false,
+    staryoMode: true,
     staryoRows: new Set(),
     showAllItems: false,
     hidePlusSku: false,
@@ -216,28 +216,6 @@
       state.msFilters.rating.size > 0 ||
       state.msFilters.status.size > 0
     );
-  }
-
-  function syncZeroRatingButtonState() {
-    const btn = el('btnCheckZeroRating');
-    if (!btn) return;
-    if (!state.report?.items?.length) {
-      btn.classList.remove('btn-active-toggle');
-      return;
-    }
-    let zeroCount = 0;
-    let allChecked = true;
-    for (let i = 0; i < state.report.items.length; i++) {
-      const it = state.report.items[i];
-      if ((Number(it.salesSegment) || 0) === 0) {
-        zeroCount += 1;
-        if (!state.staryoRows.has(it.excelRow)) {
-          allChecked = false;
-          break;
-        }
-      }
-    }
-    btn.classList.toggle('btn-active-toggle', zeroCount > 0 && allChecked);
   }
 
   function recomputeReportSummaries(rep) {
@@ -641,23 +619,19 @@
     clearAllMultiSelectFilters();
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
-    state.staryoMode = false;
+    state.staryoMode = true;
     state.showAllItems = false;
-    syncRelevantButton();
     state.hidePlusSku = false;
     state.lastLoadedFile = null;
 
     if (el('itemsTable')) {
       resetTableColumnWidths(el('itemsTable'));
-      el('itemsTable').classList.remove('show-plus-col');
+      el('itemsTable').classList.add('show-plus-col');
     }
     if (el('suppliersTable')) {
       resetTableColumnWidths(el('suppliersTable'));
     }
-    if (el('btnHelp')) el('btnHelp').classList.remove('btn-active-toggle');
-    if (el('btnCheckZeroRating')) el('btnCheckZeroRating').classList.remove('btn-active-toggle');
     if (el('btnActiveFilter')) el('btnActiveFilter').classList.remove('btn-active-toggle');
-    if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
     if (el('staryoExportRows')) el('staryoExportRows').value = '';
     if (el('fileInput')) el('fileInput').value = '';
     if (el('savedDbFileInput')) el('savedDbFileInput').value = '';
@@ -732,21 +706,17 @@
       state.ovColWidths = null;
       state.sortKey = 'finalOrderQty';
       state.sortDir = 'desc';
-      state.staryoMode = false;
+      state.staryoMode = true;
       state.staryoRows.clear();
       state.showAllItems = false;
-      syncRelevantButton();
       state.hidePlusSku = false;
       state.checkedSuppliers.clear();
       clearAllMultiSelectFilters();
       state.hasUnsavedChanges = true;
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
-      el('itemsTable')?.classList.remove('show-plus-col');
-      el('btnHelp')?.classList.remove('btn-active-toggle');
-      el('btnCheckZeroRating')?.classList.remove('btn-active-toggle');
+      el('itemsTable')?.classList.add('show-plus-col');
       el('btnActiveFilter')?.classList.remove('btn-active-toggle');
-      if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = true;
       if (el('fltSupplier')) el('fltSupplier').value = '';
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
       if (el('inpSearch')) el('inpSearch').value = '';
@@ -786,10 +756,9 @@
 
     if (shouldRestoreSaved) {
       const ui = env.uiState || {};
-      state.staryoMode = Boolean(ui.staryoMode);
+      state.staryoMode = true;
       state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
       state.showAllItems = Boolean(ui.showAllItems);
-      syncRelevantButton();
       state.hidePlusSku = Boolean(ui.hidePlusSku);
       state.selectedExcelRow = ui.selectedExcelRow ?? null;
       state.sortKey = ui.sortKey || 'finalOrderQty';
@@ -834,9 +803,6 @@
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
       el('itemsTable')?.classList.toggle('show-plus-col', state.staryoMode);
-      el('btnHelp')?.classList.toggle('btn-active-toggle', state.staryoMode);
-      syncZeroRatingButtonState();
-      if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = !state.staryoMode;
       el('btnActiveFilter')?.classList.toggle('btn-active-toggle', state.hidePlusSku);
 
       const activePreset = ui.activePreset || 'standard';
@@ -881,7 +847,6 @@
         }
       }
       applyNomenclatureProperties();
-      syncZeroRatingButtonState();
       switchTabUI(ui.activeTab || 'table');
       recomputeFilteredList();
       renderKPIs(state.report);
@@ -905,7 +870,6 @@
     }
 
     applyNomenclatureProperties();
-    syncZeroRatingButtonState();
     populateFilterDropdowns(state.report);
     recomputeFilteredList();
     renderKPIs(state.report);
@@ -2289,16 +2253,7 @@
     return Number(it.sumSalesLast12M) > 0 || Number(it.closingStock) > 0;
   }
 
-  function syncRelevantButton() {
-    el('btnRelevant')?.classList.toggle('btn-show-all', state.showAllItems);
-    el('btnRelevant')?.setAttribute('aria-pressed', String(state.showAllItems));
-  }
   function bindEvents() {
-    el('btnRelevant').addEventListener('click', () => {
-      state.showAllItems = !state.showAllItems;
-      syncRelevantButton();
-      refreshExcelTable();
-    });
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activeTab = btn.dataset.tab;
@@ -2573,8 +2528,6 @@
           resetTableColumnWidths(tableEl);
           tableEl.classList.add('show-plus-col');
         }
-        el('btnHelp')?.classList.add('btn-active-toggle');
-        if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = false;
       }
       if (state.report) {
         populateFilterDropdowns(state.report);
@@ -3158,108 +3111,12 @@
       }
       rememberNomenclatureProperties([state.rowMap.get(rowNum)]);
       syncProperties().catch(err => showToast(err.message));
-      syncZeroRatingButtonState();
       if (state.report) populateFilterDropdowns(state.report);
       if (state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
         recomputeFilteredList();
         if (state.report) renderKPIs(state.report);
       }
       renderTable();
-    });
-
-    // Кнопка «Старьё»: показывает/скрывает столбец «+» и активирует кнопку «Старьё выгрузка»
-    el('btnHelp').addEventListener('click', () => {
-      state.staryoMode = !state.staryoMode;
-      const tableEl = el('itemsTable');
-      if (tableEl) {
-        resetTableColumnWidths(tableEl);
-        tableEl.classList.toggle('show-plus-col', state.staryoMode);
-      }
-      el('btnHelp').classList.toggle('btn-active-toggle', state.staryoMode);
-      el('btnDownloadOrders').disabled = !state.staryoMode;
-      renderTable();
-    });
-
-    // Кнопка «+»: проставляет галочки в столбце «+» всей номенклатуре с рейтингом «0»
-    el('btnCheckZeroRating').addEventListener('click', () => {
-      if (!state.report?.items?.length) {
-        showToast('Сначала загрузите файл Ведомости (.xlsx)');
-        return;
-      }
-      if (!state.staryoMode) {
-        state.staryoMode = true;
-        const tableEl = el('itemsTable');
-        if (tableEl) {
-          resetTableColumnWidths(tableEl);
-          tableEl.classList.add('show-plus-col');
-        }
-        el('btnHelp')?.classList.add('btn-active-toggle');
-        if (el('btnDownloadOrders')) el('btnDownloadOrders').disabled = false;
-      }
-
-      const zeroRows = [];
-      let allZeroAlreadyChecked = true;
-      for (let i = 0; i < state.report.items.length; i++) {
-        const it = state.report.items[i];
-        if ((Number(it.salesSegment) || 0) === 0) {
-          zeroRows.push(it.excelRow);
-          if (!state.staryoRows.has(it.excelRow)) {
-            allZeroAlreadyChecked = false;
-          }
-        }
-      }
-      if (zeroRows.length === 0) {
-        showToast('Позиции с рейтингом «0» не найдены');
-        return;
-      }
-
-      if (allZeroAlreadyChecked) {
-        for (const r of zeroRows) state.staryoRows.delete(r);
-        showToast(`Сняты галочки в столбце «+» с позиций рейтинга «0»: ${fmtInt(zeroRows.length)}`);
-      } else {
-        for (const r of zeroRows) state.staryoRows.add(r);
-        showToast(`В столбце «+» проставлены галочки номенклатуре с рейтингом «0»: ${fmtInt(zeroRows.length)} поз.`);
-      }
-
-      rememberNomenclatureProperties(zeroRows.map(row => state.rowMap.get(row)));
-      syncProperties().catch(err => showToast(err.message));
-      syncZeroRatingButtonState();
-      populateFilterDropdowns(state.report);
-      recomputeFilteredList();
-      renderKPIs(state.report);
-      renderTable();
-    });
-
-    // Кнопка «Старьё выгрузка»: выгружает Excel-файл (Склад, Артикул, Номенклатура, Цена, Розница)
-    // только по строкам, отмеченным галочкой в столбце «+»
-    el('btnDownloadOrders').addEventListener('click', () => {
-      if (!state.staryoMode) return;
-      if (!state.report || state.staryoRows.size === 0) {
-        showToast('Отметьте галочкой хотя бы одну позицию в столбце «+»');
-        return;
-      }
-      const orderedRows = [];
-      const seen = new Set();
-      for (const it of state.filteredItems) {
-        if (state.staryoRows.has(it.excelRow) && !seen.has(it.excelRow)) {
-          seen.add(it.excelRow);
-          orderedRows.push(it.excelRow);
-        }
-      }
-      for (const it of state.report.items || []) {
-        if (state.staryoRows.has(it.excelRow) && !seen.has(it.excelRow)) {
-          seen.add(it.excelRow);
-          orderedRows.push(it.excelRow);
-        }
-      }
-      if (orderedRows.length === 0) {
-        showToast('Отметьте галочкой хотя бы одну позицию в столбце «+»');
-        return;
-      }
-      el('staryoExportRows').value = orderedRows.join(',');
-      isDownloadingFile = true;
-      setTimeout(() => { isDownloadingFile = false; }, 1500);
-      el('staryoExportForm').submit();
     });
 
     // Кнопка «Активно»: скрывает номенклатуру, у которой артикул начинается с символа «+»
@@ -3394,7 +3251,7 @@
         setTimeout(() => { isDownloadingFile = false; }, 1500);
         return;
       }
-      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnHelp, #btnCheckZeroRating, #btnActiveFilter, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll, [data-reset]')) {
+      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnActiveFilter, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll, [data-reset]')) {
         state.hasUnsavedChanges = true;
       }
     });
@@ -3684,7 +3541,6 @@
         rememberNomenclatureProperties(state.filteredItems);
         syncProperties().catch(err => showToast(err.message));
         closeExcelFilter();
-        syncZeroRatingButtonState();
         refreshExcelTable();
         return;
       }

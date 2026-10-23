@@ -12,14 +12,8 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
  await tick();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Default excludes products without 12-month sales');
- d.getElementById('btnRelevant').click();
- assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,3);
- assert.ok(d.getElementById('btnRelevant').classList.contains('btn-show-all'));
- assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2','3']);
- d.getElementById('btnRelevant').click();
- assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
  assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2']);
- d.getElementById('btnHelp').click();
+ assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
  assert.equal(d.getElementById('chkAllPlus'),null);
  d.querySelector('[data-filter-col="plus"]').click();
  assert.equal(d.getElementById('efFillAllPlus').textContent,'Заполнить всё');
@@ -28,30 +22,23 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
  d.querySelector('[data-filter-col="plus"]').click();
  d.getElementById('efFillAllPlus').click();
  assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,2,'Fill is idempotent, not toggle');
- // Скрытая позиция не должна быть отмечена.
- d.getElementById('btnRelevant').click();
- assert.equal(d.querySelector('[data-plus-row="10"]').checked,false);
- d.getElementById('btnRelevant').click();
- // Отмена снимает отметки только текущей выборки.
- d.getElementById('btnRelevant').click();
- const hiddenLater = d.querySelector('[data-plus-row="10"]');
- hiddenLater.checked=true;hiddenLater.dispatchEvent(new w.Event('change',{bubbles:true}));
- d.getElementById('btnRelevant').click();
+ // Отмена затрагивает только текущую выборку; скрытые отметки сохраняются.
+ const markSearch=d.getElementById('inpSearch');
+ markSearch.value='Кабель';markSearch.dispatchEvent(new w.Event('input'));
  d.querySelector('[data-filter-col="plus"]').click();
  assert.equal(d.getElementById('efClearAllPlus').textContent,'Отменить');
  d.getElementById('efClearAllPlus').click();
  assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,0);
- d.getElementById('btnRelevant').click();
- assert.equal(d.querySelector('[data-plus-row="10"]').checked,true,'Hidden marks must be preserved');
+ markSearch.value='';markSearch.dispatchEvent(new w.Event('input'));
+ assert.equal(d.querySelector('[data-plus-row="9"]').checked,true,'Hidden marks must be preserved');
  d.querySelector('[data-filter-col="plus"]').click();
  d.getElementById('efClearAllPlus').click();
  assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,0);
- d.getElementById('btnRelevant').click();
 
  const paramsButton = d.getElementById('btnToggleAdvanced');
  assert.ok(paramsButton.closest('.topbar-actions'));
  for (const id of ['btnDownloadXlsx','btnTheme','btnPrintOrder']) assert.equal(d.getElementById(id),null);
- for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating','btnRelevant']) assert.ok(d.getElementById(id).closest('#paramsPanel'));
+ for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating','btnRelevant']) assert.equal(d.getElementById(id),null);
 
  assert.equal(paramsButton.textContent,'Параметры ▸');
  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));
