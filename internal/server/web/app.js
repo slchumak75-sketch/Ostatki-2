@@ -136,6 +136,18 @@
     propertiesDirty = true;
     state.hasUnsavedChanges = true;
   }
+  let propertyRowOrder = null;
+  function keepPropertyRowsStable(update) {
+    const previous = propertyRowOrder;
+    const scroll = el('tableScrollContainer').scrollTop;
+    propertyRowOrder = new Map(state.filteredItems.map((it, index) => [it.excelRow, index]));
+    try { return update(); }
+    finally {
+      propertyRowOrder = previous;
+      el('tableScrollContainer').scrollTop = scroll;
+    }
+  }
+
   function syncProperties(save = false) {
     const snapshot = {...nomenclatureProperties};
     const revision = propertiesRevision, epoch = state.clientEpoch;
@@ -149,7 +161,7 @@
       if (result.persisted) acknowledgedProperties = snapshot;
       return result;
     }).then(result => {
-      if (result.state?.report && propertiesRevision === revision && state.clientEpoch === epoch) applyEnvelope(result.state);
+      if (result.state?.report && propertiesRevision === revision && state.clientEpoch === epoch) keepPropertyRowsStable(() => applyEnvelope(result.state));
       if (result.persisted && propertiesRevision === revision) {
         propertiesDirty = false;
         el('propertiesStorageHint').textContent = `Свойства записаны на диск. Галочек: ${result.markedCount}. Папка: ${result.directory}`;
@@ -1407,6 +1419,11 @@
     const key = state.sortKey;
     const mult = state.sortDir === 'asc' ? 1 : -1;
     list.sort((a, b) => {
+      if (propertyRowOrder) {
+        const aRank = propertyRowOrder.get(a.excelRow) ?? Number.MAX_SAFE_INTEGER;
+        const bRank = propertyRowOrder.get(b.excelRow) ?? Number.MAX_SAFE_INTEGER;
+        if (aRank !== bRank) return aRank - bRank;
+      }
       if (key === '_staryoChecked') {
         const ca = state.staryoRows.has(a.excelRow) ? 1 : 0;
         const cb = state.staryoRows.has(b.excelRow) ? 1 : 0;
@@ -3272,7 +3289,7 @@
       syncProperties().catch(err => showToast(err.message));
       if (state.report) populateFilterDropdowns(state.report);
       if (state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
-        recomputeFilteredList();
+        keepPropertyRowsStable(recomputeFilteredList);
         if (state.report) renderKPIs(state.report);
       }
       renderTable();
@@ -3705,7 +3722,7 @@
         rememberNomenclatureProperties(state.filteredItems);
         syncProperties().catch(err => showToast(err.message));
         closeExcelFilter();
-        refreshExcelTable();
+        keepPropertyRowsStable(refreshExcelTable);
         return;
       }
 
