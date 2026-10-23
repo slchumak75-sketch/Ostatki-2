@@ -275,6 +275,7 @@ jobs:
         run: |
           npm install --prefix /tmp/ui-check jsdom@26 --no-audit --no-fund
           NODE_PATH=/tmp/ui-check/node_modules node tests/excel-filters.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/relevant-items.cjs
 
       - name: Кросс-компиляция Windows x64 — «Вариант 4»
         run: |

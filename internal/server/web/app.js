@@ -1041,7 +1041,7 @@
 
     for (let i = 0; i < rep.items.length; i++) {
       const it = rep.items[i];
-      if (!state.showAllItems && !(Number(it.sumSalesLast12M) > 0)) continue;
+      if (!state.showAllItems && !isRelevantItem(it)) continue;
       if (state.hidePlusSku && it._startsWithPlus) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
 
@@ -1286,7 +1286,7 @@
     const list = [];
     for (let i = 0; i < src.length; i++) {
       const it = src[i];
-      if (!state.showAllItems && !(Number(it.sumSalesLast12M) > 0)) continue;
+      if (!state.showAllItems && !isRelevantItem(it)) continue;
       if (state.hidePlusSku && (it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
       if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
@@ -2225,6 +2225,11 @@
     } finally {
       activeControllers.delete(ctrl);
     }
+  }
+
+  // Товары без продаж остаются актуальными, пока на складе есть остаток.
+  function isRelevantItem(it) {
+    return Number(it.sumSalesLast12M) > 0 || Number(it.closingStock) > 0;
   }
 
   function syncRelevantButton() {
@@ -3583,7 +3588,7 @@
     if (excelMenu?.key === key) { closeExcelFilter(); return; }
     const counts = new Map();
     for (const it of state.report.items) {
-      if (!state.showAllItems && !(Number(it.sumSalesLast12M) > 0)) continue;
+      if (!state.showAllItems && !isRelevantItem(it)) continue;
       if (state.hidePlusSku && it._startsWithPlus) continue;
       if (!matchesExcelFilters(it, key)) continue;
       const value = excelValue(it, key);
