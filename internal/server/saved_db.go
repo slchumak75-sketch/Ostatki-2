@@ -239,7 +239,7 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 	if whCleanPrefix == "" {
 		whCleanPrefix = "Все склады"
 	}
-	sameWhPrefix := whCleanPrefix + ", " + xlsx.SavedDatabaseTitleMarker + ", "
+	sameWhPrefix := whCleanPrefix + ", Ведомость сохраненная, "
 	if entries, err := os.ReadDir(saveDir); err == nil {
 		for _, ent := range entries {
 			if ent.IsDir() {

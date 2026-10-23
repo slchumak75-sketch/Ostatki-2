@@ -2283,3 +2283,21 @@ body.col-resize-active * {
 
 
 .budget-suppliers-popover { position: fixed; top: 160px; right: 20px; z-index: 135; }
+
+/* Текущий заказ рядом с вкладками; сумма всегда видна вне прокрутки таблицы. */
+.tabs-bar { flex-wrap: wrap; }
+.tabs-order-summary { margin-left: auto; display:flex; align-items:center; gap:8px; min-width:0; }
+.current-supplier-card { display:flex; align-items:center; gap:8px; min-width:0; font-size:12px; }
+#currentSupplierName { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#currentSupplierSum { white-space:nowrap; }
+#inpSearch { flex:1 1 130px; min-width:60px; width:130px; height:24px; border:1px solid var(--border-strong); border-radius:4px; padding:0 6px; background:var(--surface); color:var(--text); }
+#tableScrollContainer { scrollbar-gutter:stable; }
+#itemsTable th[data-col="supplier"] { padding-right:12px; min-width:170px; }
+#itemsTable th[data-col="supplier"] .th-excel-wrap { padding-right:4px; }
+.data-table tbody tr:hover,
+.data-table tbody tr.auto-order-row:hover,
+.data-table tbody tr.auto-order-row:hover .order-cell,
+.data-table tbody tr.selected-row:hover,
+.data-table tbody tr.auto-order-row.selected-row:hover { background:var(--beige-bg) !important; color:var(--beige-text); }
+.ef-supplier-name { flex:1 1 auto; min-width:0; border:0; background:transparent; color:var(--text); text-align:left; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:3px; }
+.ef-supplier-sum { flex:0 0 auto; font-weight:700; white-space:nowrap; }

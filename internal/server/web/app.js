@@ -625,6 +625,7 @@
 
     if (el('fileMetaLine')) el('fileMetaLine').textContent = 'База очищена • Нажмите «Загрузить новую базу» или «Загрузить сохраненную базу»';
     if (el('kpiOrderCost')) el('kpiOrderCost').textContent = '0,00 руб.';
+    renderCurrentSupplier();
     if (el('cntTabTable')) el('cntTabTable').textContent = '0';
     if (el('cntTabSuppliers')) el('cntTabSuppliers').textContent = '0';
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
@@ -1229,6 +1230,7 @@
     checkedBudget = Math.round(checkedBudget * 100) / 100;
 
     el('kpiOrderCost').textContent = `${fmtMoney(checkedBudget)} руб.`;
+    renderCurrentSupplier();
 
     const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && isSupplierChecked(s.supplier));
     el('cntTabSuppliers').textContent = readyRows.length;
@@ -2059,7 +2061,7 @@
         hintEl.textContent = `Папка автосохранения: ${res.saveDir}`;
       }
       if (files.length === 0) {
-        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых баз («Склад, Ведомость сохраненная, дата.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
+        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых баз («Ведомость сохранена, дата, время.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
         return;
       }
       listEl.innerHTML = files.map((f) => `
@@ -2399,8 +2401,9 @@
       }
     };
 
+    el('inpSearch').addEventListener('click', e => e.stopPropagation());
     el('inpSearch').addEventListener('input', () => {
-      runInteractiveNameSearch(true);
+      runInteractiveNameSearch(false);
     });
     el('inpSearch').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === 'Escape') {
@@ -2686,7 +2689,7 @@
 
     document.querySelectorAll('#itemsTable thead th[data-sort]').forEach((th) => {
       th.addEventListener('click', (e) => {
-        if (state.justResizedColumn || e.target.closest('.col-resizer, .th-filter-btn')) return;
+        if (state.justResizedColumn || e.target.closest('.col-resizer, .th-filter-btn, input')) return;
         const key = th.dataset.sort;
         if (state.sortKey === key) {
           state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
@@ -2722,6 +2725,7 @@
         state.selectedExcelRow = Number(tr.dataset.row);
         el('tableBody').querySelector('tr.selected-row')?.classList.remove('selected-row');
         tr.classList.add('selected-row');
+        renderCurrentSupplier();
       }
     });
 
@@ -2824,6 +2828,7 @@
       const val = parseQtyInput(inp.value);
       inp.value = fmtInt(val);
       state.selectedExcelRow = rowNum;
+      renderCurrentSupplier();
       const useFastSilent = (Number(state.report?.params?.budgetCap) || 0) <= 0;
       if (useFastSilent) {
         inp.classList.add('is-manual');
@@ -2844,6 +2849,8 @@
     el('tableBody').addEventListener('focusin', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
+      state.selectedExcelRow = Number(inp.dataset.qtyRow);
+      renderCurrentSupplier();
       inp.dataset.origVal = inp.value;
       inp.dataset.origQty = String(parseQtyInput(inp.value));
       inp.dataset.freshEdit = '1';
@@ -3454,6 +3461,27 @@
     });
   }
 
+  function supplierOrderSum(supplier) {
+    let sum = 0;
+    for (const it of state.report?.items || []) {
+      if (normalizeSupName(it.supplier) === supplier) sum += calcLineSum(it.finalOrderQty, it.purchasePrice);
+    }
+    return Math.round(sum * 100) / 100;
+  }
+  function renderCurrentSupplier() {
+    const filtered = state.colFilters.supplier;
+    const row = state.rowMap.get(state.selectedExcelRow);
+    const supplier = filtered?.length === 1 ? filtered[0] : (el('fltSupplier')?.value || (row ? normalizeSupName(row.supplier) : ''));
+    el('currentSupplierName').textContent = supplier || 'Поставщик не выбран';
+    el('currentSupplierName').title = supplier;
+    el('currentSupplierSum').textContent = `${fmtMoney(supplier ? supplierOrderSum(supplier) : 0)} руб.`;
+  }
+  function refreshSupplierSelection() {
+    state.hasUnsavedChanges = true;
+    syncSelectedSuppliersToServer();
+    if(state.report) {renderKPIs(state.report);renderSuppliersView(state.report);populateFilterDropdowns(state.report);}
+  }
+
   let excelMenu = null;
   const filterIcon = '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h14L10 8v5l-4 2V8z"/></svg>';
   const caretIcon = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6h10l-5 5z"/></svg>';
@@ -3500,12 +3528,13 @@
   function renderExcelOptions() {
     if (!excelMenu) return;
     const matches = excelMatches();
-    const selected = matches.filter(o => excelMenu.draft.has(o.value)).length;
+    const supplierMode = excelMenu.key === 'supplier';
+    const selected = matches.filter(o => supplierMode ? isSupplierChecked(o.value) : excelMenu.draft.has(o.value)).length;
     el('efSelectAllChk').checked = matches.length > 0 && selected === matches.length;
     el('efSelectAllChk').indeterminate = selected > 0 && selected < matches.length;
     el('efSelectAllLabel').textContent = el('efSearchInput').value ? '(Выделить найденные)' : '(Выделить все)';
     const rows = matches.slice(0, excelMenu.limit);
-    el('efOptionsList').innerHTML = rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
+    el('efOptionsList').innerHTML = supplierMode ? rows.map(o => `<div class="ef-opt-row"><input type="checkbox" class="supplier-dd-check" data-supplier-budget="${esc(o.value)}" ${isSupplierChecked(o.value) ? 'checked' : ''} aria-label="Включить ${esc(o.label)}"><button type="button" class="ef-supplier-name" data-supplier-current="${esc(o.value)}" title="Показать заказ поставщика">${esc(o.label)}</button><span class="ef-supplier-sum">${fmtMoney(supplierOrderSum(o.value))} р.</span></div>`).join('') : rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
     if (matches.length > rows.length) el('efOptionsList').insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary btn-sm" id="efMore">Показать ещё</button>');
     el('efCountInfo').textContent = `Выбрано: ${selected} из ${matches.length}`;
   }
@@ -3525,17 +3554,18 @@
     excelMenu = {key, anchor, options, limit:500, draft:new Set(current ?? options.map(o => o.value))};
     const title = anchor.closest('th').querySelector('.th-excel-title').textContent;
     el('efTitleText').textContent = title;
+    el('efBtnOk').textContent = key === 'supplier' ? 'Готово' : 'ОК';
+    el('efBtnCancel').classList.toggle('hidden', key === 'supplier');
     el('efClearColLabel').textContent = `Удалить фильтр с «${title}»`;
-    el('efClearCol').disabled = !current;
+    el('efClearCol').disabled = !current && !(key === 'supplier' && el('fltSupplier').value);
     const numeric = typeof state.report.items[0]?.[key] === 'number';
     el('efSortAscLabel').textContent = numeric ? 'Сортировка по возрастанию' : 'Сортировка от А до Я';
     el('efSortDescLabel').textContent = numeric ? 'Сортировка по убыванию' : 'Сортировка от Я до А';
     el('efSearchInput').value = '';
     el('efAddToFilterWrap').classList.add('hidden');
     const context = el('efContextBar');
-    context.classList.toggle('hidden', key !== 'supplier');
-    // Выбор для бюджета не является фильтром строк и никогда не меняет количество заказа.
-    context.innerHTML = key === 'supplier' ? '<button type="button" class="btn btn-beige btn-xs" id="efBudgetSuppliers">Поставщики для бюджета и выгрузки…</button>' : '';
+    context.classList.add('hidden');
+    context.innerHTML = '';
     const pop = el('excelFilterPopover');
     pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
     pop.classList.remove('hidden');
@@ -3554,20 +3584,35 @@
       renderExcelOptions();
     });
     el('efSelectAllChk').addEventListener('change', e => {
+      if (excelMenu.key === 'supplier') {
+        for (const o of excelMatches()) { if(e.target.checked) state.checkedSuppliers.add(o.value); else state.checkedSuppliers.delete(o.value); }
+        refreshSupplierSelection(); renderExcelOptions(); return;
+      }
       for (const o of excelMatches()) { if(e.target.checked) excelMenu.draft.add(o.value); else excelMenu.draft.delete(o.value); }
       renderExcelOptions();
     });
     el('efOptionsList').addEventListener('change', e => {
+      if (e.target.matches('[data-supplier-budget]')) {
+        const sup = e.target.dataset.supplierBudget;
+        if(e.target.checked) state.checkedSuppliers.add(sup); else state.checkedSuppliers.delete(sup);
+        refreshSupplierSelection(); renderExcelOptions(); return;
+      }
       if (!e.target.matches('[data-excel-value]')) return;
       if(e.target.checked) excelMenu.draft.add(e.target.dataset.excelValue); else excelMenu.draft.delete(e.target.dataset.excelValue);
       renderExcelOptions();
     });
     el('efOptionsList').addEventListener('click', e => {
+      if(e.target.hasAttribute('data-supplier-current')) {
+        state.colFilters.supplier = [e.target.dataset.supplierCurrent];
+        el('fltSupplier').value = '';
+        closeExcelFilter(); refreshExcelTable(); return;
+      }
       if(e.target.id === 'efMore') {excelMenu.limit += 500;renderExcelOptions();}
       if(e.target.hasAttribute('data-excel-only')) {excelMenu.draft = new Set([e.target.dataset.excelOnly]);el('efBtnOk').click();}
     });
     el('efBtnOk').addEventListener('click', () => {
       if(!excelMenu) return;
+      if(excelMenu.key === 'supplier') {closeExcelFilter();return;}
       const {key,draft,options} = excelMenu;
       const q = el('efSearchInput').value.trim();
       const values = q ? excelMatches().filter(o => draft.has(o.value)).map(o => o.value) : [...draft];
@@ -3575,7 +3620,7 @@
       else state.colFilters[key] = values;
       closeExcelFilter();refreshExcelTable();
     });
-    el('efClearCol').addEventListener('click', () => {delete state.colFilters[excelMenu.key];closeExcelFilter();refreshExcelTable();});
+    el('efClearCol').addEventListener('click', () => {if(excelMenu.key === 'supplier') el('fltSupplier').value = ''; delete state.colFilters[excelMenu.key];closeExcelFilter();refreshExcelTable();});
     for(const [id,dir] of [['efSortAsc','asc'],['efSortDesc','desc']]) el(id).addEventListener('click', () => {
       state.sortKey = excelMenu.anchor.closest('th').dataset.sort;state.sortDir=dir;closeExcelFilter();refreshExcelTable();
     });
@@ -3584,13 +3629,7 @@
     });
     document.addEventListener('click', e => {
       if(excelMenu && !e.target.closest('#excelFilterPopover, [data-filter-col]')) closeExcelFilter();
-      if(e.target.id === 'efBudgetSuppliers') {
-        closeExcelFilter();
-        const dropdown = el('supplierDropdown');
-        document.body.appendChild(dropdown);
-        dropdown.classList.add('budget-suppliers-popover');
-        el('btnSupplierDropdown').click();
-      }
+
     });
     document.addEventListener('keydown', e => {
       if(excelMenu && e.key === 'Escape') {e.stopPropagation();closeExcelFilter();}
