@@ -60,24 +60,22 @@
         <button class="btn btn-secondary hidden" id="btnSaveInPlace" title="Записать столбец 8 прямо в исходный файл на диске">
           Сохранить в файл
         </button>
-        <button class="btn btn-neutral" id="btnDownloadXlsx" title="Скачать оригинальную ведомость с заполненным столбцом 8 (100% сохранение структуры 1С)">
-          Скачать Ведомость (.xlsx)
-        </button>
-        <button class="btn btn-neutral" id="btnDownloadOrders" type="button" disabled title="Старьё выгрузка">
-          Старьё выгрузка
-        </button>
-        <button class="btn btn-ghost" id="btnHelp" type="button" title="Показать столбец «+» и активировать «Старьё выгрузка»">Старьё</button>
-        <button class="btn btn-ghost" id="btnCheckZeroRating" type="button" title="Проставить галочки в столбце «+» всей номенклатуре с рейтингом «0»">+</button>
         <button class="btn btn-ghost" id="btnActiveFilter" type="button" title="Скрыть номенклатуру, у которой артикул начинается с символа «+»">Активно</button>
-        <button class="btn btn-ghost" id="btnPrintOrder" title="Печатный бланк заявки на закупку (Печать / PDF)">Печать</button>
-        <button class="btn btn-ghost icon-only" id="btnTheme" title="Переключить светлую / тёмную тему" aria-label="Тема">◐</button>
+        <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
         <button class="btn btn-close-app icon-only" id="btnCloseApp" type="button" title="Закрыть программу" aria-label="Закрыть программу">✕</button>
       </div>
     </header>
 
     <div class="header-controls-strip">
       <!-- Панель параметров сезонного алгоритма Вариант 4 -->
-      <section class="params-panel" id="paramsPanel">
+      <section class="params-panel hidden" id="paramsPanel">
+        <div class="presets-bar" id="staryoActions">
+        <button class="btn btn-ghost" id="btnHelp" type="button" title="Показать столбец «+» и активировать «Старьё выгрузка»">Старьё</button>
+        <button class="btn btn-neutral" id="btnDownloadOrders" type="button" disabled title="Старьё выгрузка">
+          Старьё выгрузка
+        </button>
+        <button class="btn btn-ghost" id="btnCheckZeroRating" type="button" title="Проставить галочки в столбце «+» всей номенклатуре с рейтингом «0»">+</button>
+        </div>
         <div class="params-header">
           <div class="presets-bar">
             <span class="presets-title">Режим планирования:</span>
@@ -86,9 +84,7 @@
             <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
           </div>
 
-          <div class="params-header-right">
-            <button class="btn-link" id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM ▸</button>
-          </div>
+
         </div>
 
         <div class="params-body hidden" id="paramsBody">
