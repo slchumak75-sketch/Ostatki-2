@@ -22,11 +22,20 @@ async function run(count) {
   const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(row=>Number(row.dataset.row));
   const before=rows(),position=scroll.scrollTop,target=before[3];
   const checkbox=d.querySelector(`[data-plus-row="${target}"]`);
+  const originalRows=[...d.querySelectorAll('#tableBody tr[data-row]')];
+  const spacer=d.querySelector('#tableBody tr.virtual-spacer');
+  const originalSpacerHTML=spacer?.outerHTML;
+  checkbox.focus();
   checkbox.checked=true;checkbox.dispatchEvent(new w.Event('change',{bubbles:true}));
   assert.deepEqual(rows(),before,'No immediate row movement');
+  originalRows.forEach((node,i)=>assert.strictEqual(d.querySelectorAll('#tableBody tr[data-row]')[i],node,'Keep row DOM nodes on immediate edit'));
+  assert.strictEqual(d.activeElement,checkbox,'Checkbox must not lose focus');
   await tick();
   assert.deepEqual(rows(),before,'Server recalculation must not reorder checkmark edits');
   assert.equal(scroll.scrollTop,position,'Viewport must not jump');
+  originalRows.forEach((node,i)=>assert.strictEqual(d.querySelectorAll('#tableBody tr[data-row]')[i],node,'Keep row DOM nodes after server acknowledgement'));
+  assert.strictEqual(d.activeElement,checkbox);
+  if(spacer) {assert.ok(spacer.isConnected);assert.equal(spacer.outerHTML,originalSpacerHTML,'Virtual spacers must not be resized on checkmarks');}
   assert.equal(d.querySelector(`[data-qty-row="${target}"]`).value,'0','Order must still be recalculated');
   // Explicit sorting must work on the newly calculated quantities.
   d.querySelector('th[data-sort="finalOrderQty"]').click();await tick();
