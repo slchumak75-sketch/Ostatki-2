@@ -2319,8 +2319,8 @@ body.col-resize-active * {
   min-width:0 !important; max-width:none; width:auto;
   overflow:hidden; text-overflow:ellipsis;
 }
-#itemsTable:not(.table-manual-cols) th[data-col="name"] { width:24%; }
-#itemsTable:not(.table-manual-cols) th[data-col="supplier"] { width:12%; }
+#itemsTable:not(.table-manual-cols) th[data-col="name"] { width:18%; }
+#itemsTable:not(.table-manual-cols) th[data-col="supplier"] { width:18%; }
 #itemsTable:not(.table-manual-cols) th[data-col="warehouse"],
 #itemsTable:not(.table-manual-cols) th[data-col="group"] { width:6%; }
 #itemsTable:not(.table-manual-cols) th[data-col="unit"],
