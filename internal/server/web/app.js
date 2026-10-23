@@ -462,8 +462,18 @@
     if (!table || !table.classList.contains('table-manual-cols')) return null;
     const cols = [...table.querySelectorAll(':scope > colgroup > col')];
     if (cols.length === 0) return null;
-    const widths = cols.map((c) => parseInt(c.style.width, 10)).filter((n) => Number.isFinite(n) && n > 0);
+    const widths = cols.map((c) => c.style.width.endsWith('%') ? Math.round(parseFloat(c.style.width) * table.getBoundingClientRect().width / 100) : parseInt(c.style.width, 10)).filter((n) => Number.isFinite(n) && n > 0);
     return widths.length === cols.length ? widths : null;
+  }
+
+  // Нормализуем также ширины из старых баз: ни один colgroup не расширяет таблицу.
+  function fitTableToViewport(table) {
+    const cols = [...table.querySelectorAll(':scope > colgroup > col')];
+    const widths = cols.map(col => parseFloat(col.style.width) || 1);
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    cols.forEach((col, idx) => { col.style.width = `${widths[idx] * 100 / total}%`; });
+    table.querySelectorAll('thead th').forEach(th => { th.style.width = ''; });
+    table.style.width = '100%';
   }
 
   function applyTableColumnWidths(table, widths) {
@@ -485,7 +495,7 @@
     });
     table.insertBefore(colgroup, table.firstChild);
     table.classList.add('table-manual-cols');
-    table.style.width = `${widths.reduce((a, b) => a + b, 0)}px`;
+    fitTableToViewport(table);
   }
 
   function switchTabUI(tabName) {
@@ -1949,7 +1959,7 @@
         });
         ovTable.insertBefore(colgroup, ovTable.firstChild);
         ovTable.classList.add('table-manual-cols');
-        ovTable.style.width = `${state.ovColWidths.reduce((a, b) => a + b, 0)}px`;
+        fitTableToViewport(ovTable);
       }
     }
   }
@@ -3421,7 +3431,7 @@
             cols[idx].style.width = `${w}px`;
             visibleThs[idx].style.width = `${w}px`;
           });
-          table.style.width = `${initialWidths.reduce((a, b) => a + b, 0)}px`;
+          fitTableToViewport(table);
 
           const startX = e.clientX;
           const startWidth = initialWidths[visIdx];
@@ -3435,11 +3445,14 @@
 
           const onMouseMove = (moveEv) => {
             const delta = moveEv.clientX - startX;
-            const nextWidth = Math.max(24, Math.round(startWidth + delta));
-            currentWidths[visIdx] = nextWidth;
-            cols[visIdx].style.width = `${nextWidth}px`;
-            visibleThs[visIdx].style.width = `${nextWidth}px`;
-            table.style.width = `${currentWidths.reduce((a, b) => a + b, 0)}px`;
+            const adjacent = visIdx < visibleThs.length - 1 ? visIdx + 1 : visIdx - 1;
+            if (adjacent < 0) return;
+            const minWidth = Math.min(24, initialWidths[visIdx], initialWidths[adjacent]);
+            const change = Math.max(minWidth - startWidth, Math.min(delta, initialWidths[adjacent] - minWidth));
+            currentWidths[visIdx] = startWidth + change;
+            currentWidths[adjacent] = initialWidths[adjacent] - change;
+            currentWidths.forEach((width, idx) => { cols[idx].style.width = `${width}px`; });
+            fitTableToViewport(table);
             if (table.id === 'overstockTable') {
               state.ovColWidths = [...currentWidths];
             }
