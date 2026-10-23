@@ -39,7 +39,7 @@ func primaryScreenSize() (int, int) {
 	return width, height
 }
 
-func prepareFullscreenProfile(profileDir string, screenW, screenH int) {
+func prepareWindowedMaxProfile(profileDir string, screenW, screenH int) {
 	defaultDir := filepath.Join(profileDir, "Default")
 	_ = os.MkdirAll(defaultDir, 0o755)
 
@@ -48,11 +48,12 @@ func prepareFullscreenProfile(profileDir string, screenW, screenH int) {
 		"browser": map[string]any{
 			"has_seen_welcome_page": true,
 			"window_placement": map[string]any{
-				"left":      0,
-				"top":       0,
-				"right":     screenW,
-				"bottom":    screenH,
-				"maximized": true,
+				"left":       0,
+				"top":        0,
+				"right":      screenW,
+				"bottom":     screenH,
+				"maximized":  true,
+				"fullscreen": false,
 			},
 		},
 	}
@@ -64,11 +65,12 @@ func prepareFullscreenProfile(profileDir string, screenW, screenH int) {
 				bMap = map[string]any{}
 			}
 			bMap["window_placement"] = map[string]any{
-				"left":      0,
-				"top":       0,
-				"right":     screenW,
-				"bottom":    screenH,
-				"maximized": true,
+				"left":       0,
+				"top":        0,
+				"right":      screenW,
+				"bottom":     screenH,
+				"maximized":  true,
+				"fullscreen": false,
 			}
 			existing["browser"] = bMap
 			prefs = existing
@@ -79,19 +81,18 @@ func prepareFullscreenProfile(profileDir string, screenW, screenH int) {
 	}
 }
 
-// OpenAppWindow открывает HTML GUI на Windows сразу в полноэкранном режиме
-// (Edge / Chrome App Mode без адресной строки и вкладок, с fallback на Win32 ShellExecuteW).
+// OpenAppWindow открывает HTML GUI на Windows в развёрнутом на весь экран окне приложения
+// (Edge / Chrome App Mode с --start-maximized без полноэкранной всплывающей сверху панели «Свернуть / Закрыть»).
 func OpenAppWindow(url string) error {
 	screenW, screenH := primaryScreenSize()
 	candidates := findChromiumAppBinaries()
-	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV4")
-	prepareFullscreenProfile(profileDir, screenW, screenH)
+	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV4Max")
+	prepareWindowedMaxProfile(profileDir, screenW, screenH)
 
 	for _, bin := range candidates {
 		cmd := exec.Command(
 			bin,
 			"--app="+url,
-			"--start-fullscreen",
 			"--start-maximized",
 			"--window-position=0,0",
 			fmt.Sprintf("--window-size=%d,%d", screenW, screenH),

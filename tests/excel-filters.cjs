@@ -1,0 +1,35 @@
+// Run with: NODE_PATH=<path containing jsdom> node tests/excel-filters.cjs
+const { JSDOM } = require('jsdom');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const dom = new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'), {url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window, d=w.document;
+const item=(row,name,stock)=>({excelRow:row,name,closingStock:stock,sku:String(row),warehouse:'Склад',group:'Группа',supplier:'Поставщик',salesSegment:0,finalOrderQty:0,purchasePrice:1,monthlySales:[]});
+w.fetch=async()=>({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});
+w.scrollTo=()=>{};
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
+const tick=()=>new Promise(r=>setTimeout(r,30));
+(async()=>{
+ await tick();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
+ d.querySelector('[data-filter-col="name"]').click();
+ d.getElementById('efSearchInput').value='Каб';
+ d.getElementById('efSearchInput').dispatchEvent(new w.Event('input'));
+ assert.equal(d.querySelectorAll('[data-excel-value]').length,1);
+ d.getElementById('efBtnOk').click();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,1);
+ assert.ok(d.querySelector('th[data-col="name"]').classList.contains('is-col-filtered'));
+ d.querySelector('[data-filter-col="name"]').click();
+ d.getElementById('efSelectAllChk').checked=false;
+ d.getElementById('efSelectAllChk').dispatchEvent(new w.Event('change'));
+ d.getElementById('efBtnCancel').click();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,1,'Cancel preserves filter');
+ d.getElementById('btnClearAllExcelFilters').click();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
+ d.querySelector('[data-filter-col="closingStock"]').click();
+ d.getElementById('efSelectAllChk').checked=false;
+ d.getElementById('efSelectAllChk').dispatchEvent(new w.Event('change'));
+ d.getElementById('efBtnOk').click();
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,0,'Empty selection must show no rows');
+ console.log('Excel filter interactions passed');w.close();
+})().catch(e=>{console.error(e);w.close();process.exitCode=1;});

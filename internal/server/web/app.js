@@ -13,6 +13,7 @@
   let vScrollRaf = null;
 
   const state = {
+    colFilters: {},
     clientEpoch: 0,
     report: null,
     rowMap: new Map(),
@@ -145,6 +146,7 @@
   };
 
   function clearAllMultiSelectFilters() {
+    state.colFilters = {};
     Object.values(state.msFilters).forEach((s) => s.clear());
     document.querySelectorAll('[data-ms-search]').forEach((inp) => { inp.value = ''; });
     if (el('fltWarehouse')) el('fltWarehouse').value = '';
@@ -155,6 +157,7 @@
 
   function hasActiveTableFilter() {
     return Boolean(
+      Object.keys(state.colFilters).length > 0 ||
       state.hidePlusSku ||
       el('inpSearch')?.value.trim() ||
       el('fltSupplier')?.value ||
@@ -516,6 +519,7 @@
     const ratArr = [...state.msFilters.rating];
     const stArr = [...state.msFilters.status];
     return {
+      colFilters: state.colFilters,
       staryoMode: Boolean(state.staryoMode),
       staryoRows: [...state.staryoRows].sort((a, b) => a - b),
       hidePlusSku: Boolean(state.hidePlusSku),
@@ -551,7 +555,7 @@
       tableColWidths: readTableColumnWidths(el('itemsTable')),
       suppliersColWidths: readTableColumnWidths(el('suppliersTable')),
       ovColWidths: Array.isArray(state.ovColWidths) ? [...state.ovColWidths] : null,
-      scrollY: Math.round(window.scrollY || 0),
+      scrollY: Math.round(el('tableScrollContainer').scrollTop || 0),
     };
   }
 
@@ -637,7 +641,7 @@
     if (el('overstockContainer')) {
       el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
     }
-    window.scrollTo(0, 0);
+    el('tableScrollContainer').scrollTop = 0;
   }
 
   function applyEnvelope(env, opts = {}) {
@@ -755,6 +759,13 @@
         : (ui.fltStatus && ui.fltStatus !== 'all' ? [ui.fltStatus] : []);
       stList.forEach((v) => state.msFilters.status.add(v));
 
+      state.colFilters = ui.colFilters || {};
+      // Поддержка баз, сохранённых до переноса фильтров в заголовки.
+      for (const [oldKey, key] of Object.entries({warehouse:'warehouse',group:'group',sku:'sku',nomenclature:'name',rating:'salesSegment',plus:'plus'})) {
+        const values = [...state.msFilters[oldKey]];
+        if (values.length && !Object.hasOwn(state.colFilters,key)) state.colFilters[key] = oldKey === 'plus' ? values.map(v=>v === 'checked' ? '✓' : '') : values;
+        state.msFilters[oldKey].clear();
+      }
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
       el('itemsTable')?.classList.toggle('show-plus-col', state.staryoMode);
@@ -809,7 +820,7 @@
 
       const targetScroll = Number(ui.scrollY) || 0;
       requestAnimationFrame(() => {
-        window.scrollTo({ top: targetScroll, behavior: 'auto' });
+        el('tableScrollContainer').scrollTop = targetScroll;
         if (state.filteredItems.length > VIRTUAL_THRESHOLD) {
           renderTableBodyWindow(true);
         }
@@ -1290,6 +1301,7 @@
         if (!matchStatus) continue;
       }
 
+      if (!matchesExcelFilters(it)) continue;
       list.push(it);
     }
 
@@ -1414,11 +1426,10 @@
     const rowH = Math.max(24, state.rowHeightPx || 33);
     let relScrollTop = 0;
     if (tableEl) {
-      const rect = tableEl.getBoundingClientRect();
-      relScrollTop = Math.max(0, -rect.top);
+      relScrollTop = el('tableScrollContainer').scrollTop;
     }
     const firstVisible = Math.floor(relScrollTop / rowH);
-    const viewportRows = Math.ceil((window.innerHeight || 900) / rowH);
+    const viewportRows = Math.ceil((el('tableScrollContainer').clientHeight || 900) / rowH);
     let start = Math.max(0, firstVisible - VIRTUAL_OVERSCAN);
     let end = Math.min(total, firstVisible + viewportRows + VIRTUAL_OVERSCAN);
     if (end - start < VIRTUAL_WINDOW) {
@@ -1504,8 +1515,9 @@
   function renderTable() {
     const tbody = el('tableBody');
     const slice = state.filteredItems;
-    const prevScrollY = window.scrollY;
+    const prevScrollY = el('tableScrollContainer').scrollTop;
 
+    syncExcelHeaders();
     renderTableFooter();
 
     if (slice.length === 0) {
@@ -1518,9 +1530,7 @@
 
     renderTableBodyWindow(true);
 
-    if (window.scrollY !== prevScrollY) {
-      window.scrollTo(0, prevScrollY);
-    }
+    el('tableScrollContainer').scrollTop = prevScrollY;
   }
 
   let activePopoverRow = null;
@@ -2536,7 +2546,7 @@
       });
     });
 
-    document.querySelector('.toolbar')?.addEventListener('change', (e) => {
+    el('legacyFilterState')?.addEventListener('change', (e) => {
       const chk = e.target.closest('input[data-ms-check]');
       if (!chk) return;
       const key = chk.dataset.msCheck;
@@ -2548,7 +2558,7 @@
       applyAfterMultiSelectChange(key);
     });
 
-    document.querySelector('.toolbar')?.addEventListener('click', (e) => {
+    el('legacyFilterState')?.addEventListener('click', (e) => {
       const moreBtn = e.target.closest('[data-ms-more]');
       if (!moreBtn) return;
       e.stopPropagation();
@@ -2653,6 +2663,11 @@
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#supplierDropdown')) {
         closeSupplierDropdown();
+        const dropdown = el('supplierDropdown');
+        if (dropdown.classList.contains('budget-suppliers-popover')) {
+          dropdown.classList.remove('budget-suppliers-popover');
+          el('legacyFilterState').appendChild(dropdown);
+        }
       }
       if (!e.target.closest('.ms-dropdown')) {
         for (const [key, meta] of Object.entries(MS_META)) {
@@ -2671,7 +2686,7 @@
 
     document.querySelectorAll('#itemsTable thead th[data-sort]').forEach((th) => {
       th.addEventListener('click', (e) => {
-        if (state.justResizedColumn || e.target.closest('.col-resizer')) return;
+        if (state.justResizedColumn || e.target.closest('.col-resizer, .th-filter-btn')) return;
         const key = th.dataset.sort;
         if (state.sortKey === key) {
           state.sortDir = state.sortDir === 'desc' ? 'asc' : 'desc';
@@ -2733,7 +2748,7 @@
         renderTableBodyWindow(false);
       });
     };
-    window.addEventListener('scroll', onVirtualScroll, { passive: true });
+    el('tableScrollContainer').addEventListener('scroll', onVirtualScroll, { passive: true });
     window.addEventListener('resize', onVirtualScroll, { passive: true });
 
     async function pushOverrideToServer(rowNum, val, silent = false) {
@@ -2958,10 +2973,10 @@
         requestAnimationFrame(() => {
           if (targetIdx >= 0 && state.filteredItems.length > VIRTUAL_THRESHOLD) {
             const tableEl = el('itemsTable');
-            const tableTop = tableEl ? tableEl.getBoundingClientRect().top + window.scrollY : 0;
+            const tableTop = 0;
             const rowH = Math.max(24, state.rowHeightPx || 33);
             const approxY = Math.max(0, tableTop + targetIdx * rowH - window.innerHeight * 0.35);
-            window.scrollTo({ top: approxY, behavior: 'auto' });
+            el('tableScrollContainer').scrollTop = approxY;
             renderTableBodyWindow(true);
           }
           el('tableBody').querySelector(`tr[data-row="${rNum}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3214,7 +3229,7 @@
       localStorage.setItem('ostatki2_theme', next);
     });
 
-    el('btnFullscreen').addEventListener('click', async () => {
+    el('btnFullscreen')?.addEventListener('click', async () => {
       const isAppFullWindow = Math.abs(window.outerWidth - screen.width) <= 2 && Math.abs(window.outerHeight - screen.height) <= 2;
       if (document.fullscreenElement) {
         await document.exitFullscreen().catch(() => {});
@@ -3309,30 +3324,18 @@
       }
     });
 
-    const topbarEl = document.querySelector('.topbar');
-    const toolbarEl = document.querySelector('#view-table .toolbar');
-    const ovToolbarEl = el('overstockToolbar');
     const syncStickyHeaderOffset = () => {
-      const topbarH = topbarEl ? Math.round(topbarEl.getBoundingClientRect().height) : 39;
-      const activeToolbar = state.activeTab === 'overstock' ? ovToolbarEl : toolbarEl;
-      const toolbarH = activeToolbar ? Math.round(activeToolbar.getBoundingClientRect().height) : 0;
-      document.documentElement.style.setProperty('--sticky-head-top', `${topbarH}px`);
-      document.documentElement.style.setProperty('--sticky-toolbar-top', `${topbarH}px`);
-      const tableHeadTop = toolbarH > 0 ? topbarH + toolbarH + 5 : topbarH;
-      document.documentElement.style.setProperty('--sticky-table-head-top', `${tableHeadTop}px`);
+      document.documentElement.style.setProperty('--sticky-head-top', '0px');
+      document.documentElement.style.setProperty('--sticky-toolbar-top', '0px');
+      document.documentElement.style.setProperty('--sticky-table-head-top', `${el('overstockToolbar').offsetHeight + 5}px`);
     };
     syncStickyHeaderOffset();
-    document.querySelectorAll('.tab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => requestAnimationFrame(syncStickyHeaderOffset));
-    });
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(syncStickyHeaderOffset);
-      if (topbarEl) ro.observe(topbarEl);
-      if (toolbarEl) ro.observe(toolbarEl);
-      if (ovToolbarEl) ro.observe(ovToolbarEl);
-    } else {
-      window.addEventListener('resize', syncStickyHeaderOffset);
+      ro.observe(el('appHeaderShell'));
+      ro.observe(el('overstockToolbar'));
     }
+    bindExcelFilters();
 
     setInterval(() => {
       fetch('api/heartbeat', { method: 'POST', keepalive: true }).catch(() => {});
@@ -3449,6 +3452,156 @@
         });
       });
     });
+  }
+
+  let excelMenu = null;
+  const filterIcon = '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h14L10 8v5l-4 2V8z"/></svg>';
+  const caretIcon = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6h10l-5 5z"/></svg>';
+  function excelValue(it, key) {
+    if (key === 'plus') return state.staryoRows.has(it.excelRow) ? '✓' : '';
+    if (key === 'unit') return 'шт.';
+    if (key === 'supplier') return normalizeSupName(it.supplier);
+    return String(it[key] ?? '');
+  }
+  function matchesExcelFilters(it, except = '') {
+    return Object.entries(state.colFilters).every(([key, values]) => key === except || values.includes(excelValue(it, key)));
+  }
+  function syncExcelHeaders() {
+    document.querySelectorAll('[data-filter-col]').forEach(btn => {
+      const key = btn.dataset.filterCol;
+      const active = Object.hasOwn(state.colFilters, key);
+      btn.innerHTML = active ? filterIcon : caretIcon;
+      btn.setAttribute('aria-expanded', String(excelMenu?.key === key));
+      btn.closest('th').classList.toggle('is-col-filtered', active);
+      btn.closest('th').classList.toggle('is-col-open', excelMenu?.key === key);
+      const sortKey = btn.closest('th').dataset.sort;
+      btn.closest('th').setAttribute('aria-sort', state.sortKey === sortKey ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+    el('btnClearAllExcelFilters').classList.toggle('hidden', !hasActiveTableFilter());
+  }
+  function closeExcelFilter() {
+    const anchor = excelMenu?.anchor;
+    excelMenu = null;
+    el('excelFilterPopover').classList.add('hidden');
+    syncExcelHeaders();
+    anchor?.focus({preventScroll:true});
+  }
+  function refreshExcelTable() {
+    state.hasUnsavedChanges = true;
+    recomputeFilteredList();
+    if (state.report) { renderKPIs(state.report); populateFilterDropdowns(state.report); }
+    renderTable();
+    el('tableScrollContainer').scrollTop = 0;
+  }
+  function excelMatches() {
+    const q = el('efSearchInput').value.trim().toLocaleLowerCase('ru');
+    return excelMenu.options.filter(o => o.label.toLocaleLowerCase('ru').includes(q));
+  }
+  function renderExcelOptions() {
+    if (!excelMenu) return;
+    const matches = excelMatches();
+    const selected = matches.filter(o => excelMenu.draft.has(o.value)).length;
+    el('efSelectAllChk').checked = matches.length > 0 && selected === matches.length;
+    el('efSelectAllChk').indeterminate = selected > 0 && selected < matches.length;
+    el('efSelectAllLabel').textContent = el('efSearchInput').value ? '(Выделить найденные)' : '(Выделить все)';
+    const rows = matches.slice(0, excelMenu.limit);
+    el('efOptionsList').innerHTML = rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
+    if (matches.length > rows.length) el('efOptionsList').insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary btn-sm" id="efMore">Показать ещё</button>');
+    el('efCountInfo').textContent = `Выбрано: ${selected} из ${matches.length}`;
+  }
+  function openExcelFilter(anchor) {
+    if (!state.report) return;
+    const key = anchor.dataset.filterCol;
+    if (excelMenu?.key === key) { closeExcelFilter(); return; }
+    const counts = new Map();
+    for (const it of state.report.items) {
+      if (state.hidePlusSku && it._startsWithPlus) continue;
+      if (!matchesExcelFilters(it, key)) continue;
+      const value = excelValue(it, key);
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    const options = [...counts].map(([value,count]) => ({value,count,label:value || '(Пустые)'})).sort((a,b) => ruCollator.compare(a.value,b.value));
+    const current = state.colFilters[key];
+    excelMenu = {key, anchor, options, limit:500, draft:new Set(current ?? options.map(o => o.value))};
+    const title = anchor.closest('th').querySelector('.th-excel-title').textContent;
+    el('efTitleText').textContent = title;
+    el('efClearColLabel').textContent = `Удалить фильтр с «${title}»`;
+    el('efClearCol').disabled = !current;
+    const numeric = typeof state.report.items[0]?.[key] === 'number';
+    el('efSortAscLabel').textContent = numeric ? 'Сортировка по возрастанию' : 'Сортировка от А до Я';
+    el('efSortDescLabel').textContent = numeric ? 'Сортировка по убыванию' : 'Сортировка от Я до А';
+    el('efSearchInput').value = '';
+    el('efAddToFilterWrap').classList.add('hidden');
+    const context = el('efContextBar');
+    context.classList.toggle('hidden', key !== 'supplier');
+    // Выбор для бюджета не является фильтром строк и никогда не меняет количество заказа.
+    context.innerHTML = key === 'supplier' ? '<button type="button" class="btn btn-beige btn-xs" id="efBudgetSuppliers">Поставщики для бюджета и выгрузки…</button>' : '';
+    const pop = el('excelFilterPopover');
+    pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
+    pop.classList.remove('hidden');
+    renderExcelOptions();
+    const r = anchor.getBoundingClientRect();
+    pop.style.left = `${Math.max(8,Math.min(r.right-pop.offsetWidth,window.innerWidth-pop.offsetWidth-8))}px`;
+    pop.style.top = `${Math.max(8,Math.min(r.bottom+5,window.innerHeight-pop.offsetHeight-8))}px`;
+    syncExcelHeaders();
+    el('efSearchInput').focus();
+  }
+  function bindExcelFilters() {
+    document.querySelectorAll('[data-filter-col]').forEach(btn => btn.addEventListener('click', e => {e.stopPropagation();openExcelFilter(btn);}));
+    ['efCloseBtn','efBtnCancel'].forEach(id => el(id).addEventListener('click',closeExcelFilter));
+    el('efSearchInput').addEventListener('input', () => {
+      excelMenu.limit = 500;
+      renderExcelOptions();
+    });
+    el('efSelectAllChk').addEventListener('change', e => {
+      for (const o of excelMatches()) { if(e.target.checked) excelMenu.draft.add(o.value); else excelMenu.draft.delete(o.value); }
+      renderExcelOptions();
+    });
+    el('efOptionsList').addEventListener('change', e => {
+      if (!e.target.matches('[data-excel-value]')) return;
+      if(e.target.checked) excelMenu.draft.add(e.target.dataset.excelValue); else excelMenu.draft.delete(e.target.dataset.excelValue);
+      renderExcelOptions();
+    });
+    el('efOptionsList').addEventListener('click', e => {
+      if(e.target.id === 'efMore') {excelMenu.limit += 500;renderExcelOptions();}
+      if(e.target.hasAttribute('data-excel-only')) {excelMenu.draft = new Set([e.target.dataset.excelOnly]);el('efBtnOk').click();}
+    });
+    el('efBtnOk').addEventListener('click', () => {
+      if(!excelMenu) return;
+      const {key,draft,options} = excelMenu;
+      const q = el('efSearchInput').value.trim();
+      const values = q ? excelMatches().filter(o => draft.has(o.value)).map(o => o.value) : [...draft];
+      if(!q && options.every(o => draft.has(o.value)) && draft.size === options.length) delete state.colFilters[key];
+      else state.colFilters[key] = values;
+      closeExcelFilter();refreshExcelTable();
+    });
+    el('efClearCol').addEventListener('click', () => {delete state.colFilters[excelMenu.key];closeExcelFilter();refreshExcelTable();});
+    for(const [id,dir] of [['efSortAsc','asc'],['efSortDesc','desc']]) el(id).addEventListener('click', () => {
+      state.sortKey = excelMenu.anchor.closest('th').dataset.sort;state.sortDir=dir;closeExcelFilter();refreshExcelTable();
+    });
+    el('btnClearAllExcelFilters').addEventListener('click', () => {
+      clearAllMultiSelectFilters();el('inpSearch').value='';el('fltSupplier').value='';state.hidePlusSku=false;el('btnActiveFilter').classList.remove('btn-active-toggle');refreshExcelTable();
+    });
+    document.addEventListener('click', e => {
+      if(excelMenu && !e.target.closest('#excelFilterPopover, [data-filter-col]')) closeExcelFilter();
+      if(e.target.id === 'efBudgetSuppliers') {
+        closeExcelFilter();
+        const dropdown = el('supplierDropdown');
+        document.body.appendChild(dropdown);
+        dropdown.classList.add('budget-suppliers-popover');
+        el('btnSupplierDropdown').click();
+      }
+    });
+    document.addEventListener('keydown', e => {
+      if(excelMenu && e.key === 'Escape') {e.stopPropagation();closeExcelFilter();}
+      if(excelMenu && e.key === 'Enter' && e.target === el('efSearchInput')) el('efBtnOk').click();
+    });
+    for(const [id,checked] of [['btnSupTabCheckAll',true],['btnSupTabUncheckAll',false]]) el(id).addEventListener('click', () => {
+      state.checkedSuppliers = checked ? new Set(state.report?.suppliers.map(s=>normalizeSupName(s.supplier)) || []) : new Set();
+      syncSelectedSuppliersToServer();
+      if(state.report) {renderSuppliersView(state.report);populateFilterDropdowns(state.report);renderKPIs(state.report);}
+    });
+    syncExcelHeaders();
   }
 
   async function bootstrap() {
