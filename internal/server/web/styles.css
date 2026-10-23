@@ -2332,7 +2332,6 @@ body.col-resize-active * {
 #suppliersTable td:last-child { white-space:normal !important; }
 #suppliersTable td:last-child .btn { max-width:100%; white-space:normal; height:auto; min-height:23px; }
 
-#btnRelevant.btn-show-all { background:#dc2626; border-color:#b91c1c; color:#fff; }
 #itemsTable:not(.table-manual-cols) th.row-number-col { width:3%; }
 .row-number-cell, .row-number-col { text-align:center !important; color:var(--text-muted); }
 #itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }

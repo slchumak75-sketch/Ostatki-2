@@ -21,10 +21,7 @@ setTimeout(() => {
     d.querySelector('[data-filter-col="name"]').click();
     assert.deepEqual([...d.querySelectorAll('[data-excel-value]')].map(el=>el.dataset.excelValue).sort(),['Товар 11','Товар 8','Товар 9']);
     d.getElementById('efBtnCancel').click();
-    d.getElementById('btnRelevant').click();
-    assert.deepEqual(rows(),[8,9,10,11,12]);
-    d.getElementById('btnRelevant').click();
-    assert.deepEqual(rows(),[8,9,11]);
+    assert.equal(d.getElementById('btnRelevant'),null);
     assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(el=>el.textContent),['1','2','3']);
     console.log('Sales-or-stock relevance tests passed');
   } catch(err) {console.error(err);process.exitCode=1;}

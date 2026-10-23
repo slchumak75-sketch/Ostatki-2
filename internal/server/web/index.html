@@ -72,12 +72,6 @@
         <div class="presets-bar" id="staryoActions">
           <button type="button" class="btn btn-beige" id="btnSaveProperties">Сохранить свойства номенклатуры</button>
           <span class="field-hint" id="propertiesStorageHint">Отметки «+»: память программы и автосохранение каждые 3 минуты</span>
-        <button class="btn btn-ghost" id="btnRelevant" type="button" aria-pressed="false" title="Показать всю базу; повторное нажатие — товары с продажами за последние 12 месяцев или с остатком">Актуально</button>
-        <button class="btn btn-ghost" id="btnHelp" type="button" title="Показать столбец «+» и активировать «Старьё выгрузка»">Старьё</button>
-        <button class="btn btn-neutral" id="btnDownloadOrders" type="button" disabled title="Старьё выгрузка">
-          Старьё выгрузка
-        </button>
-        <button class="btn btn-ghost" id="btnCheckZeroRating" type="button" title="Проставить галочки в столбце «+» всей номенклатуре с рейтингом «0»">+</button>
         </div>
         <div class="params-header">
           <div class="presets-bar">
@@ -209,7 +203,7 @@
     <!-- ВКЛАДКА 1: ОСНОВНАЯ ТАБЛИЦА ВЕДОМОСТИ (заголовки столбцов в режиме Excel «Фильтр») -->
     <section class="tab-view active" id="view-table">
       <div class="table-container" id="tableScrollContainer">
-        <table class="data-table" id="itemsTable">
+        <table class="data-table show-plus-col" id="itemsTable">
           <thead>
             <tr>
               <th class="row-number-col" scope="col">№</th>
