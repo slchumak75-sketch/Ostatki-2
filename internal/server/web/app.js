@@ -4,6 +4,7 @@
   const VIRTUAL_THRESHOLD = 400;
   const VIRTUAL_WINDOW = 180;
   const VIRTUAL_OVERSCAN = 55;
+  const VIRTUAL_ROW_HEIGHT = 24;
   const AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
   const ruCollator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
   const activeControllers = new Set();
@@ -71,7 +72,6 @@
 
     lastLoadedFile: null,
     justResizedColumn: false,
-    rowHeightPx: 33,
     vStart: 0,
     vEnd: 0,
     overstockLimit: 500,
@@ -1540,7 +1540,7 @@
       return { start: 0, end: total };
     }
     const tableEl = el('itemsTable');
-    const rowH = Math.max(24, state.rowHeightPx || 33);
+    const rowH = VIRTUAL_ROW_HEIGHT;
     let relScrollTop = 0;
     if (tableEl) {
       relScrollTop = el('tableScrollContainer').scrollTop;
@@ -1564,6 +1564,8 @@
     const total = slice.length;
     if (!tbody || total === 0) return;
 
+    const scrollContainer = el('tableScrollContainer');
+    const scrollBeforeRender = scrollContainer.scrollTop;
     const activeEl = document.activeElement;
     const activeQtyRow = activeEl?.dataset?.qtyRow ? Number(activeEl.dataset.qtyRow) : null;
     const activeFresh = activeEl?.dataset?.freshEdit;
@@ -1586,7 +1588,7 @@
       state.vStart = start;
       state.vEnd = end;
 
-      const rowH = Math.max(24, state.rowHeightPx || 33);
+      const rowH = VIRTUAL_ROW_HEIGHT;
       const topPx = Math.round(start * rowH);
       const bottomPx = Math.round((total - end) * rowH);
 
@@ -1602,31 +1604,24 @@
         parts.push(`<tr class="virtual-spacer" aria-hidden="true"><td colspan="${fullColspan}" style="height:${bottomPx}px"></td></tr>`);
       }
       tbody.innerHTML = parts.join('');
-
-      const sampleRow = tbody.querySelector('tr[data-row]');
-      if (sampleRow) {
-        const measured = sampleRow.getBoundingClientRect().height;
-        if (measured >= 22 && measured <= 80 && Math.abs(measured - state.rowHeightPx) > 1.5) {
-          state.rowHeightPx = measured;
-        }
-      }
     }
 
     if (activeQtyRow != null) {
       const nextInp = tbody.querySelector(`input[data-qty-row="${activeQtyRow}"]`);
       if (nextInp) {
-        nextInp.focus({ preventScroll: true });
+        if (force) nextInp.focus({ preventScroll: true });
         if (activeOrigQty != null) nextInp.dataset.origQty = activeOrigQty;
         if (activeDirty === '1') nextInp.dataset.dirty = '1';
         if (activeFresh === '0' && activeDraft !== null) {
           nextInp.value = activeDraft;
           nextInp.dataset.freshEdit = '0';
           nextInp.setSelectionRange(nextInp.value.length, nextInp.value.length);
-        } else {
+        } else if (force) {
           nextInp.select();
         }
       }
     }
+    if (scrollContainer.scrollTop !== scrollBeforeRender) scrollContainer.scrollTop = scrollBeforeRender;
   }
 
   // Property acknowledgements must not rebuild tbody: native scroll anchoring and
@@ -3246,7 +3241,7 @@
           if (targetIdx >= 0 && state.filteredItems.length > VIRTUAL_THRESHOLD) {
             const tableEl = el('itemsTable');
             const tableTop = 0;
-            const rowH = Math.max(24, state.rowHeightPx || 33);
+            const rowH = VIRTUAL_ROW_HEIGHT;
             const approxY = Math.max(0, tableTop + targetIdx * rowH - window.innerHeight * 0.35);
             el('tableScrollContainer').scrollTop = approxY;
             renderTableBodyWindow(true);
@@ -3847,6 +3842,7 @@
   }
 
   async function bootstrap() {
+    el('itemsTable').style.setProperty('--item-row-height', `${VIRTUAL_ROW_HEIGHT}px`);
     initColumnResizers();
     bindEvents();
     try {
