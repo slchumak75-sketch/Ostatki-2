@@ -322,7 +322,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 	for _, mustHaveHTML := range []string{
 		`<input type="number" id="inpHorizon"`,
 		`<div class="params-body hidden" id="paramsBody">`,
-		`id="btnToggleAdvanced" aria-expanded="false">Параметры PRO SCM`,
+		`id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры`,
 		`<button class="btn btn-beige" id="btnUpload"`,
 		`Загрузить новую базу`,
 		`id="btnLoadSavedDb"`,
@@ -344,7 +344,6 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`id="ddStatus"`,
 		`id="ddSearchNameMenu"`,
 		`<button class="btn btn-beige" id="btnClearDatabase"`,
-		`<button class="btn btn-neutral" id="btnDownloadXlsx"`,
 		`<button class="btn btn-neutral" id="btnDownloadOrders"`,
 		`Очистить базу`,
 		`<button class="tab-btn tab-beige active" data-tab="table"`,
@@ -391,19 +390,19 @@ func TestServerAPIEndpoints(t *testing.T) {
 	loadSavedIdx := strings.Index(htmlBody, `id="btnLoadSavedDb"`)
 	saveDbIdx := strings.Index(htmlBody, `id="btnSaveDb"`)
 	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
-	oldExportIdx := strings.Index(htmlBody, `id="btnDownloadOrders" type="button" disabled`)
-	staryoBtnIdx := strings.Index(htmlBody, `>Старьё</button>`)
-	plusZeroBtnIdx := strings.Index(htmlBody, `id="btnCheckZeroRating"`)
-	activeBtnIdx := strings.Index(htmlBody, `id="btnActiveFilter"`)
-	printBtnIdx := strings.Index(htmlBody, `id="btnPrintOrder"`)
-	themeBtnIdx := strings.Index(htmlBody, `id="btnTheme"`)
-	budgetCardIdx := strings.Index(htmlBody, `id="budgetInlineCard"`)
-	headerEndIdx := strings.Index(htmlBody, `</header>`)
-	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && budgetCardIdx > headerEndIdx) {
-		t.Fatalf("expected topbar order Загрузить новую базу -> Загрузить сохраненную базу -> Сохранить базу -> Очистить базу ... Бюджет закупки, got upload=%d loadSaved=%d saveDb=%d clear=%d theme=%d budget=%d headerEnd=%d", uploadIdx, loadSavedIdx, saveDbIdx, clearIdx, themeBtnIdx, budgetCardIdx, headerEndIdx)
+	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx) {
+		t.Fatal("unexpected database button order")
 	}
-	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && plusZeroBtnIdx > staryoBtnIdx && activeBtnIdx > plusZeroBtnIdx && printBtnIdx > activeBtnIdx && headerEndIdx > printBtnIdx) {
-		t.Fatalf("expected button sequence Старьё выгрузка (disabled) -> Старьё -> + -> Активно -> Печать inside topbar, got export=%d staryo=%d plus=%d active=%d print=%d headerEnd=%d", oldExportIdx, staryoBtnIdx, plusZeroBtnIdx, activeBtnIdx, printBtnIdx, headerEndIdx)
+	for _, removed := range []string{`id="btnDownloadXlsx"`, `id="btnTheme"`, `id="btnPrintOrder"`} {
+		if strings.Contains(htmlBody, removed) {
+			t.Fatalf("removed button still present: %s", removed)
+		}
+	}
+	panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
+	for _, id := range []string{"btnHelp", "btnDownloadOrders", "btnCheckZeroRating"} {
+		if strings.Index(htmlBody, `id="`+id+`"`) < panelIdx {
+			t.Fatalf("button %s must be inside parameters", id)
+		}
 	}
 
 	// Проверка порядка столбцов в таблице «Ведомость»:

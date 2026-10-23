@@ -793,9 +793,10 @@
       const expanded = Boolean(ui.paramsExpanded);
       if (paramsBody) {
         paramsBody.classList.toggle('hidden', !expanded);
+        el('paramsPanel').classList.toggle('hidden', !expanded);
         el('btnToggleAdvanced')?.setAttribute('aria-expanded', String(expanded));
         if (el('btnToggleAdvanced')) {
-          el('btnToggleAdvanced').textContent = expanded ? 'Параметры PRO SCM ▾' : 'Параметры PRO SCM ▸';
+          el('btnToggleAdvanced').textContent = expanded ? 'Параметры ▾' : 'Параметры ▸';
         }
       }
 
@@ -2343,8 +2344,10 @@
     el('btnToggleAdvanced').addEventListener('click', () => {
       const body = el('paramsBody');
       const isHidden = body.classList.toggle('hidden');
+      el('paramsPanel').classList.toggle('hidden', isHidden);
+      if (state.report) state.hasUnsavedChanges = true;
       el('btnToggleAdvanced').setAttribute('aria-expanded', String(!isHidden));
-      el('btnToggleAdvanced').textContent = isHidden ? 'Параметры PRO SCM ▸' : 'Параметры PRO SCM ▾';
+      el('btnToggleAdvanced').textContent = isHidden ? 'Параметры ▸' : 'Параметры ▾';
     });
 
     [
@@ -3057,17 +3060,6 @@
 
     el('btnSaveDb').addEventListener('click', () => saveDatabase('manual'));
 
-    el('btnDownloadXlsx').addEventListener('click', async () => {
-      if (state.checkedSuppliers.size === 0) {
-        showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
-        return;
-      }
-      await syncSelectedSuppliersToServer();
-      isDownloadingFile = true;
-      setTimeout(() => { isDownloadingFile = false; }, 1500);
-      window.location.href = 'api/export/xlsx';
-    });
-
     // Обработка отметок галочкой в столбце «+»
     el('tableBody').addEventListener('change', (e) => {
       const plusChk = e.target.closest('input[data-plus-row]');
@@ -3195,16 +3187,6 @@
       renderTable();
     });
 
-    el('btnPrintOrder').addEventListener('click', () => {
-      state.msFilters.status.clear();
-      state.msFilters.status.add('order');
-      syncMultiSelectLabels();
-      recomputeFilteredList();
-      renderTable();
-      document.querySelector('.tab-btn[data-tab="table"]').click();
-      setTimeout(() => window.print(), 100);
-    });
-
     el('btnSaveInPlace').addEventListener('click', async () => {
       if (state.checkedSuppliers.size === 0) {
         showToast('Отметьте галочками поставщиков в списке «Все поставщики»');
@@ -3236,14 +3218,6 @@
       el('dropOverlay').classList.add('hidden');
       const f = e.dataTransfer?.files?.[0];
       if (f) uploadExcelFile(f);
-    });
-
-    const savedTheme = localStorage.getItem('ostatki2_theme');
-    if (savedTheme === 'dark') document.documentElement.dataset.theme = 'dark';
-    el('btnTheme').addEventListener('click', () => {
-      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-      document.documentElement.dataset.theme = next;
-      localStorage.setItem('ostatki2_theme', next);
     });
 
     el('btnFullscreen')?.addEventListener('click', async () => {

@@ -11,6 +11,22 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
  await tick();
+ const paramsButton = d.getElementById('btnToggleAdvanced');
+ assert.ok(paramsButton.closest('.topbar-actions'));
+ for (const id of ['btnDownloadXlsx','btnTheme','btnPrintOrder']) assert.equal(d.getElementById(id),null);
+ for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating']) assert.ok(d.getElementById(id).closest('#paramsPanel'));
+
+ assert.equal(paramsButton.textContent,'Параметры ▸');
+ assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));
+ assert.ok(d.querySelector('.presets-bar').closest('#paramsPanel'));
+ paramsButton.click();
+ assert.equal(paramsButton.getAttribute('aria-expanded'),'true');
+ assert.equal(d.getElementById('paramsPanel').classList.contains('hidden'),false);
+ assert.equal(d.getElementById('paramsBody').classList.contains('hidden'),false);
+ paramsButton.click();
+ assert.equal(paramsButton.getAttribute('aria-expanded'),'false');
+ assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));
+
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
  d.querySelector('[data-filter-col="name"]').click();
  d.getElementById('efSearchInput').value='Каб';
