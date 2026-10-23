@@ -83,6 +83,7 @@
   let nomenclatureProperties = {};
   const retiredGlobalPropertyKeys = new Set();
   let propertiesQueue = Promise.resolve();
+  let acknowledgedProperties = {};
   let propertiesDirty = false;
   let propertiesRevision = 0;
   function propertyKey(it) {
@@ -138,9 +139,28 @@
   function syncProperties(save = false) {
     const snapshot = {...nomenclatureProperties};
     const revision = propertiesRevision, epoch = state.clientEpoch;
-    const request = propertiesQueue.catch(() => {}).then(() => apiPost('api/properties', {properties:snapshot,save,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true})).then(result => {
-      if (result.state?.report && propertiesRevision === revision && state.clientEpoch === epoch) applyEnvelope(result.state);
+    el('propertiesStorageHint').textContent = 'Свойства: запись на диск…';
+    const request = propertiesQueue.catch(() => {}).then(async () => {
+      const changes = {};
+      for (const [key,value] of Object.entries(snapshot)) {
+        if (acknowledgedProperties[key] !== value) changes[key] = value;
+      }
+      const result = await apiPost('api/properties', {properties:changes,save,persist:true,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true});
+      if (result.persisted) acknowledgedProperties = snapshot;
       return result;
+    }).then(result => {
+      if (result.state?.report && propertiesRevision === revision && state.clientEpoch === epoch) applyEnvelope(result.state);
+      if (result.persisted && propertiesRevision === revision) {
+        propertiesDirty = false;
+        el('propertiesStorageHint').textContent = `Свойства записаны на диск. Галочек: ${result.markedCount}. Папка: ${result.directory}`;
+        el('propertiesStorageHint').classList.remove('properties-save-error');
+      }
+      return result;
+    }).catch(err => {
+      el('propertiesStorageHint').textContent = `Свойства НЕ сохранены: ${err.message}. Не закрывайте программу.`;
+      el('propertiesStorageHint').classList.add('properties-save-error');
+      propertiesDirty = true;
+      throw err;
     });
     propertiesQueue = request;
     return request;
@@ -472,7 +492,10 @@
     t.textContent = msg;
     t.classList.remove('hidden');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.add('hidden'), 3400);
+    t.setAttribute('role','status');
+    t.title = 'Нажмите, чтобы закрыть уведомление';
+    t.onclick = () => t.classList.add('hidden');
+    if (!/ошиб|не сохран|не удалось|нет связи/i.test(msg)) toastTimer = setTimeout(() => t.classList.add('hidden'), 8000);
   }
 
   async function apiGet(path) {
@@ -2310,6 +2333,13 @@
         if (state.report) renderOverstockView(state.report);
       });
     }
+    el('btnBackupProperties').addEventListener('click', () => {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(nomenclatureProperties,null,2)],{type:'application/json'}));
+      const link = document.createElement('a');link.href=url;link.download='Свойства Номенклатуры, резервная копия.json';
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1500);
+      showToast('Резервная копия свойств выгружена из памяти. Сохраните скачанный JSON-файл.');
+    });
     el('btnExportProperties').addEventListener('click', async () => {
       try {
         await syncProperties();
@@ -2323,7 +2353,7 @@
         isDownloadingFile = true;
         link.click();
         setTimeout(() => { URL.revokeObjectURL(url); isDownloadingFile = false; },1500);
-      } catch(err) { showToast(`Ошибка выгрузки свойств: ${err.message}`); }
+      } catch(err) { showToast(`Ошибка выгрузки свойств: ${err.message}. Для сохранения галочек без связи с сервером нажмите «Резервная копия свойств (JSON)».`); }
     });
     el('btnImportProperties').addEventListener('click', () => el('propertiesFileInput').click());
     el('propertiesFileInput').addEventListener('change', async e => {
@@ -2337,6 +2367,7 @@
         if (!res.ok) throw new Error(data.error || 'Не удалось прочитать Excel');
         nomenclatureProperties = data.properties || {};
         propertiesRevision += 1; propertiesDirty = true;
+        await syncProperties();
         if (data.state?.report) applyEnvelope(data.state);
         applyNomenclatureProperties();
         recomputeReportSummaries(state.report);
@@ -3356,7 +3387,12 @@
 
     window.addEventListener('pagehide', () => {
       if (!isClosingConfirmed && navigator.sendBeacon) {
-        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:nomenclatureProperties,save:true,removeKeys:[...retiredGlobalPropertyKeys]})], {type:'application/json'}));
+        const changes = {};
+        for (const [key,value] of Object.entries(nomenclatureProperties)) {
+          if (acknowledgedProperties[key] !== value) changes[key] = value;
+        }
+        // Keep the last-chance request small: browsers limit keepalive/beacon bodies.
+        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:changes,save:true,removeKeys:[...retiredGlobalPropertyKeys]})], {type:'application/json'}));
       }
     });
 
@@ -3755,6 +3791,7 @@
     try {
       const properties = await apiGet('api/properties');
       nomenclatureProperties = properties.properties || {};
+      acknowledgedProperties = {...nomenclatureProperties};
       if (properties.directory) {
         el('propertiesStorageHint').title = `Папка свойств: ${properties.directory}`;
       }

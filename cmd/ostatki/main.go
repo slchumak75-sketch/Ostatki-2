@@ -146,7 +146,7 @@ func main() {
 	}
 
 	if desktopMode {
-		app.StartDesktopWatchdog(12 * time.Second)
+		app.StartDesktopWatchdog(2 * time.Minute)
 	}
 
 	if !noBrowser && !serverMode {
