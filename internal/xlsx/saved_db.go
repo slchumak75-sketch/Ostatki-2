@@ -17,9 +17,10 @@ const SavedStateZipEntry = "docProps/ostatki_v4_state.json"
 // SavedDatabaseTitleMarker — фиксированная часть имени файла сохранённой базы.
 const SavedDatabaseTitleMarker = "Ведомость сохранена"
 
-// FormatSavedDatabaseFilename не включает склад; время безопасно для имени Windows.
+// FormatSavedDatabaseFilename не включает склад. Полноширинное двоеточие U+FF1A
+// визуально разделяет время и, в отличие от ASCII-двоеточия, допустимо в имени Windows.
 func FormatSavedDatabaseFilename(_ string, saveDate time.Time) string {
-	return fmt.Sprintf("%s, %s.xlsx", SavedDatabaseTitleMarker, saveDate.Format("02.01.2006, 15-04-05"))
+	return fmt.Sprintf("%s, %s.xlsx", SavedDatabaseTitleMarker, saveDate.Format("02.01.2006, 15：04：05"))
 }
 
 // BuildSavedDatabaseXLSX записывает актуальный столбец 8 («К закупкам») без потерь структуры 1С
