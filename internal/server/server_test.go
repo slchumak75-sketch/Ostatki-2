@@ -391,7 +391,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx) {
 		t.Fatal("unexpected database button order")
 	}
-	for _, removed := range []string{`id="btnDownloadXlsx"`, `id="btnTheme"`, `id="btnPrintOrder"`, `id="btnRelevant"`, `id="btnHelp"`, `id="btnDownloadOrders"`, `id="btnCheckZeroRating"`} {
+	for _, removed := range []string{`id="btnDownloadXlsx"`, `id="btnTheme"`, `id="btnPrintOrder"`, `id="btnActiveFilter"`, `id="btnHelp"`, `id="btnDownloadOrders"`, `id="btnCheckZeroRating"`} {
 		if strings.Contains(htmlBody, removed) {
 			t.Fatalf("removed button still present: %s", removed)
 		}

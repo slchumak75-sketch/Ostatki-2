@@ -10,7 +10,9 @@ const makeItem=(row,sku,name='Товар')=>({excelRow:row,sku,name,warehouse:'�
 const env=(name,items)=>({report:{fileName:name,items,warehouses:[],groups:[],suppliers:[],periods:[],params:{}}});
 let uploaded=env('new.xlsx',[makeItem(55,'A'),makeItem(56,'B'),makeItem(57,'','Без артикула')]);
 let snapshots=0;
+let importedProps=null;
 w.fetch=async(path,options={})=>{
+ if(path==='api/properties/import') return {ok:true,json:async()=>({properties:importedProps})};
  if(path==='api/properties') {
   const req=options.body ? JSON.parse(options.body):{};
   Object.assign(props,req.properties || {});
@@ -47,5 +49,12 @@ const load=async()=>{
  assert.equal(checked(100),true,'Checkmark follows SKU rather than Excel row');
  assert.equal(checked(101),false,'Unknown SKU is not checked');
  assert.equal(props[JSON.stringify(['sku','B'])],true);
+ importedProps={...props,[JSON.stringify(['sku','B'])]:false,[JSON.stringify(['sku','C'])]:true};
+ const propertiesInput=d.getElementById('propertiesFileInput');
+ Object.defineProperty(propertiesInput,'files',{configurable:true,value:[new w.File(['x'],'properties.xlsx')]});
+ propertiesInput.dispatchEvent(new w.Event('change'));await tick();
+ assert.equal(checked(100),false,'Excel import clears a previously checked SKU');
+ assert.equal(checked(101),true,'Excel import applies checkmark immediately');
+ assert.equal(snapshots,1,'Import does not autosave properties to disk');
  console.log('Independent nomenclature property tests passed');w.close();
 })().catch(err=>{console.error(err);w.close();process.exitCode=1;});
