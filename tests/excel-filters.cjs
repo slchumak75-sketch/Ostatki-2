@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const dom = new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'), {url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window, d=w.document;
 const item=(row,name,stock)=>({excelRow:row,name,closingStock:stock,sku:String(row),warehouse:'Склад',group:'Группа',supplier:row === 8 ? 'Первый' : 'Второй',sumSalesLast12M:row === 10 ? 0 : 5,salesSegment:row === 8 ? 0 : 5,finalOrderQty:row === 10 ? 0 : (row === 8 ? 2 : 3),purchasePrice:1,monthlySales:[]});
-w.fetch=async()=>({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2),item(10,'Без продаж',0)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});
+w.fetch=async()=>({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});
 w.scrollTo=()=>{};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,30));
@@ -38,7 +38,7 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
  const paramsButton = d.getElementById('btnToggleAdvanced');
  assert.ok(paramsButton.closest('.topbar-actions'));
  for (const id of ['btnDownloadXlsx','btnTheme','btnPrintOrder']) assert.equal(d.getElementById(id),null);
- for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating','btnRelevant']) assert.equal(d.getElementById(id),null);
+ for (const id of ['btnHelp','btnDownloadOrders','btnCheckZeroRating','btnActiveFilter']) assert.equal(d.getElementById(id),null);
 
  assert.equal(paramsButton.textContent,'Параметры ▸');
  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));

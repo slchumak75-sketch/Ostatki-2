@@ -60,7 +60,6 @@
         <button class="btn btn-secondary hidden" id="btnSaveInPlace" title="Записать столбец 8 прямо в исходный файл на диске">
           Сохранить в файл
         </button>
-        <button class="btn btn-ghost" id="btnActiveFilter" type="button" title="Скрыть номенклатуру, у которой артикул начинается с символа «+»">Активно</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
         <button class="btn btn-close-app icon-only" id="btnCloseApp" type="button" title="Закрыть программу" aria-label="Закрыть программу">✕</button>
       </div>
@@ -70,8 +69,13 @@
       <!-- Панель параметров сезонного алгоритма Вариант 4 -->
       <section class="params-panel hidden" id="paramsPanel">
         <div class="presets-bar" id="staryoActions">
+          <button class="btn btn-ghost" id="btnSales12" type="button" aria-pressed="false">Продажи 12 мес.</button>
+          <button class="btn btn-ghost" id="btnRelevant" type="button" aria-pressed="false">Актуально</button>
+          <button class="btn btn-beige" id="btnExportProperties" type="button">Выгрузить Свойства номенклатуры</button>
+          <button class="btn btn-beige" id="btnImportProperties" type="button">Загрузить свойства Номенклатуры</button>
+          <input type="file" id="propertiesFileInput" accept=".xlsx" hidden>
           <button type="button" class="btn btn-beige" id="btnSaveProperties">Сохранить свойства номенклатуры</button>
-          <span class="field-hint" id="propertiesStorageHint">Отметки «+»: память программы и автосохранение каждые 3 минуты</span>
+          <span class="field-hint" id="propertiesStorageHint">Отметки «+»: память программы и сохранение при выходе</span>
         </div>
         <div class="params-header">
           <div class="presets-bar">

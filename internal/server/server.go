@@ -242,6 +242,17 @@ func (s *AppServer) StartDesktopWatchdog(idleTimeout time.Duration) {
 
 func (s *AppServer) triggerShutdown() {
 	s.shutdownOnce.Do(func() {
+		s.mu.Lock()
+		if s.propertiesLoaded {
+			dir, err := s.propertiesDirLocked()
+			if err == nil {
+				_, err = s.savePropertiesLocked(dir)
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Сохранение свойств при выходе: %v\n", err)
+			}
+		}
+		s.mu.Unlock()
 		close(s.shutdownCh)
 	})
 }
@@ -254,6 +265,8 @@ func (s *AppServer) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
 	mux.HandleFunc("/api/properties", s.handleProperties)
+	mux.HandleFunc("/api/properties/export", s.handleExportProperties)
+	mux.HandleFunc("/api/properties/import", s.handleImportProperties)
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)

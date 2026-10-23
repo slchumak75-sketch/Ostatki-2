@@ -2335,3 +2335,5 @@ body.col-resize-active * {
 #itemsTable:not(.table-manual-cols) th.row-number-col { width:3%; }
 .row-number-cell, .row-number-col { text-align:center !important; color:var(--text-muted); }
 #itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }
+
+.btn.property-filter-active { background:#16a34a; border-color:#15803d; color:#fff; }

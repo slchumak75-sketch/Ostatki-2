@@ -66,8 +66,9 @@
     searchNameLimit: 300,
     staryoMode: true,
     staryoRows: new Set(),
-    showAllItems: false,
-    hidePlusSku: false,
+    sales12Only: false,
+    unmarkedOnly: false,
+
     lastLoadedFile: null,
     justResizedColumn: false,
     rowHeightPx: 33,
@@ -205,7 +206,7 @@
   function hasActiveTableFilter() {
     return Boolean(
       Object.keys(state.colFilters).length > 0 ||
-      state.hidePlusSku ||
+      state.sales12Only || state.unmarkedOnly ||
       el('inpSearch')?.value.trim() ||
       el('fltSupplier')?.value ||
       state.msFilters.warehouse.size > 0 ||
@@ -557,8 +558,6 @@
       colFilters: state.colFilters,
       staryoMode: Boolean(state.staryoMode),
       staryoRows: [...state.staryoRows].sort((a, b) => a - b),
-      showAllItems: Boolean(state.showAllItems),
-      hidePlusSku: Boolean(state.hidePlusSku),
       activeTab: state.activeTab || 'table',
       activePreset: document.querySelector('.preset-chip.active')?.dataset.preset || 'standard',
       paramsExpanded: !el('paramsBody')?.classList.contains('hidden'),
@@ -620,8 +619,8 @@
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
     state.staryoMode = true;
-    state.showAllItems = false;
-    state.hidePlusSku = false;
+    state.sales12Only = false; state.unmarkedOnly = false; syncPropertyFilters();
+
     state.lastLoadedFile = null;
 
     if (el('itemsTable')) {
@@ -631,7 +630,6 @@
     if (el('suppliersTable')) {
       resetTableColumnWidths(el('suppliersTable'));
     }
-    if (el('btnActiveFilter')) el('btnActiveFilter').classList.remove('btn-active-toggle');
     if (el('staryoExportRows')) el('staryoExportRows').value = '';
     if (el('fileInput')) el('fileInput').value = '';
     if (el('savedDbFileInput')) el('savedDbFileInput').value = '';
@@ -708,15 +706,14 @@
       state.sortDir = 'desc';
       state.staryoMode = true;
       state.staryoRows.clear();
-      state.showAllItems = false;
-      state.hidePlusSku = false;
+      state.sales12Only = false; state.unmarkedOnly = false; syncPropertyFilters();
+
       state.checkedSuppliers.clear();
       clearAllMultiSelectFilters();
       state.hasUnsavedChanges = true;
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
       el('itemsTable')?.classList.add('show-plus-col');
-      el('btnActiveFilter')?.classList.remove('btn-active-toggle');
       if (el('fltSupplier')) el('fltSupplier').value = '';
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
       if (el('inpSearch')) el('inpSearch').value = '';
@@ -758,8 +755,8 @@
       const ui = env.uiState || {};
       state.staryoMode = true;
       state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
-      state.showAllItems = Boolean(ui.showAllItems);
-      state.hidePlusSku = Boolean(ui.hidePlusSku);
+      state.sales12Only = false; state.unmarkedOnly = false; syncPropertyFilters();
+
       state.selectedExcelRow = ui.selectedExcelRow ?? null;
       state.sortKey = ui.sortKey || 'finalOrderQty';
       state.sortDir = ui.sortDir || 'desc';
@@ -769,41 +766,10 @@
       state.ovColWidths = Array.isArray(ui.ovColWidths) && ui.ovColWidths.length > 0 ? [...ui.ovColWidths] : null;
 
       clearAllMultiSelectFilters();
-      const whList = Array.isArray(ui.fltWarehouses) && ui.fltWarehouses.length
-        ? ui.fltWarehouses
-        : (ui.fltWarehouse ? [ui.fltWarehouse] : []);
-      whList.forEach((v) => state.msFilters.warehouse.add(v));
-
-      const grpList = Array.isArray(ui.fltGroups) && ui.fltGroups.length
-        ? ui.fltGroups
-        : (ui.fltGroup ? [ui.fltGroup] : []);
-      grpList.forEach((v) => state.msFilters.group.add(v));
-
-      (ui.fltSkus || []).forEach((v) => state.msFilters.sku.add(v));
-      (ui.fltNomenclatures || []).forEach((v) => state.msFilters.nomenclature.add(v));
-      (ui.fltPlus || []).forEach((v) => state.msFilters.plus.add(v));
-
-      const ratList = Array.isArray(ui.fltRatings) && ui.fltRatings.length
-        ? ui.fltRatings
-        : (ui.fltRating !== undefined && ui.fltRating !== '' ? [String(ui.fltRating)] : []);
-      ratList.forEach((v) => state.msFilters.rating.add(String(v)));
-
-      const stList = Array.isArray(ui.fltStatuses) && ui.fltStatuses.length
-        ? ui.fltStatuses
-        : (ui.fltStatus && ui.fltStatus !== 'all' ? [ui.fltStatus] : []);
-      stList.forEach((v) => state.msFilters.status.add(v));
-
-      state.colFilters = ui.colFilters || {};
-      // Поддержка баз, сохранённых до переноса фильтров в заголовки.
-      for (const [oldKey, key] of Object.entries({warehouse:'warehouse',group:'group',sku:'sku',nomenclature:'name',rating:'salesSegment',plus:'plus'})) {
-        const values = [...state.msFilters[oldKey]];
-        if (values.length && !Object.hasOwn(state.colFilters,key)) state.colFilters[key] = oldKey === 'plus' ? values.map(v=>v === 'checked' ? '✓' : '') : values;
-        state.msFilters[oldKey].clear();
-      }
+      state.colFilters = {};
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
       el('itemsTable')?.classList.toggle('show-plus-col', state.staryoMode);
-      el('btnActiveFilter')?.classList.toggle('btn-active-toggle', state.hidePlusSku);
 
       const activePreset = ui.activePreset || 'standard';
       document.querySelectorAll('.preset-chip').forEach((c) => {
@@ -820,23 +786,23 @@
         }
       }
 
-      if (el('inpSupplierFilter')) el('inpSupplierFilter').value = ui.fltSupplierSearch || '';
+      if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
       if (el('fltSupplier')) el('fltSupplier').value = '';
       populateFilterDropdowns(state.report);
-      if (el('fltSupplier')) el('fltSupplier').value = ui.fltSupplier || '';
-      if (el('inpSearch')) el('inpSearch').value = ui.searchName || '';
+      if (el('fltSupplier')) el('fltSupplier').value = '';
+      if (el('inpSearch')) el('inpSearch').value = '';
       populateFilterDropdowns(state.report);
 
       if (el('ovFltWarehouse')) el('ovFltWarehouse').value = '';
       if (el('ovFltSupplier')) el('ovFltSupplier').value = '';
       if (el('ovFltName')) el('ovFltName').value = '';
       renderOverstockView(state.report);
-      if (el('ovFltWarehouse')) el('ovFltWarehouse').value = ui.ovFltWarehouse || '';
-      if (el('ovFltSupplier')) el('ovFltSupplier').value = ui.ovFltSupplier || '';
+      if (el('ovFltWarehouse')) el('ovFltWarehouse').value = '';
+      if (el('ovFltSupplier')) el('ovFltSupplier').value = '';
       renderOverstockView(state.report);
-      if (el('ovFltName')) el('ovFltName').value = ui.ovFltName || '';
-      if (el('ovFltRating')) el('ovFltRating').value = ui.ovFltRating || '';
-      if (el('ovInpSearch')) el('ovInpSearch').value = ui.ovSearch || '';
+      if (el('ovFltName')) el('ovFltName').value = '';
+      if (el('ovFltRating')) el('ovFltRating').value = '';
+      if (el('ovInpSearch')) el('ovInpSearch').value = '';
 
       for (const it of state.report.items) {
         const key = propertyKey(it);
@@ -1062,8 +1028,8 @@
 
     for (let i = 0; i < rep.items.length; i++) {
       const it = rep.items[i];
-      if (!state.showAllItems && !isRelevantItem(it)) continue;
-      if (state.hidePlusSku && it._startsWithPlus) continue;
+      if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
+      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
 
       if (it.finalOrderQty > 0) {
@@ -1307,8 +1273,8 @@
     const list = [];
     for (let i = 0; i < src.length; i++) {
       const it = src[i];
-      if (!state.showAllItems && !isRelevantItem(it)) continue;
-      if (state.hidePlusSku && (it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))) continue;
+      if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
+      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
       if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
       if (skuSet.size > 0 && !skuSet.has(String(it.sku || '').trim())) continue;
@@ -1823,7 +1789,7 @@
   function renderOverstockView(rep) {
     if (!rep) return;
     const allOver = rep.items
-      .filter((it) => it.isOverstock && (!state.hidePlusSku || !(it._startsWithPlus ?? String(it.sku || '').trimStart().startsWith('+'))))
+      .filter((it) => it.isOverstock && (!state.sales12Only || Number(it.sumSalesLast12M) > 0) && (!state.unmarkedOnly || !state.staryoRows.has(it.excelRow)))
       .sort((a, b) => b.overstockValue - a.overstockValue);
 
     const setSelectOptions = (selectEl, items, defaultLabel, formatter) => {
@@ -2184,12 +2150,12 @@
     if (sub) {
       if (state.report) {
         const wh = [...state.msFilters.warehouse].join(' + ') || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
-        sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Сохранить текущую базу и отдельные свойства номенклатуры (галочки «+») перед выходом?`;
+        sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Свойства номенклатуры будут сохранены при выходе. Сохранить текущую базу?`;
       } else {
-        sub.textContent = 'Сохранить свойства номенклатуры перед выходом?';
+        sub.textContent = 'Свойства номенклатуры будут сохранены при выходе. Закрыть программу?';
       }
     }
-    el('closeConfirmTitle').textContent = state.report ? 'Сохранить текущую базу?' : 'Сохранить свойства номенклатуры?';
+    el('closeConfirmTitle').textContent = state.report ? 'Сохранить текущую базу?' : 'Закрыть программу?';
     modal.classList.remove('hidden');
   }
 
@@ -2248,12 +2214,55 @@
     }
   }
 
-  // Товары без продаж остаются актуальными, пока на складе есть остаток.
-  function isRelevantItem(it) {
-    return Number(it.sumSalesLast12M) > 0 || Number(it.closingStock) > 0;
+  function syncPropertyFilters() {
+    for (const [id, active] of [['btnSales12', state.sales12Only], ['btnRelevant', state.unmarkedOnly]]) {
+      el(id)?.classList.toggle('property-filter-active', active);
+      el(id)?.setAttribute('aria-pressed', String(active));
+    }
   }
 
   function bindEvents() {
+    for (const [id, field] of [['btnSales12','sales12Only'], ['btnRelevant','unmarkedOnly']]) {
+      el(id).addEventListener('click', () => {
+        state[field] = !state[field];
+        syncPropertyFilters();
+        refreshExcelTable();
+        if (state.report) renderOverstockView(state.report);
+      });
+    }
+    el('btnExportProperties').addEventListener('click', async () => {
+      try {
+        await syncProperties();
+        const res = await fetch('api/properties/export');
+        if (!res.ok) throw new Error(await res.text());
+        const url = URL.createObjectURL(await res.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        const now = new Date();
+        link.download = `Свойства Номенклатуры, ${now.toLocaleDateString('ru-RU')}, ${now.toLocaleTimeString('ru-RU').replaceAll(':','：')}.xlsx`;
+        isDownloadingFile = true;
+        link.click();
+        setTimeout(() => { URL.revokeObjectURL(url); isDownloadingFile = false; },1500);
+      } catch(err) { showToast(`Ошибка выгрузки свойств: ${err.message}`); }
+    });
+    el('btnImportProperties').addEventListener('click', () => el('propertiesFileInput').click());
+    el('propertiesFileInput').addEventListener('change', async e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await propertiesQueue.catch(() => {});
+        const form = new FormData(); form.append('file',file);
+        const res = await fetch('api/properties/import', {method:'POST',body:form});
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Не удалось прочитать Excel');
+        nomenclatureProperties = data.properties || {};
+        propertiesRevision += 1; propertiesDirty = true;
+        applyNomenclatureProperties();
+        refreshExcelTable();
+        showToast('Свойства номенклатуры загружены');
+      } catch(err) { showToast(`Ошибка загрузки свойств: ${err.message}`); }
+      finally { e.target.value = ''; }
+    });
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activeTab = btn.dataset.tab;
@@ -3112,22 +3121,9 @@
       rememberNomenclatureProperties([state.rowMap.get(rowNum)]);
       syncProperties().catch(err => showToast(err.message));
       if (state.report) populateFilterDropdowns(state.report);
-      if (state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
+      if (state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
         recomputeFilteredList();
         if (state.report) renderKPIs(state.report);
-      }
-      renderTable();
-    });
-
-    // Кнопка «Активно»: скрывает номенклатуру, у которой артикул начинается с символа «+»
-    el('btnActiveFilter').addEventListener('click', () => {
-      state.hidePlusSku = !state.hidePlusSku;
-      el('btnActiveFilter').classList.toggle('btn-active-toggle', state.hidePlusSku);
-      state.page = 1;
-      recomputeFilteredList();
-      if (state.report) {
-        renderKPIs(state.report);
-        renderOverstockView(state.report);
       }
       renderTable();
     });
@@ -3216,6 +3212,7 @@
       await performFinalAppClose();
     });
     el('btnCloseSaveNo').addEventListener('click', async () => {
+      if (!(await saveProperties(false))) return;
       await performFinalAppClose();
     });
 
@@ -3231,11 +3228,16 @@
 
     // Автоматическое автосохранение каждые 3 минуты поверх ранее сохранённых файлов
     setInterval(() => {
-      if (Object.keys(nomenclatureProperties).length) saveProperties(false);
       if (state.report && !isClearingDatabase && !state.isSavingDb) {
         saveDatabase('autosave');
       }
     }, AUTOSAVE_INTERVAL_MS);
+
+    window.addEventListener('pagehide', () => {
+      if (!isClosingConfirmed && navigator.sendBeacon) {
+        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:nomenclatureProperties,save:true})], {type:'application/json'}));
+      }
+    });
 
     window.addEventListener('beforeunload', (e) => {
       if (!isClosingConfirmed && !isDownloadingFile && (propertiesDirty || (state.report && state.hasUnsavedChanges))) {
@@ -3251,7 +3253,7 @@
         setTimeout(() => { isDownloadingFile = false; }, 1500);
         return;
       }
-      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnActiveFilter, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll, [data-reset]')) {
+      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnSales12, #btnRelevant, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll, [data-reset]')) {
         state.hasUnsavedChanges = true;
       }
     });
@@ -3493,8 +3495,8 @@
     if (excelMenu?.key === key) { closeExcelFilter(); return; }
     const counts = new Map();
     for (const it of state.report.items) {
-      if (!state.showAllItems && !isRelevantItem(it)) continue;
-      if (state.hidePlusSku && it._startsWithPlus) continue;
+      if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
+      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (!matchesExcelFilters(it, key)) continue;
       const value = excelValue(it, key);
       counts.set(value, (counts.get(value) || 0) + 1);
@@ -3603,7 +3605,7 @@
       state.sortKey = excelMenu.anchor.closest('th').dataset.sort;state.sortDir=dir;closeExcelFilter();refreshExcelTable();
     });
     el('btnClearAllExcelFilters').addEventListener('click', () => {
-      clearAllMultiSelectFilters();el('inpSearch').value='';el('fltSupplier').value='';state.hidePlusSku=false;el('btnActiveFilter').classList.remove('btn-active-toggle');refreshExcelTable();
+      clearAllMultiSelectFilters();el('inpSearch').value='';el('fltSupplier').value='';state.sales12Only=false;state.unmarkedOnly=false;syncPropertyFilters();refreshExcelTable();
     });
     document.addEventListener('click', e => {
       if(excelMenu && !e.target.closest('#excelFilterPopover, [data-filter-col]')) closeExcelFilter();
