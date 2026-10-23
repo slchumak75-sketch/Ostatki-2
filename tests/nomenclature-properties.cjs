@@ -66,5 +66,14 @@ const load=async()=>{
  assert.equal(checked(100),false,'Excel import clears a previously checked SKU');
  assert.equal(checked(101),true,'Excel import applies checkmark immediately');
  assert.equal(snapshots,1,'Import does not autosave properties to disk');
+ const workingFetch=w.fetch;
+ w.fetch=async()=>{throw new w.TypeError('Failed to fetch');};
+ d.getElementById('btnSaveProperties').click();await tick();
+ assert.match(d.getElementById('toast').textContent,/Нет связи с программой/);
+ assert.match(d.getElementById('toast').textContent,/свойства не сохранены/);
+ assert.equal(checked(101),true,'Connection failure must preserve in-memory marks');
+ w.fetch=workingFetch;
+ d.getElementById('btnSaveProperties').click();await tick();
+ assert.equal(snapshots,2,'Save can succeed after connection returns');
  console.log('Independent nomenclature property tests passed');w.close();
 })().catch(err=>{console.error(err);w.close();process.exitCode=1;});

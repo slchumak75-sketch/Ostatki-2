@@ -126,6 +126,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 		return nil
 	}
 
+	excludedRows := s.orderExclusions(wb)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.wb = wb
@@ -139,7 +140,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.savedDBName = ""
 	s.lastSavedAt = ""
 	s.params = model.DefaultParams()
-	s.report = forecast.Calculate(s.wb, s.params, s.overrides)
+	s.report = forecast.Calculate(s.wb, s.params, s.overrides, excludedRows)
 	return nil
 }
 
@@ -158,7 +159,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 
 	p := model.DefaultParams()
 	emptyOverrides := make(map[int]int)
-	rep := forecast.Calculate(wb, p, emptyOverrides)
+	rep := forecast.Calculate(wb, p, emptyOverrides, s.orderExclusions(wb))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -331,6 +332,7 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 	startEpoch := s.epoch.Load()
 	s.params = normParams
 	wb := s.wb
+	excludedRows := s.orderExclusionsLocked(wb)
 	var overridesCopy map[int]int
 	if wb != nil {
 		overridesCopy = make(map[int]int, len(s.overrides))
@@ -342,7 +344,7 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 
 	var rep *model.CalculationReport
 	if wb != nil {
-		rep = forecast.Calculate(wb, normParams, overridesCopy)
+		rep = forecast.Calculate(wb, normParams, overridesCopy, excludedRows)
 	}
 
 	s.mu.Lock()
@@ -396,13 +398,14 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 	wb := s.wb
 	params := s.params
+	excludedRows := s.orderExclusionsLocked(wb)
 	overridesCopy := make(map[int]int, len(s.overrides))
 	for k, v := range s.overrides {
 		overridesCopy[k] = v
 	}
 	s.mu.Unlock()
 
-	rep := forecast.Calculate(wb, params, overridesCopy)
+	rep := forecast.Calculate(wb, params, overridesCopy, excludedRows)
 
 	s.mu.Lock()
 	if s.epoch.Load() != startEpoch || s.wb == nil {
@@ -472,7 +475,7 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 			effOverrides[item.ExcelRow] = 0
 		}
 	}
-	return forecast.Calculate(s.wb, s.params, effOverrides)
+	return forecast.Calculate(s.wb, s.params, effOverrides, s.orderExclusionsLocked(s.wb))
 }
 
 func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) {

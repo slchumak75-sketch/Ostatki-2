@@ -160,7 +160,7 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if overridesChanged {
-		s.report = forecast.Calculate(s.wb, s.params, s.overrides)
+		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 
 	now := time.Now()
@@ -470,7 +470,7 @@ func (s *AppServer) restoreSavedDatabaseBytes(raw []byte, displayName string, di
 		}
 	}
 
-	rep := forecast.Calculate(wb, params, overrides)
+	rep := forecast.Calculate(wb, params, overrides, s.orderExclusions(wb))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
