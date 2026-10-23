@@ -255,6 +255,7 @@ type CalculationReport struct {
 // SavedUIState хранит полное состояние пользовательского интерфейса сборки «Вариант 4»
 // для 100%-го восстановления при загрузке сохранённой базы.
 type SavedUIState struct {
+	ShowAllItems       bool                `json:"showAllItems"`
 	StaryoMode         bool                `json:"staryoMode"`
 	StaryoRows         []int               `json:"staryoRows"`
 	HidePlusSku        bool                `json:"hidePlusSku"`

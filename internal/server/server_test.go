@@ -875,6 +875,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		"selectedSuppliers":       []string{`ООО "СИСТЕМА ООО"`, `ООО "ГолдДекор"`},
 		"ui": model.SavedUIState{
 			ColFilters:         map[string][]string{"name": {"Автомат"}, "closingStock": {}},
+			ShowAllItems:       true,
 			StaryoMode:         true,
 			StaryoRows:         []int{8, 12, 20},
 			HidePlusSku:        true,
@@ -1010,7 +1011,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		if !restored.SupplierSelectionActive || len(restored.SelectedSuppliers) != 2 {
 			t.Fatalf("[%s] selected suppliers not restored: active=%v list=%v", label, restored.SupplierSelectionActive, restored.SelectedSuppliers)
 		}
-		if !restored.UIState.StaryoMode || len(restored.UIState.StaryoRows) != 3 || !restored.UIState.HidePlusSku ||
+		if !restored.UIState.ShowAllItems || !restored.UIState.StaryoMode || len(restored.UIState.StaryoRows) != 3 || !restored.UIState.HidePlusSku ||
 			restored.UIState.ActiveTab != "overstock" || restored.UIState.FltWarehouse != "Склад Кореличи" ||
 			len(restored.UIState.ColFilters) != 2 || len(restored.UIState.ColFilters["name"]) != 1 || len(restored.UIState.FltSkus) != 2 || len(restored.UIState.FltNomenclatures) != 1 ||
 			len(restored.UIState.FltPlus) != 1 || restored.UIState.OvSearch != "кабель" || restored.UIState.ScrollY != 480 {
