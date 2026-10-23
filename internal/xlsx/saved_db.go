@@ -15,19 +15,11 @@ import (
 const SavedStateZipEntry = "docProps/ostatki_v4_state.json"
 
 // SavedDatabaseTitleMarker — фиксированная часть имени файла сохранённой базы.
-const SavedDatabaseTitleMarker = "Ведомость сохраненная"
+const SavedDatabaseTitleMarker = "Ведомость сохранена"
 
-// FormatSavedDatabaseFilename формирует имя файла сохранённой базы строго по шаблону:
-// "<Склад>, Ведомость сохраненная, <ДД.ММ.ГГГГ>.xlsx".
-func FormatSavedDatabaseFilename(warehouse string, saveDate time.Time) string {
-	wh := CleanFilenamePart(warehouse)
-	if wh == "" {
-		wh = "Все склады"
-	}
-	if len([]rune(wh)) > 80 {
-		wh = string([]rune(wh)[:80])
-	}
-	return fmt.Sprintf("%s, %s, %s.xlsx", wh, SavedDatabaseTitleMarker, saveDate.Format("02.01.2006"))
+// FormatSavedDatabaseFilename не включает склад; время безопасно для имени Windows.
+func FormatSavedDatabaseFilename(_ string, saveDate time.Time) string {
+	return fmt.Sprintf("%s, %s.xlsx", SavedDatabaseTitleMarker, saveDate.Format("02.01.2006, 15-04-05"))
 }
 
 // BuildSavedDatabaseXLSX записывает актуальный столбец 8 («К закупкам») без потерь структуры 1С

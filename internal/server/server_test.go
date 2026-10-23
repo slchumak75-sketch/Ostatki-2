@@ -399,7 +399,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 	themeBtnIdx := strings.Index(htmlBody, `id="btnTheme"`)
 	budgetCardIdx := strings.Index(htmlBody, `id="budgetInlineCard"`)
 	headerEndIdx := strings.Index(htmlBody, `</header>`)
-	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && headerEndIdx > budgetCardIdx) {
+	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx && themeBtnIdx > printBtnIdx && budgetCardIdx > themeBtnIdx && budgetCardIdx > headerEndIdx) {
 		t.Fatalf("expected topbar order Загрузить новую базу -> Загрузить сохраненную базу -> Сохранить базу -> Очистить базу ... Бюджет закупки, got upload=%d loadSaved=%d saveDb=%d clear=%d theme=%d budget=%d headerEnd=%d", uploadIdx, loadSavedIdx, saveDbIdx, clearIdx, themeBtnIdx, budgetCardIdx, headerEndIdx)
 	}
 	if !(oldExportIdx > 0 && staryoBtnIdx > oldExportIdx && plusZeroBtnIdx > staryoBtnIdx && activeBtnIdx > plusZeroBtnIdx && printBtnIdx > activeBtnIdx && headerEndIdx > printBtnIdx) {
@@ -928,7 +928,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &saveResp); err != nil || !saveResp.OK {
 		t.Fatalf("unexpected save response: err=%v body=%s", err, rec.Body.String())
 	}
-	wantPrefix := "Склад Кореличи, Ведомость сохраненная, "
+	wantPrefix := "Ведомость сохранена, "
 	if !strings.HasPrefix(saveResp.FileName, wantPrefix) || !strings.HasSuffix(saveResp.FileName, ".xlsx") {
 		t.Fatalf("unexpected saved database filename: %q (want prefix %q)", saveResp.FileName, wantPrefix)
 	}
@@ -943,6 +943,17 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/db/save", bytes.NewReader(saveBody2)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST /api/db/save autosave failed: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Имя включает время последнего сохранения и может измениться между запросами.
+	previousPath := saveResp.FilePath
+	if err := json.Unmarshal(rec.Body.Bytes(), &saveResp); err != nil || !saveResp.OK {
+		t.Fatalf("unexpected autosave response: err=%v body=%s", err, rec.Body.String())
+	}
+	if previousPath != saveResp.FilePath {
+		if _, err := os.Stat(previousPath); !os.IsNotExist(err) {
+			t.Fatalf("previous save must be replaced: %s", previousPath)
+		}
 	}
 
 	// Список сохранённых баз должен содержать ровно 1 актуальный файл (без дублей)

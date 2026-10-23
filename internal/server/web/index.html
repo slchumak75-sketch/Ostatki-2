@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Остатки 2 (Вариант 4 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M6 23V15h4v8H6zm6 0V9h4v14h-4zm6 0v-9h4v9h-4zm6 0V6h2v17h-2z' fill='%23fff'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css?v=4.15" />
+  <link rel="stylesheet" href="styles.css?v=4.16" />
 </head>
 <body>
   <div id="dropOverlay" class="drop-overlay hidden">
@@ -71,10 +71,6 @@
         <button class="btn btn-ghost" id="btnActiveFilter" type="button" title="Скрыть номенклатуру, у которой артикул начинается с символа «+»">Активно</button>
         <button class="btn btn-ghost" id="btnPrintOrder" title="Печатный бланк заявки на закупку (Печать / PDF)">Печать</button>
         <button class="btn btn-ghost icon-only" id="btnTheme" title="Переключить светлую / тёмную тему" aria-label="Тема">◐</button>
-        <div class="budget-inline-card" id="budgetInlineCard">
-          <span class="kpi-label">Бюджет закупки</span>
-          <span class="kpi-value" id="kpiOrderCost">0,00 руб.</span>
-        </div>
         <button class="btn btn-close-app icon-only" id="btnCloseApp" type="button" title="Закрыть программу" aria-label="Закрыть программу">✕</button>
       </div>
     </header>
@@ -196,6 +192,13 @@
             Радар неликвидов <span class="tab-counter" id="cntTabOverstock">0</span>
           </button>
         </div>
+        <div class="tabs-order-summary">
+          <div class="current-supplier-card" id="currentSupplierCard"><span id="currentSupplierName">Поставщик не выбран</span><strong id="currentSupplierSum">0,00 руб.</strong></div>
+        <div class="budget-inline-card" id="budgetInlineCard">
+          <span class="kpi-label">Бюджет закупки</span>
+          <span class="kpi-value" id="kpiOrderCost">0,00 руб.</span>
+        </div>
+        </div>
         <button type="button" class="btn btn-beige btn-xs hidden" id="btnClearAllExcelFilters" title="Сбросить все активные фильтры столбцов таблицы">
           ✕ Очистить фильтры таблицы
         </button>
@@ -220,7 +223,7 @@
                 <div class="th-excel-wrap"><span class="th-excel-title">Артикул</span><button type="button" class="th-filter-btn" data-filter-col="sku" aria-label="Фильтр: Артикул"></button></div>
               </th>
               <th data-sort="name" data-col="name" class="col-name">
-                <div class="th-excel-wrap"><span class="th-excel-title">Номенклатура</span><button type="button" class="th-filter-btn" data-filter-col="name" aria-label="Фильтр: Номенклатура"></button></div>
+                <div class="th-excel-wrap"><span class="th-excel-title">Номенклатура</span><input type="search" id="inpSearch" placeholder="Поиск по номенклатуре" aria-label="Поиск по номенклатуре" autocomplete="off" /><button type="button" class="th-filter-btn" data-filter-col="name" aria-label="Фильтр: Номенклатура"></button></div>
               </th>
               <th data-sort="unit" data-col="unit" class="unit-col">
                 <div class="th-excel-wrap"><span class="th-excel-title">Ед.</span><button type="button" class="th-filter-btn" data-filter-col="unit" aria-label="Фильтр: Ед."></button></div>
@@ -424,7 +427,7 @@
         <div class="search-name-combo" id="searchNameCombo">
           <div class="search-box search-name-box">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="inpSearch" placeholder="Поиск по номенклатуре" aria-label="Поиск по номенклатуре" autocomplete="off" />
+
             <button type="button" class="search-combo-caret-btn" id="btnSearchNameDropdown" aria-label="Открыть выпадающий список номенклатуры">▾</button>
           </div>
           <div class="supplier-dd-menu ms-dd-menu search-name-dd-menu hidden" id="ddSearchNameMenu">
@@ -617,6 +620,6 @@
 
   <div id="ratingChartPopover" class="rating-chart-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=4.15"></script>
+  <script src="app.js?v=4.16"></script>
 </body>
 </html>

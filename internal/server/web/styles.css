@@ -2283,3 +2283,51 @@ body.col-resize-active * {
 
 
 .budget-suppliers-popover { position: fixed; top: 160px; right: 20px; z-index: 135; }
+
+/* Текущий заказ рядом с вкладками; сумма всегда видна вне прокрутки таблицы. */
+.tabs-bar { flex-wrap: wrap; }
+.tabs-order-summary { margin-left: auto; display:flex; align-items:center; gap:8px; min-width:0; }
+.current-supplier-card { display:flex; align-items:center; gap:8px; min-width:0; font-size:12px; }
+#currentSupplierName { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#currentSupplierSum { white-space:nowrap; }
+#inpSearch { flex:1 1 130px; min-width:60px; width:130px; height:24px; border:1px solid var(--border-strong); border-radius:4px; padding:0 6px; background:var(--surface); color:var(--text); }
+#tableScrollContainer { scrollbar-gutter:stable; }
+#itemsTable th[data-col="supplier"] { padding-right:12px; min-width:170px; }
+#itemsTable th[data-col="supplier"] .th-excel-wrap { padding-right:4px; }
+.data-table tbody tr:hover,
+.data-table tbody tr.auto-order-row:hover,
+.data-table tbody tr.auto-order-row:hover .order-cell,
+.data-table tbody tr.selected-row:hover,
+.data-table tbody tr.auto-order-row.selected-row:hover { background:var(--beige-bg) !important; color:var(--beige-text); }
+.ef-supplier-name { flex:1 1 auto; min-width:0; border:0; background:transparent; color:var(--text); text-align:left; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:3px; }
+.ef-supplier-sum { flex:0 0 auto; font-weight:700; white-space:nowrap; }
+
+/* Все столбцы в границах окна, без горизонтального скроллинга. */
+.workspace, .header-controls-strip { max-width:none; min-width:0; }
+.table-container, .table-scroll, .tab-view.active { overflow-x:hidden; max-width:100%; min-width:0; }
+.data-table, .data-table.table-manual-cols { table-layout:fixed; width:100% !important; max-width:100%; }
+.data-table th, .data-table td,
+.data-table th.col-name, .data-table td.name-cell,
+.data-table th.col-5digits, .data-table td.col-5digits,
+#itemsTable th.col-5digits, #itemsTable td.col-5digits,
+#itemsTable th[data-col="supplier"],
+.data-table td.sup-cell, .data-table thead th.wh-col, .data-table thead th.grp-col,
+.data-table td.wh-cell, .data-table td.grp-cell,
+.data-table th.unit-col, .data-table td.unit-cell,
+.data-table th.seg-col, .data-table td.seg-cell,
+.data-table th.plus-col, .data-table td.plus-cell {
+  min-width:0 !important; max-width:none; width:auto;
+  overflow:hidden; text-overflow:ellipsis;
+}
+#itemsTable:not(.table-manual-cols) th[data-col="name"] { width:18%; }
+#itemsTable:not(.table-manual-cols) th[data-col="supplier"] { width:18%; }
+#itemsTable:not(.table-manual-cols) th[data-col="warehouse"],
+#itemsTable:not(.table-manual-cols) th[data-col="group"] { width:6%; }
+#itemsTable:not(.table-manual-cols) th[data-col="unit"],
+#itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }
+#itemsTable .th-excel-wrap { gap:2px; }
+#itemsTable .th-filter-btn { flex-shrink:0; }
+#inpSearch { width:0; min-width:0; }
+.qty-editor, .qty-input { width:100%; min-width:0; max-width:100%; }
+#suppliersTable td:last-child { white-space:normal !important; }
+#suppliersTable td:last-child .btn { max-width:100%; white-space:normal; height:auto; min-height:23px; }
