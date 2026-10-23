@@ -1229,8 +1229,8 @@
     el('fileMetaLine').textContent =
       `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)${savedSuffix}`;
 
-    const isFiltered = hasActiveTableFilter();
-    const sourceItems = isFiltered ? state.filteredItems : (rep.items || []);
+    // Бюджет зависит только от галочек поставщиков, не от видимости строк.
+    const sourceItems = rep.items || [];
 
     let checkedBudget = 0;
     for (const it of sourceItems) {
