@@ -610,6 +610,18 @@
     </div>
   </div>
 
+  <div id="clearConfirmModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="clearConfirmTitle">
+    <div class="v4-modal-card v4-modal-confirm">
+      <div class="v4-modal-head"><h3 id="clearConfirmTitle">Сохранить данные перед очисткой базы?</h3></div>
+      <p class="v4-modal-sub">«Сохранить» — записать текущую базу и свойства номенклатуры, затем очистить базу. «Не сохранять» — очистить базу без записи. Свойства номенклатуры останутся в памяти программы.</p>
+      <div class="v4-modal-actions">
+        <button type="button" class="btn btn-modal-yes" id="btnClearSaveYes">Сохранить</button>
+        <button type="button" class="btn btn-modal-no" id="btnClearSaveNo">Не сохранять</button>
+        <button type="button" class="btn btn-ghost" id="btnClearSaveCancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
   <div id="closeConfirmModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="closeConfirmTitle">
     <div class="v4-modal-card v4-modal-confirm">
       <div class="v4-modal-head">
