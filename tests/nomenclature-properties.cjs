@@ -4,8 +4,9 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const dom = new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window,d=w.document;
-const key=JSON.stringify(['sku','A']);
-const props={[key]:true,[JSON.stringify(['name','Группа','Без артикула'])]:true};
+const key=JSON.stringify(['sku','A','Склад']);
+const legacy=JSON.stringify(['sku','LEG']);
+const props={[legacy]:true,[key]:true,[JSON.stringify(['name','Группа','Без артикула','Склад'])]:true};
 const makeItem=(row,sku,name='Товар')=>({excelRow:row,sku,name,warehouse:'Склад',group:'Группа',supplier:'Поставщик',sumSalesLast12M:2,closingStock:1,salesSegment:1,finalOrderQty:0,purchasePrice:1,monthlySales:[]});
 const env=(name,items)=>({report:{fileName:name,items,warehouses:[],groups:[],suppliers:[],periods:[],params:{}}});
 let uploaded=env('new.xlsx',[makeItem(55,'A'),makeItem(56,'B'),makeItem(57,'','Без артикула')]);
@@ -15,11 +16,12 @@ w.fetch=async(path,options={})=>{
  if(path==='api/properties/import') return {ok:true,json:async()=>({properties:importedProps})};
  if(path==='api/properties') {
   const req=options.body ? JSON.parse(options.body):{};
+  for(const key of req.removeKeys || []) delete props[key];
   Object.assign(props,req.properties || {});
   if(req.save) snapshots++;
   return {ok:true,json:async()=>({properties:{...props},fileName:'Свойства Номенклатуры.json'})};
  }
- return {ok:true,json:async()=>path==='api/upload' ? uploaded : env('old.xlsx',[makeItem(8,'A'),makeItem(9,'A'),makeItem(10,'B'),makeItem(11,'','Без артикула')])};
+ return {ok:true,json:async()=>path==='api/upload' ? uploaded : env('old.xlsx',[makeItem(8,'A'),{...makeItem(9,'A'),warehouse:'Другой склад'},makeItem(10,'B'),makeItem(11,'','Без артикула'),makeItem(12,'LEG'),{...makeItem(13,'LEG'),warehouse:'Другой склад'}])};
 };
 w.scrollTo=()=>{};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
@@ -32,11 +34,19 @@ const load=async()=>{
 };
 (async()=>{
  await tick();
- assert.ok(checked(8) && checked(9),'SKU properties restored across warehouse rows');
+ assert.equal(checked(8),true);
+ assert.equal(checked(9),false,'A mark on one warehouse must not affect another');
+ const other=d.querySelector('[data-plus-row="9"]');other.checked=true;other.dispatchEvent(new w.Event('change',{bubbles:true}));
+ await tick();
  assert.equal(checked(11),true,'Name/group fallback when SKU is absent');
+ assert.ok(checked(12) && checked(13),'Legacy marks preserved during one-time warehouse migration');
+ const legacyCheck=d.querySelector('[data-plus-row="12"]');legacyCheck.checked=false;legacyCheck.dispatchEvent(new w.Event('change',{bubbles:true}));
+ await tick();
+ assert.equal(checked(13),true,'Migrated warehouses become independent');
+ assert.equal(Object.hasOwn(props,legacy),false,'Old shared key retired from server memory');
  const chk=d.querySelector('[data-plus-row="8"]');chk.checked=false;chk.dispatchEvent(new w.Event('change',{bubbles:true}));
  await tick();
- assert.equal(checked(9),false,'One nomenclature property applies to duplicate SKU');
+ assert.equal(checked(9),true,'Removing a mark must not affect another warehouse');
  await load();
  assert.equal(checked(55),false,'Explicit removal survives new workbook and row changes');
  assert.equal(checked(57),true,'Fallback key survives row changes');
@@ -48,8 +58,8 @@ const load=async()=>{
  await load();
  assert.equal(checked(100),true,'Checkmark follows SKU rather than Excel row');
  assert.equal(checked(101),false,'Unknown SKU is not checked');
- assert.equal(props[JSON.stringify(['sku','B'])],true);
- importedProps={...props,[JSON.stringify(['sku','B'])]:false,[JSON.stringify(['sku','C'])]:true};
+ assert.equal(props[JSON.stringify(['sku','B','Склад'])],true);
+ importedProps={...props,[JSON.stringify(['sku','B','Склад'])]:false,[JSON.stringify(['sku','C','Склад'])]:true};
  const propertiesInput=d.getElementById('propertiesFileInput');
  Object.defineProperty(propertiesInput,'files',{configurable:true,value:[new w.File(['x'],'properties.xlsx')]});
  propertiesInput.dispatchEvent(new w.Event('change'));await tick();

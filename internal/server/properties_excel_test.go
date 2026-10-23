@@ -18,7 +18,7 @@ func TestPropertiesExcelEndpoints(t *testing.T) {
 	dir := t.TempDir()
 	app := server.New(false)
 	app.SetSaveDir(dir)
-	key := xlsx.NomenclaturePropertyKey("000123", "", "")
+	key := xlsx.NomenclaturePropertyKey("000123", "", "", "Склад")
 	raw, err := xlsx.GeneratePropertiesXLSX(map[string]bool{key: true}, nil)
 	if err != nil {
 		t.Fatal(err)

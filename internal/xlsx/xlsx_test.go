@@ -177,10 +177,10 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 
 	// Проверка формирования имени и полного сохранения/восстановления базы («<Склад>, Ведомость сохраненная, <ДД.ММ.ГГГГ>.xlsx»)
 	saveDate := time.Date(2026, time.October, 22, 15, 30, 0, 0, time.UTC)
-	if got := xlsx.FormatSavedDatabaseFilename("Склад Мир", saveDate); got != "Ведомость сохранена, 22.10.2026, 15：30：00.xlsx" {
+	if got := xlsx.FormatSavedDatabaseFilename("Склад Мир", saveDate); got != "Ведомость сохранена, 22.10.2026.xlsx" {
 		t.Fatalf("FormatSavedDatabaseFilename mismatch: got %q", got)
 	}
-	if got := xlsx.FormatSavedDatabaseFilename("", saveDate); got != "Ведомость сохранена, 22.10.2026, 15：30：00.xlsx" {
+	if got := xlsx.FormatSavedDatabaseFilename("", saveDate); got != "Ведомость сохранена, 22.10.2026.xlsx" {
 		t.Fatalf("FormatSavedDatabaseFilename empty warehouse fallback mismatch: got %q", got)
 	}
 

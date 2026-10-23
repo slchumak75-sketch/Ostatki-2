@@ -52,6 +52,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Properties map[string]bool `json:"properties"`
+		RemoveKeys []string        `json:"removeKeys"`
 		Save       bool            `json:"save"`
 	}
 	if r.Method == http.MethodPost {
@@ -71,6 +72,9 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 	if err := s.loadPropertiesLocked(latest); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	for _, key := range req.RemoveKeys {
+		delete(s.properties, key)
 	}
 	for key, value := range req.Properties {
 		s.properties[key] = value
@@ -133,7 +137,7 @@ func (s *AppServer) handleExportProperties(w http.ResponseWriter, r *http.Reques
 	if s.report != nil {
 		items = append(items, s.report.Items...)
 		for _, it := range items {
-			key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name)
+			key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
 			if _, ok := props[key]; !ok {
 				props[key] = false
 			}
