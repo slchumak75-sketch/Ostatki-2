@@ -1581,9 +1581,14 @@ body.col-resize-active * {
 
 .toast {
   position: fixed;
-  bottom: 20px;
+  top: 90px;
+  bottom: auto;
   right: 20px;
-  z-index: 90;
+  max-width: min(560px, calc(100vw - 40px));
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  z-index: 10000;
   background: #0f172a;
   color: #ffffff;
   padding: 10px 16px;
@@ -2339,3 +2344,5 @@ body.col-resize-active * {
 .btn.property-filter-active { background:#16a34a; border-color:#15803d; color:#fff; }
 
 input[type="checkbox"] { accent-color: #dc2626; }
+
+.properties-save-error { color: #b91c1c; font-weight: 700; }

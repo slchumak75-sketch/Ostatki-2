@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
@@ -54,6 +55,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Properties map[string]bool `json:"properties"`
 		RemoveKeys []string        `json:"removeKeys"`
+		Persist    bool            `json:"persist"`
 		Save       bool            `json:"save"`
 	}
 	if r.Method == http.MethodPost {
@@ -93,24 +95,93 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	name := ""
+	if req.Persist && !req.Save {
+		if err := s.persistPropertiesLocked(dir); err != nil {
+			writeError(w, 500, "Не удалось записать свойства в "+dir+": "+err.Error())
+			return
+		}
+	}
 	if req.Save {
 		name, err = s.savePropertiesLocked(dir)
 		if err != nil {
-			writeError(w, 500, err.Error())
+			writeError(w, 500, "Не удалось сохранить свойства в "+dir+": "+err.Error())
 			return
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	result := map[string]any{"properties": s.properties, "fileName": name, "directory": dir}
+	result := map[string]any{"fileName": name, "directory": dir, "persisted": req.Persist || req.Save, "markedCount": countMarkedProperties(s.properties)}
+	if r.Method == http.MethodGet || (!req.Persist && !req.Save) {
+		result["properties"] = s.properties
+	}
 	if changed && s.wb != nil {
 		result["state"] = s.buildStateEnvelopeLocked()
 	}
 	_ = json.NewEncoder(w).Encode(result)
 }
 
-// Caller holds s.mu; no periodic disk writes are performed.
-func (s *AppServer) savePropertiesLocked(dir string) (string, error) {
+func countMarkedProperties(props map[string]bool) int {
+	n := 0
+	for _, v := range props {
+		if v {
+			n++
+		}
+	}
+	return n
+}
+
+// Flush the temporary file before replacement, then verify the committed bytes.
+// A unique temp name also avoids collisions with other running copies of the app.
+func writeVerifiedProperties(path string, raw []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".properties-*.tmp")
+	if err != nil {
+		return err
+	}
+	temp := f.Name()
+	defer os.Remove(temp)
+	if _, err = f.Write(raw); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(temp, path); err != nil {
+		return err
+	}
+	stored, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(stored, raw) {
+		return fmt.Errorf("проверка записи файла не пройдена")
+	}
+	return nil
+}
+
+func (s *AppServer) persistPropertiesLocked(dir string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(s.properties, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "properties.json")
+	if old, err := os.ReadFile(path); err == nil && json.Valid(old) && !bytes.Equal(old, raw) {
+		if err := writeVerifiedProperties(path+".bak", old); err != nil {
+			return err
+		}
+	}
+	return writeVerifiedProperties(path, raw)
+}
+
+// Manual saves additionally create a dated snapshot; incremental saves only update the catalog.
+func (s *AppServer) savePropertiesLocked(dir string) (string, error) {
+	if err := s.persistPropertiesLocked(dir); err != nil {
 		return "", err
 	}
 	raw, err := json.MarshalIndent(s.properties, "", "  ")
@@ -118,13 +189,8 @@ func (s *AppServer) savePropertiesLocked(dir string) (string, error) {
 		return "", err
 	}
 	name := "Свойства Номенклатуры, " + time.Now().Format("02.01.2006, 15：04：05") + ".json"
-	for _, path := range []string{filepath.Join(dir, name), filepath.Join(dir, "properties.json")} {
-		if err := os.WriteFile(path+".tmp", raw, 0600); err != nil {
-			return "", err
-		}
-		if err := os.Rename(path+".tmp", path); err != nil {
-			return "", err
-		}
+	if err := writeVerifiedProperties(filepath.Join(dir, name), raw); err != nil {
+		return "", err
 	}
 	return name, nil
 }

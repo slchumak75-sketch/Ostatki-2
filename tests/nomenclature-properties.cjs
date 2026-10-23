@@ -19,7 +19,7 @@ w.fetch=async(path,options={})=>{
   for(const key of req.removeKeys || []) delete props[key];
   Object.assign(props,req.properties || {});
   if(req.save) snapshots++;
-  return {ok:true,json:async()=>({properties:{...props},fileName:'Свойства Номенклатуры.json'})};
+  return {ok:true,json:async()=>({properties:{...props},fileName:'Свойства Номенклатуры.json',persisted:Boolean(req.persist || req.save),markedCount:Object.values(props).filter(Boolean).length,directory:'test-properties'})};
  }
  return {ok:true,json:async()=>path==='api/upload' ? uploaded : env('old.xlsx',[makeItem(8,'A'),{...makeItem(9,'A'),warehouse:'Другой склад'},makeItem(10,'B'),makeItem(11,'','Без артикула'),makeItem(12,'LEG'),{...makeItem(13,'LEG'),warehouse:'Другой склад'}])};
 };
@@ -54,6 +54,7 @@ const load=async()=>{
  await tick();
  d.getElementById('btnSaveProperties').click();await tick();
  assert.equal(snapshots,1);
+ assert.match(d.getElementById('propertiesStorageHint').textContent,/записаны на диск/);
  uploaded=env('newer.xlsx',[makeItem(100,'B'),makeItem(101,'C')]);
  await load();
  assert.equal(checked(100),true,'Checkmark follows SKU rather than Excel row');
@@ -72,6 +73,13 @@ const load=async()=>{
  assert.match(d.getElementById('toast').textContent,/Нет связи с программой/);
  assert.match(d.getElementById('toast').textContent,/свойства не сохранены/);
  assert.equal(checked(101),true,'Connection failure must preserve in-memory marks');
+ assert.match(d.getElementById('propertiesStorageHint').textContent,/НЕ сохранены/);
+ let backup=null,download='';
+ w.URL.createObjectURL=blob=>{backup=blob;return 'blob:test';};w.URL.revokeObjectURL=()=>{};
+ w.HTMLAnchorElement.prototype.click=function(){download=this.download;};
+ d.getElementById('btnBackupProperties').click();
+ assert.ok(backup.size>0);assert.match(download,/\.json$/);
+ assert.equal(checked(101),true,'Offline backup must not clear marks');
  w.fetch=workingFetch;
  d.getElementById('btnSaveProperties').click();await tick();
  assert.equal(snapshots,2,'Save can succeed after connection returns');
