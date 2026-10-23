@@ -1629,6 +1629,48 @@
     }
   }
 
+  // Property acknowledgements must not rebuild tbody: native scroll anchoring and
+  // virtual row-height measurements can otherwise move the viewport after layout.
+  function patchVisiblePropertyRows() {
+    const rows = [...el('tableBody').querySelectorAll('tr[data-row]')];
+    if (!rows.length) return false;
+    const indices = new Map(state.filteredItems.map((it, index) => [it.excelRow, index]));
+    const start = indices.get(Number(rows[0].dataset.row));
+    if (start == null || rows.some((row, i) => indices.get(Number(row.dataset.row)) !== start + i)) return false;
+    if (state.filteredItems.length <= VIRTUAL_THRESHOLD && rows.length !== state.filteredItems.length) return false;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i], item = state.filteredItems[start + i];
+      const template = document.createElement('tbody');
+      template.innerHTML = buildTableRowHTML(item, start + i);
+      const updated = template.firstElementChild;
+      row.className = updated.className;
+      [...row.cells].forEach((cell, index) => {
+        const next = updated.cells[index];
+        if (cell.classList.contains('plus-cell')) {
+          const checkbox = cell.querySelector('[data-plus-row]');
+          const replacement = next.querySelector('[data-plus-row]');
+          checkbox.checked = replacement.checked;
+          checkbox.className = replacement.className;
+        } else if (cell.classList.contains('order-cell')) {
+          const input = cell.querySelector('[data-qty-row]');
+          const replacement = next.querySelector('[data-qty-row]');
+          if (document.activeElement !== input || input.dataset.dirty !== '1') input.value = replacement.value;
+          input.className = replacement.className;
+          const reset = cell.querySelector('[data-reset]');
+          const nextReset = next.querySelector('[data-reset]');
+          if (reset && !nextReset) reset.remove();
+          else if (!reset && nextReset) input.before(nextReset.cloneNode(true));
+          else if (reset && nextReset) reset.title = nextReset.title;
+        } else if (cell.innerHTML !== next.innerHTML) {
+          cell.innerHTML = next.innerHTML;
+        }
+      });
+    }
+    state.vStart = start;
+    state.vEnd = start + rows.length;
+    return true;
+  }
+
   function renderTable() {
     const tbody = el('tableBody');
     const slice = state.filteredItems;
@@ -1645,7 +1687,7 @@
       return;
     }
 
-    renderTableBodyWindow(true);
+    if (!propertyRowOrder || !patchVisiblePropertyRows()) renderTableBodyWindow(true);
 
     el('tableScrollContainer').scrollTop = prevScrollY;
   }
@@ -3283,16 +3325,18 @@
         plusChk.classList.remove('has-plus');
         state.staryoRows.delete(rowNum);
       }
-      rememberNomenclatureProperties([state.rowMap.get(rowNum)]);
-      recomputeReportSummaries(state.report);
-      renderKPIs(state.report);
-      syncProperties().catch(err => showToast(err.message));
-      if (state.report) populateFilterDropdowns(state.report);
-      if (state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
-        keepPropertyRowsStable(recomputeFilteredList);
-        if (state.report) renderKPIs(state.report);
-      }
-      renderTable();
+      keepPropertyRowsStable(() => {
+        rememberNomenclatureProperties([state.rowMap.get(rowNum)]);
+        recomputeReportSummaries(state.report);
+        renderKPIs(state.report);
+        syncProperties().catch(err => showToast(err.message));
+        if (state.report) populateFilterDropdowns(state.report);
+        if (state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
+          keepPropertyRowsStable(recomputeFilteredList);
+          if (state.report) renderKPIs(state.report);
+        }
+        renderTable();
+      });
     });
 
     el('btnSaveInPlace').addEventListener('click', async () => {

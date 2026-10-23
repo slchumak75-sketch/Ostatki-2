@@ -2346,3 +2346,7 @@ body.col-resize-active * {
 input[type="checkbox"] { accent-color: #dc2626; }
 
 .properties-save-error { color: #b91c1c; font-weight: 700; }
+
+/* Virtual rows are their own scroll anchor; do not let browser anchoring fight it. */
+#tableScrollContainer { overflow-anchor: none; }
+#propertiesStorageHint { display: block; flex-basis: 100%; min-height: 18px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
