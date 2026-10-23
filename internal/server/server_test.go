@@ -64,8 +64,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	var overrideEnv struct {
 		Report *struct {
-			TotalOrderCost float64                 `json:"totalOrderCost"`
-			Items          []model.CalculatedItem  `json:"items"`
+			TotalOrderCost float64                  `json:"totalOrderCost"`
+			Items          []model.CalculatedItem   `json:"items"`
 			Warehouses     []model.WarehouseSummary `json:"warehouses"`
 			Suppliers      []model.SupplierSummary  `json:"suppliers"`
 		} `json:"report"`
@@ -368,17 +368,17 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<option value="0">0-Нет продаж</option>`,
 		`class="budget-inline-card"`,
 		`<span class="kpi-label">Бюджет закупки</span>`,
-		`<th data-sort="warehouse" class="wh-col">Склад</th>`,
-		`<th data-sort="group" class="grp-col">Группа</th>`,
-		`<th data-sort="name" class="col-name">Номенклатура</th>`,
-		`<th data-sort="unit" class="unit-col">Ед.</th>`,
-		`>Рейтинг</th>`,
-		`<th data-sort="salesSegment" class="seg-col"`,
-		`<th data-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>`,
-		`<th data-sort="closingStock" class="num-col col-5digits">Остаток</th>`,
-		`<th data-sort="finalOrderQty" class="num-col col-5digits order-col-head">Заказ</th>`,
-		`<th data-sort="purchasePrice" class="num-col">Цена</th>`,
-		`<th data-sort="retailPrice" class="num-col">Розница</th>`,
+		`data-sort="warehouse" data-col="warehouse"`,
+		`data-sort="group" data-col="group"`,
+		`data-sort="name" data-col="name"`,
+		`data-sort="unit" data-col="unit"`,
+		`>Рейтинг</span>`,
+		`data-sort="salesSegment" data-col="salesSegment" class="seg-col"`,
+		`data-sort="sumSalesLast12M" data-col="sumSalesLast12M"`,
+		`data-sort="closingStock" data-col="closingStock"`,
+		`data-sort="finalOrderQty" data-col="finalOrderQty"`,
+		`data-sort="purchasePrice" data-col="purchasePrice"`,
+		`data-sort="retailPrice" data-col="retailPrice"`,
 		`id="ratingChartPopover"`,
 	} {
 		if !strings.Contains(htmlBody, mustHaveHTML) {
@@ -408,21 +408,21 @@ func TestServerAPIEndpoints(t *testing.T) {
 
 	// Проверка порядка столбцов в таблице «Ведомость»:
 	// Группа -> Артикул -> Номенклатура -> Ед. -> Запас -> + -> Рейтинг, а также Цена -> Розница -> Сумма
-	groupColIdx := strings.Index(htmlBody, `<th data-sort="group" class="grp-col">Группа</th>`)
-	skuColIdx := strings.Index(htmlBody, `<th data-sort="sku">Артикул</th>`)
-	nameIdx := strings.Index(htmlBody, `<th data-sort="name" class="col-name">Номенклатура</th>`)
-	unitIdx := strings.Index(htmlBody, `<th data-sort="unit" class="unit-col">Ед.</th>`)
-	surplusIdx := strings.Index(htmlBody, `<th data-sort="surplusStock" class="num-col col-5digits"`)
-	plusColIdx := strings.Index(htmlBody, `<th data-sort="_staryoChecked" class="plus-col"`)
-	ratingIdx := strings.Index(htmlBody, `<th data-sort="salesSegment" class="seg-col"`)
+	groupColIdx := strings.Index(htmlBody, `data-sort="group" data-col="group"`)
+	skuColIdx := strings.Index(htmlBody, `data-sort="sku" data-col="sku"`)
+	nameIdx := strings.Index(htmlBody, `data-sort="name" data-col="name"`)
+	unitIdx := strings.Index(htmlBody, `data-sort="unit" data-col="unit"`)
+	surplusIdx := strings.Index(htmlBody, `data-sort="surplusStock" data-col="surplusStock" class="num-col col-5digits"`)
+	plusColIdx := strings.Index(htmlBody, `data-sort="_staryoChecked" data-col="plus" class="plus-col"`)
+	ratingIdx := strings.Index(htmlBody, `data-sort="salesSegment" data-col="salesSegment" class="seg-col"`)
 	if !(groupColIdx > 0 && skuColIdx > groupColIdx && nameIdx > skuColIdx && unitIdx > nameIdx && surplusIdx > unitIdx && plusColIdx > surplusIdx && ratingIdx > plusColIdx) {
 		t.Fatalf("expected column order Группа -> Артикул -> Номенклатура -> Ед. -> Запас -> + -> Рейтинг, got indices %d, %d, %d, %d, %d, %d, %d",
 			groupColIdx, skuColIdx, nameIdx, unitIdx, surplusIdx, plusColIdx, ratingIdx)
 	}
 	// Проверка, что столбец «Розница» следует сразу после столбца «Цена»
-	priceIdx := strings.Index(htmlBody, `<th data-sort="purchasePrice" class="num-col">Цена</th>`)
-	retailIdx := strings.Index(htmlBody, `<th data-sort="retailPrice" class="num-col">Розница</th>`)
-	sumIdx := strings.Index(htmlBody, `<th data-sort="orderCost" class="num-col">Сумма</th>`)
+	priceIdx := strings.Index(htmlBody, `data-sort="purchasePrice" data-col="purchasePrice"`)
+	retailIdx := strings.Index(htmlBody, `data-sort="retailPrice" data-col="retailPrice"`)
+	sumIdx := strings.Index(htmlBody, `data-sort="orderCost" data-col="orderCost"`)
 	if !(priceIdx > 0 && retailIdx > priceIdx && sumIdx > retailIdx) {
 		t.Fatalf("expected column order Цена -> Розница -> Сумма, got indices %d, %d, %d", priceIdx, retailIdx, sumIdx)
 	}
@@ -578,31 +578,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
 		}
 	}
-	// Проверка строгого порядка всех 9 полей горизонтальной плашки над таблицей «Ведомость»:
-	// Все склады -> Все группы -> Артикул -> Номенклатура -> Поиск по номенклатуре -> + -> Рейтинг -> Все поставщики -> Показать все строки
-	toolbarStart := strings.Index(htmlBody, `<div class="toolbar">`)
-	if toolbarStart < 0 {
-		t.Fatalf("missing <div class=\"toolbar\"> in index.html")
-	}
-	toolbarChunk := htmlBody[toolbarStart:]
-	orderedToolbarTokens := []string{
-		`id="fltWarehouse"`,
-		`id="fltGroup"`,
-		`id="fltSku"`,
-		`id="fltNomenclature"`,
-		`id="inpSearch"`,
-		`id="fltPlus"`,
-		`id="fltABCXYZ"`,
-		`id="supplierDropdown"`,
-		`id="fltStatus"`,
-	}
-	prevPos := -1
-	for _, tok := range orderedToolbarTokens {
-		pos := strings.Index(toolbarChunk, tok)
-		if pos < 0 || pos <= prevPos {
-			t.Fatalf("toolbar field %s missing or out of expected sequence (pos=%d prev=%d)", tok, pos, prevPos)
+	// Автофильтры перенесены в заголовки всех 15 столбцов.
+	for _, col := range []string{"warehouse", "group", "sku", "name", "unit", "surplusStock", "plus", "salesSegment", "sumSalesLast12M", "closingStock", "finalOrderQty", "purchasePrice", "retailPrice", "orderCost", "supplier"} {
+		if !strings.Contains(htmlBody, `data-filter-col="`+col+`"`) {
+			t.Fatalf("missing column filter: %s", col)
 		}
-		prevPos = pos
+	}
+	if !strings.Contains(htmlBody, `id="excelFilterPopover"`) || !strings.Contains(jsBody, "matchesExcelFilters") {
+		t.Fatal("missing Excel filter UI")
 	}
 
 	// Проверка столбцов в «Радаре замороженного капитала и неликвидов»:
@@ -634,7 +617,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if strings.Contains(winSrc, "rundll32") || strings.Contains(winSrc, "1460,920") {
 		t.Fatalf("open_windows.go must not contain rundll32 or small fixed 1460x920 window size")
 	}
-	for _, mustWin := range []string{"--start-fullscreen", "--start-maximized", "ShellExecuteW"} {
+	for _, mustWin := range []string{"--start-maximized", "ShellExecuteW"} {
 		if !strings.Contains(winSrc, mustWin) {
 			t.Fatalf("open_windows.go missing %q", mustWin)
 		}
@@ -643,7 +626,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if err != nil || sysoInfo.Size() < 1024 {
 		t.Fatalf("expected embedded Windows PE resource rsrc_windows_amd64.syso (>1KB), err=%v", err)
 	}
-	if !strings.Contains(htmlBody, `id="btnFullscreen"`) || !strings.Contains(htmlBody, `id="btnCloseApp"`) {
+	if strings.Contains(winSrc, "--start-fullscreen") {
+		t.Fatal("fullscreen launch restores unwanted browser controls")
+	}
+	if !strings.Contains(htmlBody, `id="btnCloseApp"`) {
 		t.Fatalf("HTML missing fullscreen/close window controls")
 	}
 }
@@ -889,6 +875,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		"supplierSelectionActive": true,
 		"selectedSuppliers":       []string{`ООО "СИСТЕМА ООО"`, `ООО "ГолдДекор"`},
 		"ui": model.SavedUIState{
+			ColFilters:         map[string][]string{"name": {"Автомат"}, "closingStock": {}},
 			StaryoMode:         true,
 			StaryoRows:         []int{8, 12, 20},
 			HidePlusSku:        true,
@@ -1015,7 +1002,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		}
 		if !restored.UIState.StaryoMode || len(restored.UIState.StaryoRows) != 3 || !restored.UIState.HidePlusSku ||
 			restored.UIState.ActiveTab != "overstock" || restored.UIState.FltWarehouse != "Склад Кореличи" ||
-			len(restored.UIState.FltSkus) != 2 || len(restored.UIState.FltNomenclatures) != 1 ||
+			len(restored.UIState.ColFilters) != 2 || len(restored.UIState.ColFilters["name"]) != 1 || len(restored.UIState.FltSkus) != 2 || len(restored.UIState.FltNomenclatures) != 1 ||
 			len(restored.UIState.FltPlus) != 1 || restored.UIState.OvSearch != "кабель" || restored.UIState.ScrollY != 480 {
 			t.Fatalf("[%s] UI state not fully restored: %+v", label, restored.UIState)
 		}
@@ -1054,4 +1041,3 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 	app2.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/state", nil))
 	verifyRestored(rec.Body.Bytes(), "LoadWorkbookFromPath")
 }
-
