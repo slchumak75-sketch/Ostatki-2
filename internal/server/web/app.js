@@ -107,8 +107,19 @@
     for (const it of state.report.items) {
       const key = propertyKey(it);
       if (!Object.hasOwn(nomenclatureProperties, key)) continue;
-      if (nomenclatureProperties[key]) state.staryoRows.add(it.excelRow);
-      else state.staryoRows.delete(it.excelRow);
+      if (nomenclatureProperties[key]) {
+        state.staryoRows.add(it.excelRow);
+        if (it._unmarkedAutoOrderQty === undefined) it._unmarkedAutoOrderQty = it.autoOrderQty;
+        it.autoOrderQty = 0;
+        if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = 0;
+      } else {
+        state.staryoRows.delete(it.excelRow);
+        if (it._unmarkedAutoOrderQty !== undefined) {
+          it.autoOrderQty = it._unmarkedAutoOrderQty;
+          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = it.autoOrderQty;
+          delete it._unmarkedAutoOrderQty;
+        }
+      }
     }
   }
   function rememberNomenclatureProperties(items = state.report?.items || []) {
@@ -126,7 +137,11 @@
   }
   function syncProperties(save = false) {
     const snapshot = {...nomenclatureProperties};
-    const request = propertiesQueue.catch(() => {}).then(() => apiPost('api/properties', {properties:snapshot,save,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true}));
+    const revision = propertiesRevision, epoch = state.clientEpoch;
+    const request = propertiesQueue.catch(() => {}).then(() => apiPost('api/properties', {properties:snapshot,save,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true})).then(result => {
+      if (result.state?.report && propertiesRevision === revision && state.clientEpoch === epoch) applyEnvelope(result.state);
+      return result;
+    });
     propertiesQueue = request;
     return request;
   }
@@ -137,7 +152,13 @@
       if (revision === propertiesRevision) propertiesDirty = false;
       if (notify) showToast(`Свойства сохранены: ${res.fileName}`);
       return true;
-    } catch (err) { showToast(`Ошибка сохранения свойств: ${err.message}`); return false; }
+    } catch (err) {
+      const message = err instanceof TypeError && /fetch|network|load failed/i.test(err.message)
+        ? 'Нет связи с программой. Встроенный сервер недоступен; свойства не сохранены.'
+        : err.message;
+      showToast(`Ошибка сохранения свойств: ${message}`);
+      return false;
+    }
   }
 
   const el = (id) => document.getElementById(id);
@@ -2069,6 +2090,7 @@
     const btnSave = el('btnSaveDb');
     if (btnSave && reason === 'manual') btnSave.disabled = true;
     try {
+      await syncProperties();
       const res = await apiPost('api/db/save', {
         reason,
         pendingOverrides: collectPendingOverridesSnapshot(),
@@ -2268,6 +2290,17 @@
 
   function bindEvents() {
     el('btnSaveFields').addEventListener('click', saveFields);
+    function closeAdminNotice() {
+      el('adminNoticeModal').classList.add('hidden');
+      el('btnToggleAdvanced').focus();
+    }
+    el('btnAdminNoticeOk').addEventListener('click', closeAdminNotice);
+    el('adminNoticeModal').addEventListener('click', e => {
+      if (e.target === el('adminNoticeModal')) closeAdminNotice();
+    });
+    el('adminNoticeModal').addEventListener('keydown', e => {
+      if (e.key === 'Tab') { e.preventDefault(); el('btnAdminNoticeOk').focus(); }
+    });
     let paramsClicks = 0;
     for (const [id, field] of [['btnSales12','sales12Only'], ['btnRelevant','unmarkedOnly']]) {
       el(id).addEventListener('click', () => {
@@ -2304,7 +2337,9 @@
         if (!res.ok) throw new Error(data.error || 'Не удалось прочитать Excel');
         nomenclatureProperties = data.properties || {};
         propertiesRevision += 1; propertiesDirty = true;
+        if (data.state?.report) applyEnvelope(data.state);
         applyNomenclatureProperties();
+        recomputeReportSummaries(state.report);
         refreshExcelTable();
         showToast('Свойства номенклатуры загружены');
       } catch(err) { showToast(`Ошибка загрузки свойств: ${err.message}`); }
@@ -2439,7 +2474,11 @@
       paramsClicks += 1;
       if (paramsClicks < 4) return;
       paramsClicks = 0;
-      if (el('paramsPanel').classList.contains('hidden')) window.alert('Только для Администратора');
+      if (el('paramsPanel').classList.contains('hidden')) {
+        // Native alert blocks JS heartbeats and can shut down the desktop server.
+        el('adminNoticeModal').classList.remove('hidden');
+        el('btnAdminNoticeOk').focus();
+      }
       const body = el('paramsBody');
       const isHidden = body.classList.toggle('hidden');
       el('paramsPanel').classList.toggle('hidden', isHidden);
@@ -3170,6 +3209,8 @@
         state.staryoRows.delete(rowNum);
       }
       rememberNomenclatureProperties([state.rowMap.get(rowNum)]);
+      recomputeReportSummaries(state.report);
+      renderKPIs(state.report);
       syncProperties().catch(err => showToast(err.message));
       if (state.report) populateFilterDropdowns(state.report);
       if (state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
@@ -3269,7 +3310,9 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        if (!el('closeConfirmModal')?.classList.contains('hidden')) {
+        if (!el('adminNoticeModal').classList.contains('hidden')) {
+          closeAdminNotice();
+        } else if (!el('closeConfirmModal')?.classList.contains('hidden')) {
           closeCloseConfirmModal();
         } else if (!el('savedDbModal')?.classList.contains('hidden')) {
           closeSavedDbModal();
@@ -3692,6 +3735,7 @@
       savedColumnWidths = fields.widths || {};
       const env = await apiGet('api/state');
       applyEnvelope(env, { initialBoot: true });
+      if (state.report && Object.keys(nomenclatureProperties).length) syncProperties().catch(err => showToast(err.message));
     } catch (err) {
       el('fileMetaLine').textContent = 'Откройте или перетащите файл Ведомости (.xlsx) для начала работы';
       showToast(err.message);

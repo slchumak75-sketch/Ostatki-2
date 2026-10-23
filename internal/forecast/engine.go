@@ -73,7 +73,7 @@ func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 }
 
 // Calculate выполняет полный расчёт сборки «Вариант 4».
-func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int) *model.CalculationReport {
+func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int, excludedRows ...map[int]bool) *model.CalculationReport {
 	params := NormalizeParams(rawParams)
 	periods := make([]model.PeriodColumn, len(wb.Periods))
 	copy(periods, wb.Periods)
@@ -356,6 +356,9 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 
 			prio := computePriorityScore(abc, xyz, item.ClosingStock, daysSupply, item.PurchasePrice, effectiveRetail, effSeasonIdx)
 
+			if len(excludedRows) > 0 && excludedRows[0][item.ExcelRow] {
+				autoQty = 0
+			}
 			finalQty := autoQty
 			var overridePtr *int
 			if manualOverrides != nil {

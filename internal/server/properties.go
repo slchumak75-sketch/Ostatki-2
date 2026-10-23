@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 	"io"
@@ -69,15 +70,27 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	latest := filepath.Join(dir, "properties.json")
+	wasLoaded := s.propertiesLoaded
 	if err := s.loadPropertiesLocked(latest); err != nil {
 		writeError(w, 500, err.Error())
 		return
 	}
+	changed := !wasLoaded
 	for _, key := range req.RemoveKeys {
+		if _, ok := s.properties[key]; ok {
+			changed = true
+		}
 		delete(s.properties, key)
 	}
 	for key, value := range req.Properties {
+		if prev, ok := s.properties[key]; !ok || prev != value {
+			changed = true
+		}
 		s.properties[key] = value
+	}
+	if changed && s.wb != nil {
+		s.epoch.Add(1)
+		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	name := ""
 	if req.Save {
@@ -88,7 +101,11 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"properties": s.properties, "fileName": name, "directory": dir})
+	result := map[string]any{"properties": s.properties, "fileName": name, "directory": dir}
+	if changed && s.wb != nil {
+		result["state"] = s.buildStateEnvelopeLocked()
+	}
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // Caller holds s.mu; no periodic disk writes are performed.
@@ -195,6 +212,34 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 	for k, v := range imported {
 		s.properties[k] = v
 	}
+	if s.wb != nil {
+		s.epoch.Add(1)
+		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"properties": s.properties, "imported": len(imported)})
+	_ = json.NewEncoder(w).Encode(map[string]any{"properties": s.properties, "imported": len(imported), "state": s.buildStateEnvelopeLocked()})
+}
+
+// Caller holds at least s.mu.RLock. Catalog entries are scoped to warehouse + nomenclature.
+func (s *AppServer) orderExclusionsLocked(wb *model.WorkbookData) map[int]bool {
+	rows := map[int]bool{}
+	if wb != nil {
+		for _, it := range wb.Items {
+			if s.properties[xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)] {
+				rows[it.ExcelRow] = true
+			}
+		}
+	}
+	return rows
+}
+
+func (s *AppServer) orderExclusions(wb *model.WorkbookData) map[int]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if dir, err := s.propertiesDirLocked(); err == nil {
+		if err := s.loadPropertiesLocked(filepath.Join(dir, "properties.json")); err != nil {
+			fmt.Fprintf(os.Stderr, "Чтение свойств: %v\n", err)
+		}
+	}
+	return s.orderExclusionsLocked(wb)
 }
