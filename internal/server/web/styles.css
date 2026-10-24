@@ -2421,3 +2421,22 @@ body {
 .ef-supplier-help { flex-basis:100%; font-size:11px; color:var(--text-muted); }
 .ef-opt-row > [data-supplier-budget] { flex:0 0 auto; margin-left:6px; }
 .ef-opt-row > [data-excel-value] { flex:0 0 auto; }
+
+/* Full-width, read-only charts; table remains on its own tab. */
+.charts-controls { display:flex; flex-wrap:wrap; gap:10px; flex:0 0 auto; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:7px; }
+.charts-controls label { display:flex; flex-direction:column; gap:4px; font-size:12px; min-width:130px; }
+.charts-controls label:first-child { flex:1 1 260px; }
+.charts-controls select { max-width:100%; min-height:30px; }
+.charts-note { font-size:12px; color:var(--text-muted); margin:4px 0; }
+.charts-content { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px; }
+.charts-content h2 { font-size:18px; margin:0 0 8px; }
+.charts-summary { margin:6px 0; }
+.chart-legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:12px 0; }
+.chart-legend span { display:inline-flex; gap:6px; align-items:center; }
+.chart-legend i { width:12px; height:12px; border-radius:3px; }
+.sales-chart { display:block; width:100%; height:auto; font-family:inherit; font-size:13px; fill:var(--text); }
+.chart-bar-value { font-size:12px; font-weight:600; }
+.charts-empty { padding:30px; text-align:center; }
+.chart-values { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
+.chart-values td,.chart-values th { padding:6px; border-bottom:1px solid var(--border); overflow-wrap:anywhere; text-align:right; }
+.chart-values td:first-child,.chart-values th:first-child { text-align:left; }

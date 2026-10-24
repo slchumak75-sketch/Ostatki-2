@@ -1,0 +1,40 @@
+const {JSDOM}=require('jsdom');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window,d=w.document;
+w.eval(fs.readFileSync('internal/server/web/charts.js','utf8'));
+const periods=[1,2,3].map(month=>({year:2026,month,label:`Месяц ${month}`}));
+const item=(row,wh,group,sup,price,sales)=>({excelRow:row,warehouse:wh,group,supplier:sup,purchasePrice:price,monthlySales:sales,sku:String(row),name:'Товар',salesSegment:0,sumSalesLast12M:0,closingStock:1,finalOrderQty:0});
+const items=[item(8,'A','Группа <1>','S1',10,[1,2,3]),item(9,'B','Группа <1>','S2',20,[2,0,1]),item(10,'A','Группа 2','S1',5,[0,2,-1]),item(11,'A','Группа 2','S3',0,[100,100,100])];
+const rep={fileName:'test.xlsx',items,periods,warehouses:[],groups:[],suppliers:[],params:{}};
+const before=JSON.stringify(rep);
+w.SalesCharts.update(rep);
+assert.equal(d.querySelector('[data-tab="overstock"]').nextElementSibling.dataset.tab,'charts');
+assert.equal(d.querySelectorAll('#chartKind option').length,5);
+let data=w.SalesCharts.aggregate(rep,'groups','',0,2);
+assert.equal(data.total,130);assert.equal(data.rows[0].total,120);assert.equal(data.excluded,1);assert.equal(data.returns,1);
+assert.equal(JSON.stringify(rep),before,'Charts never mutate the report');
+const change=(id,value)=>{d.getElementById(id).value=value;d.getElementById(id).dispatchEvent(new w.Event('change'));};
+assert.ok(!d.querySelector('#chartsContent script'));
+change('chartWarehouse','B');assert.match(d.getElementById('chartsContent').textContent,/60,00/);
+change('chartFrom','1');change('chartTo','1');assert.match(d.getElementById('chartsContent').textContent,/нет положительных продаж/);
+change('chartWarehouse','');change('chartFrom','0');change('chartTo','2');
+for(const kind of ['groups','suppliers','supplierShares','groupShares','monthly']){
+ change('chartKind',kind);assert.ok(d.querySelector('#chartsContent svg'));
+ assert.match(d.getElementById('chartsContent').textContent,/130,00/);
+ if(kind.endsWith('Shares'))assert.match(d.getElementById('chartsContent').textContent,/%/);
+}
+assert.equal(d.querySelectorAll('#chartsContent polyline').length,2,'Monthly lines split by warehouse');
+change('chartFrom','2');change('chartTo','0');assert.match(d.getElementById('chartsContent').textContent,/Начало периода/);
+w.SalesCharts.update(null);assert.match(d.getElementById('chartsContent').textContent,/Загрузите ведомость/);
+w.scrollTo=()=>{};w.setInterval=()=>1;
+w.fetch=async path=>({ok:true,json:async()=>path==='api/properties'?{properties:{}}:{report:rep}});
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
+(async()=>{try{
+ await new Promise(r=>setTimeout(r,80));
+ d.querySelector('[data-tab="charts"]').click();
+ assert.ok(d.getElementById('view-charts').classList.contains('active'));
+ assert.ok(!d.getElementById('view-table').classList.contains('active'));
+ assert.ok(d.querySelector('#chartsContent svg'),'Charts include rows hidden by ordinary default table filters');
+ console.log('Five sales charts, prices, periods, warehouses, shares, empty states and read-only integration passed');
+}finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

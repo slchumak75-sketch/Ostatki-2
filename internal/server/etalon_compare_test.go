@@ -32,8 +32,13 @@ func TestComparisonUsesRawRatingAndWarehouseScopedUnion(t *testing.T) {
 		{false, 11, 10, 3, 3, false}, // growth without a mark
 		{true, 10, 10, 2, 2, false},  // equality is not growth
 		{true, 9, 10, 2, 2, false},   // decrease is not growth
-		{false, 9, 10, 0, 2, false},  // 2 -> 0 must not match
+		{false, 9, 10, 0, 2, true},   // any positive reference rating may fall to zero
 		{true, -1, -2, 0, 1, true},   // negative balances and overlap, one output row
+		{false, 9, 10, 0, 3, true},
+		{false, 9, 10, 0, 4, true},
+		{false, 9, 10, 0, 5, true},
+		{false, 9, 10, 0, 0, false}, // unchanged zero is not a drop
+		{false, 9, 10, 1, 5, false}, // current rating must be exactly zero
 	}
 	for i, c := range cases {
 		it := model.CalculatedItem{RawItem: model.RawItem{ExcelRow: i + 8, SKU: "001", Warehouse: string(rune('А' + i)), Name: "Товар", ClosingStock: c.stock}, SalesSegment: c.rating}
@@ -78,7 +83,7 @@ func TestComparisonUsesRawRatingAndWarehouseScopedUnion(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Rows) != len(cases) || got.Count != 3 {
+	if len(got.Rows) != len(cases) || got.Count != 7 {
 		t.Fatal(got)
 	}
 	for i, c := range cases {

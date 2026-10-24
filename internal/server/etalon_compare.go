@@ -51,7 +51,7 @@ func (s *AppServer) handleCompareEtalon(w http.ResponseWriter, r *http.Request) 
 		if !ok {
 			continue
 		}
-		row := etalonComparisonRow{ExcelRow: it.ExcelRow, EtalonStock: ref.Stock, EtalonRating: ref.Rating, CurrentRating: it.SalesSegment, StockIncreased: it.ClosingStock > ref.Stock, RatingDropped: ref.Rating == 1 && it.SalesSegment == 0}
+		row := etalonComparisonRow{ExcelRow: it.ExcelRow, EtalonStock: ref.Stock, EtalonRating: ref.Rating, CurrentRating: it.SalesSegment, StockIncreased: it.ClosingStock > ref.Stock, RatingDropped: ref.Rating > 0 && it.SalesSegment == 0}
 		row.Matches = (s.properties[key] && row.StockIncreased) || row.RatingDropped
 		if row.Matches {
 			count++

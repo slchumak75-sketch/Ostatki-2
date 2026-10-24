@@ -199,6 +199,7 @@
           <button class="tab-btn" data-tab="overstock" role="tab">
             Радар неликвидов <span class="tab-counter" id="cntTabOverstock">0</span>
           </button>
+          <button class="tab-btn" data-tab="charts" role="tab">Графики</button>
         </div>
         <div class="tabs-order-summary">
           <div class="current-supplier-card" id="currentSupplierCard"><span id="currentSupplierName">Поставщик не выбран</span><strong id="currentSupplierSum">0,00 руб.</strong></div>
@@ -348,6 +349,22 @@
         <button class="btn btn-ghost btn-sm hidden" id="btnResetOverstockFilters" type="button">Сбросить фильтр</button>
       </div>
       <div class="card-block" id="overstockContainer"></div>
+    </section>
+    <section class="tab-view" id="view-charts">
+      <div class="charts-controls">
+        <label>Вид графика<select id="chartKind">
+          <option value="groups">Продажи по товарным группам</option>
+          <option value="suppliers">Продажи по поставщикам</option>
+          <option value="supplierShares">Удельный вес поставщиков в продажах</option>
+          <option value="groupShares">Удельный вес товарных групп в продажах</option>
+          <option value="monthly">Динамика продаж по месяцам</option>
+        </select></label>
+        <label>Склад<select id="chartWarehouse"><option value="">Все склады</option></select></label>
+        <label>Период с<select id="chartFrom"></select></label>
+        <label>по<select id="chartTo"></select></label>
+      </div>
+      <p class="charts-note">Продажи в текущих закупочных ценах: количество × «Цена», не фактическая выручка. Только положительные продажи; возвраты не включены. Все позиции ведомости, независимо от фильтров и бюджета.</p>
+      <div id="chartsContent" class="charts-content" aria-live="polite"></div>
     </section>
   </main>
 
@@ -648,6 +665,7 @@
 
   <div id="ratingChartPopover" class="rating-chart-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=4.16"></script>
+  <script src="charts.js?v=1"></script>
+  <script src="app.js?v=4.17"></script>
 </body>
 </html>
