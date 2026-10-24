@@ -67,8 +67,9 @@
     searchNameLimit: 300,
     staryoMode: true,
     staryoRows: new Set(),
-    sales12Only: false,
-    unmarkedOnly: false,
+    sales12Only: true,
+    unmarkedOnly: true,
+    comparison: null,
 
     lastLoadedFile: null,
     justResizedColumn: false,
@@ -176,6 +177,31 @@
     }
   }
 
+  function storageStatus(id,name,savedAt) {
+    const date=new Date(savedAt);
+    const stamp=savedAt && !Number.isNaN(date.getTime()) ? date.toLocaleString('ru-RU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : 'дата сохранения неизвестна';
+    el(id).textContent=name ? `${String(name).split(/[\\/]/).pop()} • ${stamp}` : 'Ещё не сохранено';
+    el(id).removeAttribute('title');
+  }
+  let comparisonGeneration=0;
+  function exitComparison(refresh=false) {
+    comparisonGeneration+=1;
+    const wasActive=Boolean(state.comparison);
+    if(wasActive)hideRatingChartPopover();
+    state.comparison=null;
+    el('comparisonHint')?.classList.add('hidden');
+    el('btnCompareEtalon')?.setAttribute('aria-pressed','false');
+    el('btnCompareEtalon')?.classList.remove('property-filter-active');
+    if(refresh && wasActive && state.report) {refreshExcelTable();renderOverstockView(state.report);}
+  }
+  function comparisonItem(it) {
+    const row=state.comparison?.get(it.excelRow);
+    if(!row)return null;
+    const increased=state.staryoRows.has(it.excelRow) && Number(it.closingStock)>row.etalonStock;
+    const dropped=row.etalonRating===1 && row.currentRating===0;
+    return increased || dropped ? {...it,salesSegment:row.currentRating} : null;
+  }
+
   function syncProperties(save = false) {
     const snapshot = {...nomenclatureProperties};
     const revision = propertiesRevision, epoch = state.clientEpoch;
@@ -192,7 +218,7 @@
       if (result.state?.report && propertiesRevision === revision && state.clientEpoch === epoch) keepPropertyRowsStable(() => applyEnvelope(result.state));
       if (result.persisted && propertiesRevision === revision) {
         propertiesDirty = false;
-        el('propertiesStorageHint').textContent = `Свойства записаны на диск. Галочек: ${result.markedCount}. Папка: ${result.directory}`;
+        storageStatus('propertiesStorageHint',result.lastFileName || result.fileName || 'properties.json',result.savedAt);
         el('propertiesStorageHint').classList.remove('properties-save-error');
       }
       return result;
@@ -210,7 +236,7 @@
       const revision = propertiesRevision;
       const res = await syncProperties(true);
       if (revision === propertiesRevision) propertiesDirty = false;
-      if (notify) showToast(`Свойства сохранены: ${res.fileName}`);
+      if (notify) showToast(el('propertiesStorageHint').textContent);
       return true;
     } catch (err) {
       const message = err instanceof TypeError && /fetch|network|load failed/i.test(err.message)
@@ -722,6 +748,7 @@
   }
 
   function resetUIToEmptyDatabase() {
+    exitComparison();
     hideRatingChartPopover();
     captureNomenclatureRecords();
     state.report = null;
@@ -747,7 +774,7 @@
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
     state.staryoMode = true;
-    state.sales12Only = false; state.unmarkedOnly = false; syncPropertyFilters();
+    state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
     state.lastLoadedFile = null;
 
@@ -808,6 +835,7 @@
   function applyEnvelope(env, opts = {}) {
  captureNomenclatureRecords();
     if (!env) return;
+    if(opts.freshNewDb || opts.restoreSaved || !env.report || (state.report && state.report.fileName!==env.report.fileName))exitComparison();
     state.canSaveInPlace = Boolean(env.canSaveInPlace);
     state.desktopMode = Boolean(env.desktopMode);
     state.sourceFileName = env.sourceFileName || '';
@@ -835,7 +863,7 @@
       state.sortDir = 'desc';
       state.staryoMode = true;
       state.staryoRows.clear();
-      state.sales12Only = false; state.unmarkedOnly = false; syncPropertyFilters();
+      state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
       state.checkedSuppliers.clear();
       clearAllMultiSelectFilters();
@@ -884,7 +912,7 @@
       const ui = env.uiState || {};
       state.staryoMode = true;
       state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
-      state.sales12Only = false; state.unmarkedOnly = false; syncPropertyFilters();
+      state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
       state.selectedExcelRow = ui.selectedExcelRow ?? null;
       state.sortKey = ui.sortKey || 'finalOrderQty';
@@ -1404,6 +1432,7 @@
     const list = [];
     for (let i = 0; i < src.length; i++) {
       const it = src[i];
+      if(state.comparison) {const match=comparisonItem(it);if(match)list.push(match);continue;}
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
       if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
@@ -1469,6 +1498,7 @@
       return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * mult;
     });
 
+    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Галочка + рост остатка ИЛИ рейтинг 1 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
     state.filteredItems = list;
     state.vStart = 0;
     state.vEnd = 0;
@@ -1787,7 +1817,7 @@
       ? `<text x="${(padL + plotW / 2).toFixed(1)}" y="${(padT + plotH / 2 + 4).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text-muted)">За последние 3 года продаж не было (0 шт.)</text>`
       : '';
 
-    const segNum = Number(it.salesSegment) || 0;
+    const segNum = Number(state.comparison?.get(it.excelRow)?.currentRating ?? it.salesSegment) || 0;
     const firstLbl = slicePeriods[0]?.label || '';
     const lastLbl = slicePeriods[slicePeriods.length - 1]?.label || '';
     const skuPart = it.sku ? ` • Арт. ${esc(it.sku)}` : '';
@@ -2409,14 +2439,33 @@
       if (e.key === 'Tab') { e.preventDefault(); el('btnAdminNoticeOk').focus(); }
     });
     let paramsClicks = 0;
+    const filterClicks={sales12Only:0,unmarkedOnly:0};
+    syncPropertyFilters();
     for (const [id, field] of [['btnSales12','sales12Only'], ['btnRelevant','unmarkedOnly']]) {
       el(id).addEventListener('click', () => {
+        if(state[field] && ++filterClicks[field]<4)return;
+        filterClicks[field]=0;
         state[field] = !state[field];
         syncPropertyFilters();
         refreshExcelTable();
         if (state.report) renderOverstockView(state.report);
       });
     }
+    el('btnCompareEtalon').addEventListener('click',async()=>{
+      const button=el('btnCompareEtalon');button.disabled=true;
+      const generation=++comparisonGeneration,epoch=state.clientEpoch;
+      try {
+        if(!state.report)throw new Error('Сначала загрузите текущую базу');
+        await syncProperties();
+        const data=await apiGet('api/etalon/compare');
+        if(generation!==comparisonGeneration || epoch!==state.clientEpoch)return;
+        state.comparison=new Map((data.rows||[]).map(row=>[Number(row.excelRow),row]));
+        closeExcelFilter();hideRatingChartPopover();switchTabUI('table');
+        button.setAttribute('aria-pressed','true');button.classList.add('property-filter-active');el('comparisonHint').classList.remove('hidden');
+        refreshExcelTable();
+      } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
+      finally {button.disabled=false;}
+    });
     el('btnBackupProperties').addEventListener('click', () => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(nomenclatureBackup(),null,2)],{type:'application/json'}));
       const link = document.createElement('a');link.href=url;link.download='Свойства Номенклатуры, резервная копия.json';
@@ -2431,8 +2480,9 @@
         await syncProperties();
         const result=await apiPost('api/etalon/save',{}, {unabortable:true});
         if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
-        el('etalonStorageHint').textContent=`Эталон сохранён в программе: ${result.directory} / ${result.fileName}. Рейтинг и остаток зафиксированы на момент сохранения.`;
-        showToast(`Эталон сохранён в программе: ${result.fileName}. Рейтинг и остаток зафиксированы.`);
+        exitComparison(true);
+        storageStatus('etalonStorageHint',result.fileName,result.savedAt);
+        showToast(el('etalonStorageHint').textContent);
       } catch(err) {showToast(`Ошибка сохранения эталона: ${err.message}`);}
       finally {button.disabled=false;}
     });
@@ -2458,9 +2508,10 @@
         nomenclatureProperties=data.properties||{};
         nomenclatureRecords=data.nomenclature||{};
         acknowledgedProperties={...nomenclatureProperties};propertiesRevision+=1;propertiesDirty=false;
+        exitComparison();
         if(epoch===state.clientEpoch && data.state)applyEnvelope(data.state);
         applyNomenclatureProperties();
-        el('etalonStorageHint').textContent=`Эталон загружен: ${file.name}. Рейтинг и остаток эталона зафиксированы.`;
+        storageStatus('etalonStorageHint',data.fileName || file.name,data.savedAt);
         showToast('Эталон загружен в программу. Рейтинг и остаток эталона сохранены; рабочие остатки 1С не изменены.');
       } catch(err) {showToast(`Ошибка загрузки эталона: ${err.message}`);}
       finally {e.target.value='';button.disabled=false;}
@@ -2504,6 +2555,7 @@
     });
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        exitComparison(true);
         state.activeTab = btn.dataset.tab;
         document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.activeTab}`));
@@ -2655,16 +2707,17 @@
     });
 
     el('btnToggleAdvanced').addEventListener('click', () => {
-      paramsClicks += 1;
-      if (paramsClicks < 4) return;
+      const opening = el('paramsPanel').classList.contains('hidden');
+      if (opening && ++paramsClicks < 4) return;
       paramsClicks = 0;
-      if (el('paramsPanel').classList.contains('hidden')) {
+      if (opening) {
         // Native alert blocks JS heartbeats and can shut down the desktop server.
         el('adminNoticeModal').classList.remove('hidden');
         el('btnAdminNoticeOk').focus();
       }
       const body = el('paramsBody');
-      const isHidden = body.classList.toggle('hidden');
+      const isHidden = !opening;
+      body.classList.toggle('hidden', isHidden);
       el('paramsPanel').classList.toggle('hidden', isHidden);
       if (state.report) state.hasUnsavedChanges = true;
       el('btnToggleAdvanced').setAttribute('aria-expanded', String(!isHidden));
@@ -3398,7 +3451,7 @@
         renderKPIs(state.report);
         syncProperties().catch(err => showToast(err.message));
         if (state.report) populateFilterDropdowns(state.report);
-        if (state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
+        if (state.comparison || state.unmarkedOnly || state.msFilters.plus.size === 1 || Object.hasOwn(state.colFilters, 'plus')) {
           keepPropertyRowsStable(recomputeFilteredList);
           if (state.report) renderKPIs(state.report);
         }
@@ -3783,6 +3836,7 @@
   }
   function openExcelFilter(anchor) {
     if (!state.report) return;
+    if(state.comparison){showToast('Для обычных фильтров выйдите из сравнения нажатием вкладки');return;}
     const key = anchor.dataset.filterCol;
     if (excelMenu?.key === key) { closeExcelFilter(); return; }
     const counts = new Map();
@@ -3902,7 +3956,7 @@
       state.sortKey = excelMenu.anchor.closest('th').dataset.sort;state.sortDir=dir;closeExcelFilter();refreshExcelTable();
     });
     el('btnClearAllExcelFilters').addEventListener('click', () => {
-      clearAllMultiSelectFilters();el('inpSearch').value='';el('fltSupplier').value='';state.sales12Only=false;state.unmarkedOnly=false;syncPropertyFilters();refreshExcelTable();
+      clearAllMultiSelectFilters();el('inpSearch').value='';el('fltSupplier').value='';syncPropertyFilters();refreshExcelTable();
     });
     document.addEventListener('click', e => {
       if(excelMenu && !e.target.closest('#excelFilterPopover, [data-filter-col]')) closeExcelFilter();
@@ -3928,11 +3982,9 @@
       const properties = await apiGet('api/properties');
       nomenclatureProperties = properties.properties || {};
       nomenclatureRecords = properties.nomenclature || {};
-      if (properties.etalonLoaded) el('etalonStorageHint').textContent = 'Эталон подключён: рейтинг и остаток эталона зафиксированы. Изменение эталона — только вручную.';
+      if (properties.etalonLoaded) storageStatus('etalonStorageHint',properties.etalonFileName,properties.etalonSavedAt);
+      storageStatus('propertiesStorageHint',properties.lastFileName,properties.savedAt);
       acknowledgedProperties = {...nomenclatureProperties};
-      if (properties.directory) {
-        el('propertiesStorageHint').title = `Папка свойств: ${properties.directory}`;
-      }
       const fields = await apiGet('api/column-widths');
       savedColumnWidths = fields.widths || {};
       const env = await apiGet('api/state');

@@ -19,7 +19,7 @@ w.fetch=async(path,options={})=>{
   for(const key of req.removeKeys || []) delete props[key];
   Object.assign(props,req.properties || {});
   if(req.save) snapshots++;
-  return {ok:true,json:async()=>({properties:{...props},fileName:'Свойства Номенклатуры.json',persisted:Boolean(req.persist || req.save),markedCount:Object.values(props).filter(Boolean).length,directory:'test-properties'})};
+  return {ok:true,json:async()=>({properties:{...props},fileName:'Свойства Номенклатуры.json',persisted:Boolean(req.persist || req.save),markedCount:Object.values(props).filter(Boolean).length,directory:'test-properties',savedAt:'2026-10-24T10:20:30+03:00',lastFileName:'Свойства Номенклатуры.json'})};
  }
  return {ok:true,json:async()=>path==='api/upload' ? uploaded : env('old.xlsx',[makeItem(8,'A'),{...makeItem(9,'A'),warehouse:'Другой склад'},makeItem(10,'B'),makeItem(11,'','Без артикула'),makeItem(12,'LEG'),{...makeItem(13,'LEG'),warehouse:'Другой склад'}])};
 };
@@ -31,9 +31,10 @@ const load=async()=>{
  const input=d.getElementById('fileInput');
  Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['x'],'new.xlsx')]});
  input.dispatchEvent(new w.Event('change'));await tick();
+ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
 };
 (async()=>{
- await tick();
+ await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
  assert.equal(checked(8),true);
  assert.equal(checked(9),false,'A mark on one warehouse must not affect another');
  const other=d.querySelector('[data-plus-row="9"]');other.checked=true;other.dispatchEvent(new w.Event('change',{bubbles:true}));
@@ -54,7 +55,7 @@ const load=async()=>{
  await tick();
  d.getElementById('btnSaveProperties').click();await tick();
  assert.equal(snapshots,1);
- assert.match(d.getElementById('propertiesStorageHint').textContent,/записаны на диск/);
+ assert.match(d.getElementById('propertiesStorageHint').textContent,/Свойства Номенклатуры.json.*24.10.2026/);
  uploaded=env('newer.xlsx',[makeItem(100,'B'),makeItem(101,'C')]);
  await load();
  assert.equal(checked(100),true,'Checkmark follows SKU rather than Excel row');
