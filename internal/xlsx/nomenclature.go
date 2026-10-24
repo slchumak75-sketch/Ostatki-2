@@ -51,6 +51,24 @@ func ValidateNomenclature(r model.NomenclatureRecord) error {
 	if math.IsNaN(r.Stock) || math.IsInf(r.Stock, 0) {
 		return fmt.Errorf("неверный остаток")
 	}
+	if r.ReferenceRows != "" {
+		var rows []model.NomenclatureRecord
+		if err := json.Unmarshal([]byte(r.ReferenceRows), &rows); err != nil || len(rows) < 2 {
+			return fmt.Errorf("неверные строки эталона")
+		}
+		key := NomenclaturePropertyKey(r.SKU, r.Group, r.Name, r.Warehouse)
+		for _, row := range rows {
+			if row.ReferenceRows != "" {
+				return fmt.Errorf("вложенные строки эталона недопустимы")
+			}
+			if err := ValidateNomenclature(row); err != nil {
+				return err
+			}
+			if NomenclaturePropertyKey(row.SKU, row.Group, row.Name, row.Warehouse) != key {
+				return fmt.Errorf("строка эталона относится к другому товару")
+			}
+		}
+	}
 	return nil
 }
 
@@ -311,6 +329,11 @@ func ParseNomenclatureXLSX(raw []byte) (map[string]model.NomenclatureRecord, err
 			candidates := identities[identity(r)]
 			if len(candidates) == 1 {
 				r.Group = candidates[0].Group
+				// Keep per-line reference metadata only for an unedited row.
+				c := candidates[0]
+				if c.Stock == r.Stock && c.Rating == r.Rating {
+					r.ReferenceRows = c.ReferenceRows
+				}
 			} else if r.SKU == "" && len(candidates) > 1 {
 				found := false
 				for _, c := range candidates {
@@ -318,6 +341,7 @@ func ParseNomenclatureXLSX(raw []byte) (map[string]model.NomenclatureRecord, err
 					if c.Checked == r.Checked && c.Rating == r.Rating && c.Stock == r.Stock {
 						if _, used := records[key]; !used {
 							r.Group = c.Group
+							r.ReferenceRows = c.ReferenceRows
 							found = true
 							break
 						}

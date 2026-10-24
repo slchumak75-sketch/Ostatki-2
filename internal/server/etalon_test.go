@@ -179,7 +179,7 @@ func TestEtalonManualOnlyFrozenRatingsAndFresh1CStock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := records[key]; r.Rating != frozen || r.Stock != newStock || !r.Checked || r.Name != target.Name {
+	if r := records[key]; r.Rating != target.SalesSegment || r.Stock != newStock || !r.Checked || r.Name != target.Name {
 		t.Fatal("manual snapshot lost fields", r)
 	}
 	activeBefore, _ := os.ReadFile(filepath.Join(storage, "etalon.json"))
@@ -352,5 +352,95 @@ func TestSaveStatusesSurviveRestart(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &status)
 	if status.LastFileName != saved.FileName || status.SavedAt != saved.SavedAt {
 		t.Fatal("manual snapshot status changed after restart", status, saved)
+	}
+}
+
+func TestSameWorkbookReferenceAfterClear(t *testing.T) {
+	app := server.New(false)
+	app.SetSaveDir(t.TempDir())
+	raw, err := os.ReadFile(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = app.LoadWorkbookFromBytes(raw, "same.xlsx"); err != nil {
+		t.Fatal(err)
+	}
+	// Mark the full report so both stock and rating comparison branches are tested.
+	props := map[string]bool{}
+	for _, it := range etalonReport(t, app).Items {
+		props[xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)] = true
+	}
+	etalonRequest(t, app, http.MethodPost, "/api/properties", map[string]any{"properties": props})
+	// Seed an older reference with stale ratings. Saving a new reference must
+	// replace these with the current calculation, not re-freeze the old overlay.
+	old := map[string]model.NomenclatureRecord{}
+	for _, it := range etalonReport(t, app).Items {
+		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
+		old[key] = model.NomenclatureRecord{SKU: it.SKU, Name: it.Name, Group: it.Group, Warehouse: it.Warehouse, Checked: true, Rating: 1, Stock: 0}
+	}
+	oldRaw, err := xlsx.GenerateNomenclatureXLSX(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := etalonUpload(t, app, "/api/etalon/import", "old.xlsx", oldRaw); rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	etalonRequest(t, app, http.MethodPost, "/api/etalon/save", nil)
+	app.ClearDatabase()
+	if err = app.LoadWorkbookFromBytes(raw, "same.xlsx"); err != nil {
+		t.Fatal(err)
+	}
+	assertSameWorkbookComparison(t, app)
+	// JSON persistence and the six-column XLSX export/import must both retain
+	// distinct duplicate rows without relying on the original workbook path.
+	restarted := server.New(false)
+	restarted.SetSaveDir(app.SaveDir())
+	if err = restarted.LoadWorkbookFromBytes(raw, "same.xlsx"); err != nil {
+		t.Fatal(err)
+	}
+	assertSameWorkbookComparison(t, restarted)
+	exported := etalonRequest(t, restarted, http.MethodGet, "/api/etalon/export", nil)
+	imported := server.New(false)
+	imported.SetSaveDir(t.TempDir())
+	if rec := etalonUpload(t, imported, "/api/etalon/import", "reference.xlsx", exported.Body.Bytes()); rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	if err = imported.LoadWorkbookFromBytes(raw, "same.xlsx"); err != nil {
+		t.Fatal(err)
+	}
+	assertSameWorkbookComparison(t, imported)
+}
+
+func assertSameWorkbookComparison(t *testing.T, app *server.AppServer) {
+	t.Helper()
+	rec := etalonRequest(t, app, http.MethodGet, "/api/etalon/compare", nil)
+	var result struct {
+		Count int `json:"matchedCount"`
+		Rows  []struct {
+			ExcelRow      int     `json:"excelRow"`
+			Matches       bool    `json:"matches"`
+			EtalonStock   float64 `json:"etalonStock"`
+			EtalonRating  int     `json:"etalonRating"`
+			CurrentRating int     `json:"currentRating"`
+		} `json:"rows"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Rows) != len(etalonReport(t, app).Items) {
+		t.Fatal("comparison skipped workbook rows")
+	}
+	for _, row := range result.Rows {
+		if row.EtalonRating != row.CurrentRating {
+			t.Fatalf("same workbook changed rating at row %d: %d -> %d", row.ExcelRow, row.EtalonRating, row.CurrentRating)
+		}
+	}
+	if result.Count != 0 {
+		for _, r := range result.Rows {
+			if r.Matches {
+				t.Logf("false difference: %+v", r)
+			}
+		}
+		t.Fatalf("identical workbook has %d differences", result.Count)
 	}
 }

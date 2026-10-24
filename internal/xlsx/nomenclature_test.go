@@ -167,3 +167,22 @@ func TestNomenclatureValidation(t *testing.T) {
 		t.Fatal("fractional rating accepted")
 	}
 }
+
+func TestReferenceRowsValidation(t *testing.T) {
+	base := model.NomenclatureRecord{SKU: "A", Name: "Item", Warehouse: "W", Rating: 1, Stock: 2}
+	other := base
+	other.Stock = 3
+	raw, _ := json.Marshal([]model.NomenclatureRecord{base, other})
+	valid := base
+	valid.ReferenceRows = string(raw)
+	if err := ValidateNomenclature(valid); err != nil {
+		t.Fatal(err)
+	}
+	for _, rows := range []string{`invalid`, `[]`, `[{"sku":"B"},{"sku":"B"}]`, `[{"sku":"A","warehouse":"W","rating":9},{"sku":"A","warehouse":"W"}]`, `[{"sku":"A","warehouse":"W","referenceRows":"[]"},{"sku":"A","warehouse":"W"}]`} {
+		bad := base
+		bad.ReferenceRows = rows
+		if err := ValidateNomenclature(bad); err == nil {
+			t.Fatalf("accepted invalid metadata %s", rows)
+		}
+	}
+}
