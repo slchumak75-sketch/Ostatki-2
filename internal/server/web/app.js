@@ -1646,9 +1646,8 @@
       if (!force && start >= state.vStart && end <= state.vEnd) {
         return;
       }
-      if (!force && Math.abs(start - state.vStart) < 20 && state.vEnd > 0) {
-        return;
-      }
+      // Repaint whenever the requested range extends outside the rendered one.
+      // A small upward movement can expose missing rows, especially at scrollTop=0.
       state.vStart = start;
       state.vEnd = end;
 
@@ -3831,12 +3830,12 @@
     if (!excelMenu) return;
     const matches = excelMatches();
     const supplierMode = excelMenu.key === 'supplier';
-    const selected = matches.filter(o => supplierMode ? isSupplierChecked(o.value) : excelMenu.draft.has(o.value)).length;
+    const selected = matches.filter(o => excelMenu.draft.has(o.value)).length;
     el('efSelectAllChk').checked = matches.length > 0 && selected === matches.length;
     el('efSelectAllChk').indeterminate = selected > 0 && selected < matches.length;
     el('efSelectAllLabel').textContent = el('efSearchInput').value ? '(Выделить найденные)' : '(Выделить все)';
     const rows = matches.slice(0, excelMenu.limit);
-    el('efOptionsList').innerHTML = supplierMode ? rows.map(o => `<div class="ef-opt-row"><input type="checkbox" class="supplier-dd-check" data-supplier-budget="${esc(o.value)}" ${isSupplierChecked(o.value) ? 'checked' : ''} aria-label="Включить ${esc(o.label)}"><button type="button" class="ef-supplier-name" data-supplier-current="${esc(o.value)}" title="Показать заказ поставщика">${esc(o.label)}</button><span class="ef-supplier-sum">${fmtMoney(supplierOrderSum(o.value))} р.</span></div>`).join('') : rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
+    el('efOptionsList').innerHTML = supplierMode ? rows.map(o => `<div class="ef-opt-row"><input type="checkbox" class="supplier-dd-check" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''} aria-label="Показать в таблице: ${esc(o.label)}" title="Показать поставщика в таблице"><button type="button" class="ef-supplier-name" data-supplier-current="${esc(o.value)}" title="Показать только этого поставщика">${esc(o.label)}</button><span class="ef-supplier-sum">${fmtMoney(supplierOrderSum(o.value))} р.</span><input type="checkbox" class="supplier-dd-check" data-supplier-budget="${esc(o.value)}" ${isSupplierChecked(o.value) ? 'checked' : ''} aria-label="Включить в бюджет закупки: ${esc(o.label)}" title="Включить в бюджет закупки, готовность и выгрузку Excel"></div>`).join('') : rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
     if (matches.length > rows.length) el('efOptionsList').insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary btn-sm" id="efMore">Показать ещё</button>');
     el('efCountInfo').textContent = `Выбрано: ${selected} из ${matches.length}`;
   }
@@ -3855,11 +3854,11 @@
     }
     const options = [...counts].map(([value,count]) => ({value,count,label:value || '(Пустые)'})).sort((a,b) => ruCollator.compare(a.value,b.value));
     const current = state.colFilters[key];
-    excelMenu = {key, anchor, options, limit:500, draft:new Set(current ?? options.map(o => o.value))};
+    excelMenu = {key, anchor, options, limit:500, draft:new Set(current ?? (key === 'supplier' && el('fltSupplier').value ? [el('fltSupplier').value] : options.map(o => o.value)))};
     const title = anchor.closest('th').querySelector('.th-excel-title').textContent;
     el('efTitleText').textContent = title;
-    el('efBtnOk').textContent = key === 'supplier' ? 'Готово' : 'ОК';
-    el('efBtnCancel').classList.toggle('hidden', key === 'supplier');
+    el('efBtnOk').textContent = 'ОК';
+    el('efBtnCancel').classList.remove('hidden');
     el('efClearColLabel').textContent = `Удалить фильтр с «${title}»`;
     el('efClearCol').disabled = !current && !(key === 'supplier' && el('fltSupplier').value);
     const numeric = typeof state.report.items[0]?.[key] === 'number';
@@ -3870,7 +3869,7 @@
     const context = el('efContextBar');
     context.classList.toggle('hidden', key !== 'supplier' && key !== 'plus');
     context.innerHTML = key === 'supplier'
-      ? '<button type="button" class="ef-quick-chip" data-supplier-sum-sort="desc" aria-pressed="false">Сумма заказа ↓</button><button type="button" class="ef-quick-chip" data-supplier-sum-sort="asc" aria-pressed="false">Сумма заказа ↑</button>'
+      ? '<span class="ef-supplier-help">Слева — показ в таблице · Справа — бюджет закупки</span><button type="button" class="ef-quick-chip" data-supplier-sum-sort="desc" aria-pressed="false">Сумма заказа ↓</button><button type="button" class="ef-quick-chip" data-supplier-sum-sort="asc" aria-pressed="false">Сумма заказа ↑</button>'
       : key === 'plus' ? '<button type="button" class="ef-menu-cmd" id="efFillAllPlus">Заполнить всё</button><button type="button" class="ef-menu-cmd" id="efClearAllPlus">Отменить</button>' : '';
     const pop = el('excelFilterPopover');
     pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
@@ -3921,10 +3920,6 @@
       renderExcelOptions();
     });
     el('efSelectAllChk').addEventListener('change', e => {
-      if (excelMenu.key === 'supplier') {
-        for (const o of excelMatches()) { if(e.target.checked) state.checkedSuppliers.add(o.value); else state.checkedSuppliers.delete(o.value); }
-        refreshSupplierSelection(); renderExcelOptions(); return;
-      }
       for (const o of excelMatches()) { if(e.target.checked) excelMenu.draft.add(o.value); else excelMenu.draft.delete(o.value); }
       renderExcelOptions();
     });
@@ -3949,8 +3944,8 @@
     });
     el('efBtnOk').addEventListener('click', () => {
       if(!excelMenu) return;
-      if(excelMenu.key === 'supplier') {closeExcelFilter();return;}
       const {key,draft,options} = excelMenu;
+      if(key === 'supplier') el('fltSupplier').value = '';
       const q = el('efSearchInput').value.trim();
       const values = q ? excelMatches().filter(o => draft.has(o.value)).map(o => o.value) : [...draft];
       if(!q && options.every(o => draft.has(o.value)) && draft.size === options.length) delete state.colFilters[key];
