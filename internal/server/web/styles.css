@@ -2383,3 +2383,12 @@ input[type="checkbox"] { accent-color: #dc2626; }
 @media(max-width:760px) {
  #staryoActions { grid-template-columns:minmax(0,1fr); }
 }
+
+/* Leave the final table row and scrollbar above an overlapping Windows taskbar.
+   Padding participates in flex layout, so virtualization sees the reduced viewport. */
+body {
+  padding-bottom: max(52px, env(safe-area-inset-bottom, 0px));
+}
+@media print {
+  body { padding-bottom: 0; }
+}

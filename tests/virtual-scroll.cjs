@@ -18,6 +18,11 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,45));
  try {
   await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
   const scroll=d.getElementById('tableScrollContainer');
+  // Reserve 52px below the viewport; virtual scrolling must still reach the
+  // final line with the actual, smaller container height.
+  const css=fs.readFileSync('internal/server/web/styles.css','utf8');
+  assert.match(css,/padding-bottom:\s*max\(52px,\s*env\(safe-area-inset-bottom/);
+  Object.defineProperty(scroll,'clientHeight',{value:420,configurable:true});
   const height=parseFloat(d.getElementById('itemsTable').style.getPropertyValue('--item-row-height'));
   assert.equal(height,24);
   const verify=()=>{
@@ -29,7 +34,7 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,45));
    assert.ok(Number(rows.at(-1).dataset.row)-8>=visibleIndex);
   };
   verify();
-  for(const offset of [1200,6000,16000,28000,34000,22000,10000,3500,0]) {
+  for(const offset of [1200,6000,16000,28000,34000,count*height-scroll.clientHeight,22000,10000,3500,0]) {
    scroll.scrollTop=offset;scroll.dispatchEvent(new w.Event('scroll'));await tick();
    assert.equal(scroll.scrollTop,offset,'Window replacement must not change wheel position');verify();
   }

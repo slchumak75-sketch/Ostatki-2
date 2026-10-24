@@ -27,9 +27,10 @@ func (s *AppServer) etalonReportLocked(report *model.CalculationReport) *model.C
 	copyReport.Items = append([]model.CalculatedItem(nil), report.Items...)
 	report = &copyReport
 
+	lookup := referenceLookup(s.etalon)
 	for i := range report.Items {
 		it := &report.Items[i]
-		if r, ok := s.etalon[xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)]; ok {
+		if r, ok := lookup(*it); ok {
 			it.SalesSegment = r.Rating
 			it.SalesSegmentLabel = model.SalesSegmentLabelByCode(r.Rating)
 		}
@@ -103,12 +104,13 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 	// Freeze only the currently loaded 1C base. Old checkbox-only records do
 	// not have known ratings/stock and must not become fabricated zero ratings.
 	catalog := model.NomenclatureCatalog{SavedAt: time.Now().Format(time.RFC3339), Version: 2, Properties: map[string]bool{}, Nomenclature: map[string]model.NomenclatureRecord{}}
-	for _, it := range s.etalonReportLocked(s.report).Items {
-		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
-		record := model.NomenclatureRecord{Warehouse: it.Warehouse, SKU: it.SKU, Name: it.Name, Group: it.Group, Checked: s.properties[key], Rating: it.SalesSegment, Stock: it.ClosingStock}
+	// Explicitly saving a new reference captures calculated ratings, never the
+	// previous reference's frozen display overlay.
+	catalog.Nomenclature = referenceRecords(s.report.Items, s.properties)
+	for key, record := range catalog.Nomenclature {
 		catalog.Properties[key] = record.Checked
-		catalog.Nomenclature[key] = record
 	}
+
 	raw, err := xlsx.GenerateNomenclatureXLSX(catalog.Nomenclature)
 	if err != nil {
 		writeError(w, 500, err.Error())

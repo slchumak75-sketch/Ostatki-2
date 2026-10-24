@@ -44,9 +44,10 @@ func (s *AppServer) handleCompareEtalon(w http.ResponseWriter, r *http.Request) 
 	}
 	rows := make([]etalonComparisonRow, 0)
 	count := 0
+	lookup := referenceLookup(s.etalon)
 	for _, it := range s.report.Items {
 		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
-		ref, ok := s.etalon[key]
+		ref, ok := lookup(it)
 		if !ok {
 			continue
 		}
