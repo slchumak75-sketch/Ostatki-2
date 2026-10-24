@@ -202,7 +202,7 @@
     const row=state.comparison?.get(it.excelRow);
     if(!row)return null;
     const increased=state.staryoRows.has(it.excelRow) && Number(it.closingStock)>row.etalonStock;
-    const dropped=row.etalonRating===1 && row.currentRating===0;
+    const dropped=row.etalonRating>0 && row.currentRating===0;
     return increased || dropped ? {...it,salesSegment:row.currentRating} : null;
   }
 
@@ -682,8 +682,9 @@
   }
 
   function switchTabUI(tabName) {
-    const nextTab = ['table', 'suppliers', 'overstock'].includes(tabName) ? tabName : 'table';
+    const nextTab = ['table', 'suppliers', 'overstock', 'charts'].includes(tabName) ? tabName : 'table';
     state.activeTab = nextTab;
+    if(nextTab === 'charts') window.SalesCharts?.update(state.report);
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
   }
@@ -846,6 +847,7 @@
     state.savedFileName = env.savedFileName || '';
     state.lastSavedAt = env.lastSavedAt || '';
     state.report = env.report || null;
+    window.SalesCharts?.update(state.report);
 
     el('btnSaveInPlace')?.classList.toggle('hidden', !state.canSaveInPlace);
     if (!state.report) {
@@ -1502,7 +1504,7 @@
       return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * mult;
     });
 
-    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Галочка + рост остатка ИЛИ рейтинг 1 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
+    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Галочка + рост остатка ИЛИ рейтинг 1–5 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
     state.filteredItems = list;
     state.vStart = 0;
     state.vEnd = 0;
@@ -2562,6 +2564,7 @@
       btn.addEventListener('click', () => {
         exitComparison(true);
         state.activeTab = btn.dataset.tab;
+        if(state.activeTab === 'charts') window.SalesCharts?.update(state.report);
         document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.activeTab}`));
       });
