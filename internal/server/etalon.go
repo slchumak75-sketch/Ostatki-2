@@ -16,28 +16,6 @@ import (
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 )
 
-// Caller holds s.mu. A reference freezes ratings only; stock, sales and order
-// calculations still come from the current 1C workbook. It is never autosaved.
-func (s *AppServer) etalonReportLocked(report *model.CalculationReport) *model.CalculationReport {
-	if report == nil || len(s.etalon) == 0 {
-		return report
-	}
-	// Envelopes may be encoded outside the lock: never mutate a shared report.
-	copyReport := *report
-	copyReport.Items = append([]model.CalculatedItem(nil), report.Items...)
-	report = &copyReport
-
-	lookup := referenceLookup(s.etalon)
-	for i := range report.Items {
-		it := &report.Items[i]
-		if r, ok := lookup(*it); ok {
-			it.SalesSegment = r.Rating
-			it.SalesSegmentLabel = model.SalesSegmentLabelByCode(r.Rating)
-		}
-	}
-	return report
-}
-
 // Capture every warehouse/row, irrespective of filters or the virtual viewport.
 // Old catalog rows survive clearing the workbook and loading a different base.
 func (s *AppServer) catalogLocked() model.NomenclatureCatalog {
@@ -47,7 +25,7 @@ func (s *AppServer) catalogLocked() model.NomenclatureCatalog {
 	if s.properties == nil {
 		s.properties = map[string]bool{}
 	}
-	report := s.etalonReportLocked(s.report)
+	report := s.report
 	for key, checked := range s.properties {
 		r, ok := s.nomenclature[key]
 		if !ok {

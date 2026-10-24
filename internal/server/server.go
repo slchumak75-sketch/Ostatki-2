@@ -106,7 +106,7 @@ func (s *AppServer) buildStateEnvelopeLocked() stateEnvelope {
 		SupplierSelectionActive: s.supplierSelectionActive,
 		SelectedSuppliers:       s.sortedSelectedSuppliersLocked(),
 		UIState:                 s.uiState,
-		Report:                  s.etalonReportLocked(s.report),
+		Report:                  s.report,
 	}
 	if s.wb != nil {
 		env.FilePath = s.wb.FilePath
@@ -479,7 +479,7 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 		return nil
 	}
 	if !s.supplierSelectionActive {
-		return s.etalonReportLocked(s.report)
+		return s.report
 	}
 	effOverrides := make(map[int]int, len(s.wb.Items))
 	for k, v := range s.overrides {
@@ -495,7 +495,7 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 		}
 	}
 	rep := forecast.Calculate(s.wb, s.params, effOverrides, s.orderExclusionsLocked(s.wb))
-	return s.etalonReportLocked(rep)
+	return rep
 }
 
 func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) {

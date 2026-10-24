@@ -57,7 +57,7 @@ func etalonReport(t *testing.T, app *server.AppServer) *model.CalculationReport 
 	return env.Report
 }
 
-func TestEtalonManualOnlyFrozenRatingsAndFresh1CStock(t *testing.T) {
+func TestEtalonManualOnlySnapshotAndLiveWorkbookRatings(t *testing.T) {
 	dir := t.TempDir()
 	app := server.New(false)
 	app.SetSaveDir(dir)
@@ -85,7 +85,7 @@ func TestEtalonManualOnlyFrozenRatingsAndFresh1CStock(t *testing.T) {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	got := etalonReport(t, app).Items[0]
-	if got.SalesSegment != frozen || got.ClosingStock != target.ClosingStock {
+	if got.SalesSegment != target.SalesSegment || got.ClosingStock != target.ClosingStock {
 		t.Fatal("reference rating/1C stock mismatch", got.SalesSegment, got.ClosingStock)
 	}
 	before, err := os.ReadFile(filepath.Join(storage, "etalon.json"))
@@ -125,7 +125,7 @@ func TestEtalonManualOnlyFrozenRatingsAndFresh1CStock(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = etalonReport(t, app).Items[0]
-	if got.SalesSegment != frozen || got.ClosingStock != newStock {
+	if got.SalesSegment != target.SalesSegment || got.ClosingStock != newStock {
 		t.Fatalf("new 1C report: rating=%d stock=%v", got.SalesSegment, got.ClosingStock)
 	}
 	etalonRequest(t, app, http.MethodPost, "/api/params", initial.Params)
@@ -134,14 +134,14 @@ func TestEtalonManualOnlyFrozenRatingsAndFresh1CStock(t *testing.T) {
 	if !bytes.Equal(before, after) {
 		t.Fatal("ordinary save/recalculation rewrote reference")
 	}
-	// Reloading the process must retain the fixed rating but still use fresh 1C stock.
+	// Restart must retain live workbook ratings/stock and a separate fixed reference.
 	restarted := server.New(false)
 	restarted.SetSaveDir(dir)
 	if err = restarted.LoadWorkbookFromBytes(changed.Bytes(), "Новая 1С.xlsx"); err != nil {
 		t.Fatal(err)
 	}
 	got = etalonReport(t, restarted).Items[0]
-	if got.SalesSegment != frozen || got.ClosingStock != newStock {
+	if got.SalesSegment != target.SalesSegment || got.ClosingStock != newStock {
 		t.Fatal("restart lost reference or replaced stock")
 	}
 	// Stored stock is a constant too: reading/exporting the reference must
