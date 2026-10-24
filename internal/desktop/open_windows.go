@@ -86,7 +86,7 @@ func prepareWindowedMaxProfile(profileDir string, screenW, screenH int) {
 func OpenAppWindow(url string) error {
 	screenW, screenH := primaryScreenSize()
 	candidates := findChromiumAppBinaries()
-	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV4Max")
+	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV5Max")
 	prepareWindowedMaxProfile(profileDir, screenW, screenH)
 
 	for _, bin := range candidates {

@@ -81,6 +81,31 @@
   };
 
   let nomenclatureProperties = {};
+  let nomenclatureRecords = {};
+  function captureNomenclatureRecords() {
+    for (const it of state.report?.items || []) {
+      const key=propertyKey(it);
+      nomenclatureRecords[key]={warehouse:it.warehouse||'',sku:it.sku||'',name:it.name||'',group:it.group||'',checked:Boolean(nomenclatureProperties[key]),rating:Number(it.salesSegment)||0,stock:Number(it.closingStock)||0};
+    }
+    for (const [key,record] of Object.entries(nomenclatureRecords)) {
+      if (Object.hasOwn(nomenclatureProperties,key)) record.checked=Boolean(nomenclatureProperties[key]);
+    }
+    return nomenclatureRecords;
+  }
+  function nomenclatureBackup() {
+    const records=captureNomenclatureRecords();
+    const properties={...nomenclatureProperties};
+    for (const [key,r] of Object.entries(records)) properties[key]=r.checked;
+    return {version:2,properties,nomenclature:records};
+  }
+  async function downloadNomenclature(path,name) {
+    const res=await fetch(path,{cache:'no-store'});
+    if (!res.ok) throw new Error(await res.text());
+    const url=URL.createObjectURL(await res.blob());
+    const link=document.createElement('a');link.href=url;link.download=name;
+    isDownloadingFile=true;document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
+  }
   const retiredGlobalPropertyKeys = new Set();
   let propertiesQueue = Promise.resolve();
   let acknowledgedProperties = {};
@@ -695,6 +720,7 @@
 
   function resetUIToEmptyDatabase() {
     hideRatingChartPopover();
+    captureNomenclatureRecords();
     state.report = null;
     state.rowMap.clear();
     state.canSaveInPlace = false;
@@ -777,6 +803,7 @@
   }
 
   function applyEnvelope(env, opts = {}) {
+ captureNomenclatureRecords();
     if (!env) return;
     state.canSaveInPlace = Boolean(env.canSaveInPlace);
     state.desktopMode = Boolean(env.desktopMode);
@@ -2388,11 +2415,45 @@
       });
     }
     el('btnBackupProperties').addEventListener('click', () => {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(nomenclatureProperties,null,2)],{type:'application/json'}));
+      const url = URL.createObjectURL(new Blob([JSON.stringify(nomenclatureBackup(),null,2)],{type:'application/json'}));
       const link = document.createElement('a');link.href=url;link.download='Свойства Номенклатуры, резервная копия.json';
       document.body.appendChild(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1500);
       showToast('Резервная копия свойств выгружена из памяти. Сохраните скачанный JSON-файл.');
+    });
+    el('btnSaveEtalon').addEventListener('click', async () => {
+      const epoch=state.clientEpoch;
+      const button=el('btnSaveEtalon');button.disabled=true;
+      try {
+        await syncProperties();
+        const result=await apiPost('api/etalon/save',{}, {unabortable:true});
+        if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
+        el('etalonStorageHint').textContent=`Эталон сохранён вручную: ${result.directory} / ${result.fileName}. Рейтинг зафиксирован; остаток — из 1С.`;
+        showToast(`Эталон сохранён: ${result.fileName}`);
+        try {await downloadNomenclature('api/etalon/export',result.fileName);}
+        catch(err) {showToast(`Эталон записан в ${result.directory}, но не скачан: ${err.message}`);}
+      } catch(err) {showToast(`Ошибка сохранения эталона: ${err.message}`);}
+      finally {button.disabled=false;}
+    });
+    el('btnLoadEtalon').addEventListener('click',()=>el('etalonFileInput').click());
+    el('etalonFileInput').addEventListener('change',async e=>{
+      const file=e.target.files?.[0];if(!file)return;
+      const epoch=state.clientEpoch;
+      const button=el('btnLoadEtalon');button.disabled=true;
+      try {
+        await syncProperties();
+        const form=new FormData();form.append('file',file);
+        const res=await fetch('api/etalon/import',{method:'POST',body:form});
+        const data=await res.json();if(!res.ok)throw new Error(data.error||'Не удалось загрузить эталон');
+        nomenclatureProperties=data.properties||{};
+        nomenclatureRecords=data.nomenclature||{};
+        acknowledgedProperties={...nomenclatureProperties};propertiesRevision+=1;propertiesDirty=false;
+        if(epoch===state.clientEpoch && data.state)applyEnvelope(data.state);
+        applyNomenclatureProperties();
+        el('etalonStorageHint').textContent=`Эталон загружен: ${file.name}. Рейтинг фиксирован; остаток — из текущей ведомости 1С.`;
+        showToast('Эталон загружен. Рейтинг зафиксирован, остатки 1С сохранены.');
+      } catch(err) {showToast(`Ошибка загрузки эталона: ${err.message}`);}
+      finally {e.target.value='';button.disabled=false;}
     });
     el('btnExportProperties').addEventListener('click', async () => {
       try {
@@ -2420,6 +2481,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Не удалось прочитать Excel');
         nomenclatureProperties = data.properties || {};
+        nomenclatureRecords = data.nomenclature || {};
         propertiesRevision += 1; propertiesDirty = true;
         await syncProperties();
         if (data.state?.report) applyEnvelope(data.state);
@@ -3855,6 +3917,8 @@
     try {
       const properties = await apiGet('api/properties');
       nomenclatureProperties = properties.properties || {};
+      nomenclatureRecords = properties.nomenclature || {};
+      if (properties.etalonLoaded) el('etalonStorageHint').textContent = 'Эталон подключён: рейтинг фиксирован, остаток — из новой ведомости 1С. Изменение эталона — только вручную.';
       acknowledgedProperties = {...nomenclatureProperties};
       if (properties.directory) {
         el('propertiesStorageHint').title = `Папка свойств: ${properties.directory}`;
@@ -3863,7 +3927,7 @@
       savedColumnWidths = fields.widths || {};
       const env = await apiGet('api/state');
       applyEnvelope(env, { initialBoot: true });
-      if (state.report && Object.keys(nomenclatureProperties).length) syncProperties().catch(err => showToast(err.message));
+      if (state.report) syncProperties().catch(err => showToast(err.message));
     } catch (err) {
       el('fileMetaLine').textContent = 'Откройте или перетащите файл Ведомости (.xlsx) для начала работы';
       showToast(err.message);

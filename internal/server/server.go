@@ -29,6 +29,8 @@ var embeddedWeb embed.FS
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.
 type AppServer struct {
 	properties              map[string]bool
+	nomenclature            map[string]model.NomenclatureRecord
+	etalon                  map[string]model.NomenclatureRecord
 	propertiesLoaded        bool
 	mu                      sync.RWMutex
 	epoch                   atomic.Uint64
@@ -100,7 +102,7 @@ func (s *AppServer) buildStateEnvelopeLocked() stateEnvelope {
 		SupplierSelectionActive: s.supplierSelectionActive,
 		SelectedSuppliers:       s.sortedSelectedSuppliersLocked(),
 		UIState:                 s.uiState,
-		Report:                  s.report,
+		Report:                  s.etalonReportLocked(s.report),
 	}
 	if s.wb != nil {
 		env.FilePath = s.wb.FilePath
@@ -130,6 +132,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	excludedRows := s.orderExclusions(wb)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.catalogLocked()
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = make(map[int]int)
@@ -167,6 +170,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	if s.epoch.Load() != startEpoch {
 		return nil
 	}
+	s.catalogLocked()
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = emptyOverrides
@@ -187,6 +191,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 func (s *AppServer) ClearDatabase() {
 	s.epoch.Add(1)
 	s.mu.Lock()
+	s.catalogLocked()
 	s.wb = nil
 	s.rawXLSX = nil
 	s.overrides = make(map[int]int)
@@ -273,6 +278,9 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/properties", s.handleProperties)
 	mux.HandleFunc("/api/properties/export", s.handleExportProperties)
 	mux.HandleFunc("/api/properties/import", s.handleImportProperties)
+	mux.HandleFunc("/api/etalon/save", s.handleSaveEtalon)
+	mux.HandleFunc("/api/etalon/export", s.handleExportEtalon)
+	mux.HandleFunc("/api/etalon/import", s.handleImportEtalon)
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
@@ -465,7 +473,7 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 		return nil
 	}
 	if !s.supplierSelectionActive {
-		return s.report
+		return s.etalonReportLocked(s.report)
 	}
 	effOverrides := make(map[int]int, len(s.wb.Items))
 	for k, v := range s.overrides {
@@ -480,7 +488,8 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 			effOverrides[item.ExcelRow] = 0
 		}
 	}
-	return forecast.Calculate(s.wb, s.params, effOverrides, s.orderExclusionsLocked(s.wb))
+	rep := forecast.Calculate(s.wb, s.params, effOverrides, s.orderExclusionsLocked(s.wb))
+	return s.etalonReportLocked(rep)
 }
 
 func (s *AppServer) handleClearDatabase(w http.ResponseWriter, r *http.Request) {

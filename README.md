@@ -1,8 +1,9 @@
 # Остатки 2 — Приложение Windows (Go + HTML GUI) для автозаполнения столбца 8 «К закупкам»
 
-В проекте параллельно сохранены, поддерживаются и автоматически собираются на GitHub Actions **четыре независимые сборки** для Windows 10/11 (`x64`, `CGO_ENABLED=0`, единый автономный `.exe` без внешних зависимостей):
+В проекте автоматически собираются на GitHub Actions **четыре независимые сборки (1, 2, 3 и 5)**; опубликованный релиз «Вариант 4» сохранён без изменений. Сборки предназначены для Windows 10/11 (`x64`, `CGO_ENABLED=0`, единый автономный `.exe` без внешних зависимостей):
 
-- 🏆 **Сборка «Вариант 4» (актуальная основная программа, `Latest`, PRO SCM):** расположена в корне проекта (`cmd/ostatki/`, `internal/`), лаконичный интерфейс без лишних блоков (`Ведомость с периодом ОК (1).xlsx`, `Заявки поставщикам (авторасчёт).xlsx`).
+- 🏆 **Сборка «Вариант 5» (актуальная основная программа, `Latest`, PRO SCM):** расположена в корне проекта (`cmd/ostatki/`, `internal/`), лаконичный интерфейс без лишних блоков (`Ведомость с периодом ОК (1).xlsx`, `Заявки поставщикам (авторасчёт).xlsx`).
+- 📦 **«Вариант 4» (сохранённый релиз):** исходники доступны по тегу `variant-4`, EXE и ZIP не заменяются при выпуске Варианта 5.
 - 📦 **Сборка «Вариант 3» (сохранённая сборка):** полностью изолирована и зафиксирована в `variants/variant3/` (`Ведомость с периодом ОК (Вариант 3).xlsx`).
 - 📦 **Сборка «Вариант 2» (сохранённая сборка):** изолирована в `variants/variant2/` (`Ведомость с периодом ОК (Вариант 2).xlsx`).
 - 📦 **Сборка «Вариант 1» (сохранённый базовый эталон):** изолирована в `variants/variant1/` (`Ведомость с периодом ОК (Вариант 1).xlsx`).
@@ -13,14 +14,28 @@
 
 | Сборка | Страница релиза | Прямое скачивание `.exe` | Полный `.zip`-архив |
 | :--- | :--- | :--- | :--- |
-| **Вариант 4 (`Latest`)** | [`Вариант 4`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-4) | [`OstatkiZakupki_Variant_4.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-4/OstatkiZakupki_Variant_4.exe) | [`Variant_4_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-4/Variant_4_Windows_x64.zip) |
+| **Вариант 5 (`Latest`)** | [`Вариант 5`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-5) | [`OstatkiZakupki_Variant_5.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-5/OstatkiZakupki_Variant_5.exe) | [`Variant_5_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-5/Variant_5_Windows_x64.zip) |
+| **Вариант 4 (сохранённый)** | [`Вариант 4`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-4) | [`OstatkiZakupki_Variant_4.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-4/OstatkiZakupki_Variant_4.exe) | [`Variant_4_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-4/Variant_4_Windows_x64.zip) |
 | **Вариант 3** | [`Вариант 3`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-3) | [`OstatkiZakupki_Variant_3.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-3/OstatkiZakupki_Variant_3.exe) | [`Variant_3_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-3/Variant_3_Windows_x64.zip) |
 | **Вариант 2** | [`Вариант 2`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-2) | [`OstatkiZakupki_Variant_2.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-2/OstatkiZakupki_Variant_2.exe) | [`Variant_2_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-2/Variant_2_Windows_x64.zip) |
 | **Вариант 1** | [`Вариант 1`](https://github.com/slchumak75-sketch/Ostatki-2/releases/tag/variant-1) | [`OstatkiZakupki_Variant_1.exe`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-1/OstatkiZakupki_Variant_1.exe) | [`Variant_1_Windows_x64.zip`](https://github.com/slchumak75-sketch/Ostatki-2/releases/download/variant-1/Variant_1_Windows_x64.zip) |
 
 ---
 
-## Возможности актуальной сборки «Вариант 4»
+## Вариант 5: ручной эталон номенклатуры
+
+В панели **«Параметры»** добавлены **«Сохранить эталон Номенклатуры»** и **«Загрузить эталон Номенклатуры»**.
+
+- Единые поля Excel, JSON и сохранённого каталога: **Склад, Артикул, Номенклатура, + (галочка), Рейтинг, Остаток**. В Excel — ровно шесть видимых столбцов с фильтрами. Скрытый служебный лист сохраняет идентичность старых товаров без артикула; редактировать его не нужно.
+- **Сохранение эталона — только вручную**, при открытой ведомости 1С. В эталон попадает вся текущая база по всем складам, независимо от фильтра и видимых строк. Создаётся **`Эталон, ДД.ММ.ГГГГ.xlsx`**, записывается на диск и предлагается скачивание. Повторное ручное сохранение в тот же день заменяет одноимённый файл.
+- Рейтинг для позиций эталона **фиксируется как текущее значение**. После загрузки новой ведомости и перезапуска он не пересчитывается на экране. Новые позиции, которых нет в эталоне, получают обычный расчётный рейтинг.
+- Остаток в файле — снимок на дату ручного сохранения. **В рабочей ведомости остаток всегда берётся из новой 1С**, не подменяется старым остатком из эталона. Продажи, месячные графики, расчёт заказов и бюджета не меняются из-за фиксации отображаемого рейтинга.
+- Загрузка эталона применяет его галочки и фиксированный рейтинг по складу и артикулу (для товаров без артикула — по группе/наименованию и складу). Обычный импорт свойств применяет галочки, но не заменяет живые данные 1С.
+- Изменение галочек, автосохранение базы, обычное сохранение свойств и выход **никогда не перезаписывают эталон**. Рабочие галочки сохраняются отдельно, как и раньше.
+- Старые пятиколоночные Excel-файлы и JSON-копии галочек загружаются через обычную кнопку свойств. Для кнопки загрузки **эталона** требуется новый формат с рейтингом.
+- Каталог Варианта 5 хранится отдельно: `%APPDATA%/Ostatki2/properties-v5` (Windows). При первом запуске отметки читаются из старого каталога Варианта 4 **без изменения его файлов**. Папка сохранения показывается в панели параметров.
+
+## Унаследованные возможности PRO SCM
 
 1. **Чистый и плотно скомпонованный интерфейс закупщика сразу в полноэкранном режиме:**
    - На Windows программа открывается **сразу в полноэкранном режиме** (`--start-fullscreen` + `SW_SHOWMAXIMIZED` с кнопками переключения режима окна **`⛶`** и закрытия **`✕`** в правом верхнем углу), а сборка содержит встроенные PE-ресурсы (`asInvoker`, иконку, `VERSIONINFO`) и цифровую подпись Authenticode `SHA-256`.

@@ -1,0 +1,56 @@
+// NODE_PATH=/tmp/ui-check/node_modules node tests/etalon.cjs
+const {JSDOM}=require('jsdom');
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window,d=w.document;
+const key=JSON.stringify(['sku','0001','Склад А']);
+const props={[key]:true};
+const items=[{excelRow:8,sku:'0001',name:'Товар',warehouse:'Склад А',group:'Группа',salesSegment:4,closingStock:13.5,monthlySales:[],finalOrderQty:0,purchasePrice:1},
+ {excelRow:9,sku:'0001',name:'Товар',warehouse:'Склад Б',group:'Группа',salesSegment:1,closingStock:0,monthlySales:[],finalOrderQty:0,purchasePrice:1}];
+const calls=[],intervals=[],blobs=[];
+w.scrollTo=()=>{};
+w.setInterval=(fn,ms)=>{intervals.push(fn);return intervals.length;};
+w.URL.createObjectURL=blob=>{blobs.push(blob);return 'blob:test';};w.URL.revokeObjectURL=()=>{};
+w.HTMLAnchorElement.prototype.click=function(){};
+w.fetch=async(path,opts={})=>{
+ let body={};if(typeof opts.body==='string')body=JSON.parse(opts.body);calls.push({path,body});
+ if(path==='api/properties') {Object.assign(props,body.properties||{});return {ok:true,json:async()=>({properties:props,persisted:true,markedCount:1,directory:'test',nomenclature:{}})};}
+ if(path==='api/etalon/save')return {ok:true,json:async()=>({fileName:'Эталон, 24.10.2026.xlsx',directory:'test'})};
+ if(path==='api/etalon/export'||path==='api/properties/export')return {ok:true,blob:async()=>new w.Blob(['xlsx'])};
+ if(path==='api/etalon/import')return {ok:true,json:async()=>({properties:props,nomenclature:{}})};
+ return {ok:true,json:async()=>({report:{items,params:{},warehouses:[],suppliers:[],groups:[],periods:[],fileName:'1C.xlsx'}})};
+};
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
+const tick=()=>new Promise(r=>setTimeout(r,60));
+const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(blob);});
+(async()=>{
+ await tick();
+ for(const id of ['btnSaveEtalon','btnLoadEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
+ assert.ok(d.getElementById('propertiesFileInput').accept.includes('.json'),'Offline backups must be importable');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,0,'Bootstrap must not save a reference');
+ for(const fn of intervals)fn();await tick();
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,0,'Autosave must not save a reference');
+ d.getElementById('btnSaveEtalon').click();await tick();
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Only an explicit click creates a reference');
+ assert.ok(d.getElementById('etalonStorageHint').textContent.includes('Эталон, 24.10.2026.xlsx'));
+ assert.ok(calls.some(c=>c.path==='api/etalon/export'),'Manual save offers a downloadable copy');
+ d.getElementById('btnBackupProperties').click();
+ const backup=JSON.parse(await blobText(blobs.at(-1)));
+ assert.equal(backup.version,2);
+ assert.equal(Object.keys(backup.nomenclature).length,2,'Backup includes all warehouses, not only marked rows');
+ const record=backup.nomenclature[key];
+ assert.equal(record.warehouse,'Склад А');assert.equal(record.sku,'0001');assert.equal(record.name,'Товар');
+ assert.equal(record.checked,true);assert.equal(record.rating,4);assert.equal(record.stock,13.5);
+ const other=backup.nomenclature[JSON.stringify(['sku','0001','Склад Б'])];assert.equal(other.checked,false);assert.equal(other.rating,1);
+ const input=d.getElementById('etalonFileInput');
+ Object.defineProperty(input,'files',{value:[new w.File(['xlsx'],'Эталон.xlsx')],configurable:true});
+ input.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
+ assert.ok(calls.some(c=>c.path==='api/etalon/import'));
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Loading a reference must not invoke save');
+ assert.equal(d.getElementById('etalonFileInput').value,'');
+ const css=fs.readFileSync('internal/server/web/styles.css','utf8');
+ assert.match(css,/#paramsPanel button\s*\{\s*zoom: 0\.6666666667;/,'New buttons retain the 1.5x size reduction');
+ console.log('Manual reference actions and six-field offline backup tests passed');
+ dom.window.close();
+})().catch(err=>{console.error(err);process.exitCode=1;dom.window.close();});
