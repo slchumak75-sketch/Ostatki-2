@@ -38,7 +38,7 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
  assert.equal(d.getElementById('kpiOrderCost').textContent,budget,'Comparison must not alter the all-supplier budget');
  d.querySelector('.tab-btn[data-tab="table"]').click();assert.deepEqual(rows(),[],'Leaving comparison restores ordinary search');
  search.value='';search.dispatchEvent(new w.Event('input',{bubbles:true}));
- for(const tab of ['table','suppliers','overstock']){
+ for(const tab of ['table','suppliers','overstock','charts','liquidity']){
   compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12]);
   d.querySelector(`.tab-btn[data-tab="${tab}"]`).click();
   assert.equal(compare.getAttribute('aria-pressed'),'false');assert.ok(d.getElementById('comparisonHint').classList.contains('hidden'));assert.deepEqual(rows(),[10]);
