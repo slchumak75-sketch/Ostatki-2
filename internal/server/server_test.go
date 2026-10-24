@@ -139,7 +139,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("unexpected Content-Disposition filename header: %s", disp)
 	}
 
-	// 5c. POST /api/clear — очистка загруженной базы перед новой загрузкой
+	// 5c. POST /api/clear — очистка загруженной ведомости перед новой загрузкой
 	req = httptest.NewRequest(http.MethodPost, "/api/clear", bytes.NewReader([]byte(`{}`)))
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -324,14 +324,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<div class="params-body hidden" id="paramsBody">`,
 		`id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры`,
 		`<button class="btn btn-beige" id="btnUpload"`,
-		`Загрузить новую базу`,
+		`Загрузить новую ведомость`,
 		`id="btnLoadSavedDb"`,
-		`Загрузить сохраненную базу`,
+		`Загрузить сохраненную ведомость`,
 		`id="btnSaveDb"`,
-		`Сохранить базу`,
+		`Сохранить ведомость`,
 		`id="savedDbModal"`,
 		`id="closeConfirmModal"`,
-		`Сохранить текущую базу?`,
+		`Сохранить текущую ведомость?`,
 		`id="btnCloseSaveYes">ДА</button>`,
 		`id="btnCloseSaveNo">НЕТ</button>`,
 		`id="ddWarehouse"`,
@@ -343,7 +343,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`id="ddStatus"`,
 		`id="ddSearchNameMenu"`,
 		`<button class="btn btn-beige" id="btnClearDatabase"`,
-		`Очистить базу`,
+		`Очистить ведомость`,
 		`<button class="tab-btn tab-beige active" data-tab="table"`,
 		`<button class="tab-btn tab-beige" data-tab="suppliers"`,
 		`id="ovFltWarehouse"`,
@@ -382,8 +382,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("HTML missing expected element: %q", mustHaveHTML)
 		}
 	}
-	// Проверка строгого порядка кнопок управления базой:
-	// Загрузить новую базу -> Загрузить сохраненную базу -> Сохранить базу -> Очистить базу
+	// Проверка строгого порядка кнопок управления ведомостью:
+	// Загрузить новую ведомость -> Загрузить сохраненную ведомость -> Сохранить ведомость -> Очистить ведомость
 	uploadIdx := strings.Index(htmlBody, `id="btnUpload"`)
 	loadSavedIdx := strings.Index(htmlBody, `id="btnLoadSavedDb"`)
 	saveDbIdx := strings.Index(htmlBody, `id="btnSaveDb"`)
@@ -652,7 +652,7 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 		}
 	}
 
-	// 2. Проверка прозрачного gzip-сжатия для ускорения передачи больших баз
+	// 2. Проверка прозрачного gzip-сжатия для ускорения передачи больших ведомостей
 	gzReq := httptest.NewRequest(http.MethodGet, "/api/state", nil)
 	gzReq.Header.Set("Accept-Encoding", "gzip")
 	gzRec := httptest.NewRecorder()
@@ -729,7 +729,7 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 		t.Fatalf("expected first checked item warehouse %q in A2 and name %q in C2, got: %s", rA.Warehouse, rA.Name, sheetXML)
 	}
 
-	// 3. Проверка скорости параллельного расчёта на большой базе: 30 000 SKU × 37 мес. (1 110 000 ячеек)
+	// 3. Проверка скорости параллельного расчёта на большой ведомости: 30 000 SKU × 37 мес. (1 110 000 ячеек)
 	const nItems = 30000
 	const nMonths = 37
 	periods := make([]model.PeriodColumn, nMonths)
@@ -784,7 +784,7 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 		t.Fatalf("unexpected large report totals: items=%d units=%d", largeRep.TotalItems, largeRep.TotalOrderUnits)
 	}
 
-	// 4. Гонка: параллельные запросы /api/params и /api/override во время нажатия «Очистить базу» (/api/clear)
+	// 4. Гонка: параллельные запросы /api/params и /api/override во время нажатия «Очистить ведомость» (/api/clear)
 	var wg sync.WaitGroup
 	for w := 0; w < 6; w++ {
 		wg.Add(1)
@@ -810,7 +810,7 @@ func TestLargeDatabaseSpeedAndConcurrentClear(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Финальный контрольный вызов GET /api/clear и проверка, что база гарантированно пуста
+	// Финальный контрольный вызов GET /api/clear и проверка, что ведомость гарантированно пуста
 	clearGetReq := httptest.NewRequest(http.MethodGet, "/api/clear", nil)
 	clearGetRec := httptest.NewRecorder()
 	h.ServeHTTP(clearGetRec, clearGetReq)
@@ -837,7 +837,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 	}
 	h := app.Handler()
 
-	// Создаём устаревший файл сохранённой базы для того же склада, чтобы проверить автоматическую перезапись
+	// Создаём устаревший файл сохранённой ведомости для того же склада, чтобы проверить автоматическую перезапись
 	staleFile := filepath.Join(saveDir, "Склад Кореличи, Ведомость сохраненная, 01.01.2026.xlsx")
 	if err := os.WriteFile(staleFile, []byte("stale"), 0o644); err != nil {
 		t.Fatalf("write stale file: %v", err)
@@ -910,7 +910,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		},
 	}
 
-	// 1. Ручное сохранение («Сохранить базу»)
+	// 1. Ручное сохранение («Сохранить ведомость»)
 	saveBody1, _ := json.Marshal(savePayload)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/db/save", bytes.NewReader(saveBody1)))
@@ -953,7 +953,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		}
 	}
 
-	// Список сохранённых баз должен содержать ровно 1 актуальный файл (без дублей)
+	// Список сохранённых ведомостей должен содержать ровно 1 актуальный файл (без дублей)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/db/list", nil))
 	if rec.Code != http.StatusOK {
@@ -969,7 +969,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 		t.Fatalf("expected exactly 1 saved database file %q, got %+v", saveResp.FileName, listResp.Files)
 	}
 
-	// 3. Очищаем базу, затем восстанавливаем через POST /api/db/load
+	// 3. Очищаем ведомость, затем восстанавливаем через POST /api/db/load
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/clear", strings.NewReader("{}")))
 	if rec.Code != http.StatusOK {
@@ -1040,7 +1040,7 @@ func TestSaveOverwriteAutosaveAndRestoreFullDatabaseState(t *testing.T) {
 	}
 	verifyRestored(rec.Body.Bytes(), "api/db/upload")
 
-	// 5. И проверяем прямое открытие сохранённой базы через LoadWorkbookFromPath в новом экземпляре сервера
+	// 5. И проверяем прямое открытие сохранённой ведомости через LoadWorkbookFromPath в новом экземпляре сервера
 	app2 := server.New(true)
 	if err := app2.LoadWorkbookFromPath(saveResp.FilePath); err != nil {
 		t.Fatalf("app2 LoadWorkbookFromPath on saved db failed: %v", err)

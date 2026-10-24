@@ -46,16 +46,16 @@
           <input type="hidden" name="rows" id="staryoExportRows" value="" />
         </form>
         <button class="btn btn-beige" id="btnUpload" title="Открыть новый файл Ведомости (.xlsx)">
-          Загрузить новую базу
+          Загрузить новую ведомость
         </button>
-        <button class="btn btn-beige" id="btnLoadSavedDb" type="button" title="Загрузить ранее сохранённую базу со всем её текущим состоянием">
-          Загрузить сохраненную базу
+        <button class="btn btn-beige" id="btnLoadSavedDb" type="button" title="Загрузить ранее сохранённую ведомость со всем её текущим состоянием">
+          Загрузить сохраненную ведомость
         </button>
-        <button class="btn btn-beige" id="btnSaveDb" type="button" title="Сохранить текущую базу со всем её состоянием (автосохранение каждые 3 мин.)">
-          Сохранить базу
+        <button class="btn btn-beige" id="btnSaveDb" type="button" title="Сохранить текущую ведомость со всем её состоянием (автосохранение каждые 3 мин.)">
+          Сохранить ведомость
         </button>
-        <button class="btn btn-beige" id="btnClearDatabase" type="button" title="Очистить загруженную базу ведомости">
-          Очистить базу
+        <button class="btn btn-beige" id="btnClearDatabase" type="button" title="Очистить загруженную ведомость ведомости">
+          Очистить ведомость
         </button>
         <button class="btn btn-secondary hidden" id="btnSaveInPlace" title="Записать столбец 8 прямо в исходный файл на диске">
           Сохранить в файл
@@ -63,7 +63,6 @@
         <button class="btn btn-ghost property-filter-active" id="btnSales12" type="button" aria-pressed="true">Продажи 12 мес.</button>
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
-        <button class="btn btn-close-app icon-only" id="btnCloseApp" type="button" title="Закрыть программу" aria-label="Закрыть программу">✕</button>
       </div>
     </header>
 
@@ -97,8 +96,7 @@
             <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
             <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
           </div>
-
-
+          <button class="btn btn-ghost" id="btnCloseApp" type="button">Закрыть программу</button>
         </div>
 
         <div class="params-body hidden" id="paramsBody">
@@ -597,13 +595,13 @@
     </div>
   </div>
 
-  <!-- Модальное окно загрузки сохранённой базы -->
+  <!-- Модальное окно загрузки сохранённой ведомости -->
   <div id="savedDbModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="savedDbModalTitle">
     <div class="v4-modal-card v4-modal-wide">
       <div class="v4-modal-head">
         <div>
-          <h3 id="savedDbModalTitle">Загрузить сохраненную базу</h3>
-          <div class="v4-modal-sub" id="savedDbFolderHint">Выберите сохранённую базу из списка или укажите файл .xlsx на компьютере</div>
+          <h3 id="savedDbModalTitle">Загрузить сохраненную ведомость</h3>
+          <div class="v4-modal-sub" id="savedDbFolderHint">Выберите сохранённую ведомость из списка или укажите файл .xlsx на компьютере</div>
         </div>
         <button type="button" class="btn btn-ghost icon-only" id="btnCloseSavedDbModal" aria-label="Закрыть окно">✕</button>
       </div>
@@ -624,8 +622,8 @@
 
   <div id="clearConfirmModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="clearConfirmTitle">
     <div class="v4-modal-card v4-modal-confirm">
-      <div class="v4-modal-head"><h3 id="clearConfirmTitle">Сохранить данные перед очисткой базы?</h3></div>
-      <p class="v4-modal-sub">«Сохранить» — записать текущую базу и свойства номенклатуры, затем очистить базу. «Не сохранять» — очистить базу без записи. Свойства номенклатуры останутся в памяти программы.</p>
+      <div class="v4-modal-head"><h3 id="clearConfirmTitle">Сохранить данные перед очисткой ведомости?</h3></div>
+      <p class="v4-modal-sub">«Сохранить» — записать текущую ведомость и свойства номенклатуры, затем очистить ведомость. «Не сохранять» — очистить ведомость без записи. Свойства номенклатуры останутся в памяти программы.</p>
       <div class="v4-modal-actions">
         <button type="button" class="btn btn-modal-yes" id="btnClearSaveYes">Сохранить</button>
         <button type="button" class="btn btn-modal-no" id="btnClearSaveNo">Не сохранять</button>
@@ -637,7 +635,7 @@
   <div id="closeConfirmModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="closeConfirmTitle">
     <div class="v4-modal-card v4-modal-confirm">
       <div class="v4-modal-head">
-        <h3 id="closeConfirmTitle">Сохранить текущую базу?</h3>
+        <h3 id="closeConfirmTitle">Сохранить текущую ведомость?</h3>
         <button type="button" class="btn btn-ghost icon-only" id="btnCloseSaveCancel" aria-label="Отмена">✕</button>
       </div>
       <p class="v4-modal-sub" id="closeConfirmSub">При сохранении будут записаны все текущие заказы, фильтры, отметки и настройки.</p>
