@@ -52,8 +52,19 @@ func TestComparisonUsesRawRatingAndWarehouseScopedUnion(t *testing.T) {
 	app.mu.RLock()
 	overlay := app.buildStateEnvelopeLocked()
 	app.mu.RUnlock()
-	if overlay.Report.Items[1].SalesSegment != 1 {
-		t.Fatal("fixture must display a frozen rating outside comparison")
+	if overlay.Report.Items[1].SalesSegment != 0 {
+		t.Fatal("normal report must display its current rating, not the reference rating")
+	}
+	// The catalog and ordinary export must not inherit the reference rating.
+	app.wb = &model.WorkbookData{}
+	if app.reportForExportLocked().Items[1].SalesSegment != 0 {
+		t.Fatal("export inherited the reference rating")
+	}
+	catalog := app.catalogLocked()
+	it := app.report.Items[1]
+	key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
+	if catalog.Nomenclature[key].Rating != 0 || app.etalon[key].Rating != 1 {
+		t.Fatal("live catalog and fixed reference were mixed")
 	}
 	rec := httptest.NewRecorder()
 	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/etalon/compare", nil))
