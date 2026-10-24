@@ -369,20 +369,17 @@
     </section>
     <section class="tab-view" id="view-liquidity">
       <div class="charts-controls liquidity-controls">
-        <label>Вид анализа<select id="liqMode"><option value="combined">Совмещённый анализ</option><option value="coverage">Оборачиваемость и запас в днях</option><option value="abcxyz">ABC/XYZ-анализ</option></select></label>
+        <label>Проценты<select id="liqBasis"><option value="value">По стоимости запаса</option><option value="count">По количеству позиций</option></select></label>
         <label>Склад<select id="liqWarehouse"><option value="">Все склады</option></select></label>
         <label>Период с<select id="liqFrom"></select></label>
         <label>по<select id="liqTo"></select></label>
         <label>Категория<select id="liqCategory"><option value="">Все категории</option><option value="fast">До 30 дней</option><option value="normal">31–90 дней</option><option value="slow">91–180 дней</option><option value="excess">181–365 дней</option><option value="overyear">Более 365 дней</option><option value="nosales">Запас без продаж</option><option value="nostock">Нет положительного остатка</option></select></label>
-        <label>ABC<select id="liqABC"><option value="">Все</option><option>A</option><option>B</option><option>C</option><option value="—">Нет цены</option></select></label>
-        <label>XYZ<select id="liqXYZ"><option value="">Все</option><option>X</option><option>Y</option><option>Z</option><option value="—">Мало истории</option><option value="Нет продаж">Нет продаж</option></select></label>
         <label>Поиск<input id="liqSearch" type="search" placeholder="Наименование, артикул, группа, поставщик" /></label>
       </div>
       <details class="liquidity-method"><summary>Как рассчитывается ликвидность</summary>
         <p>Запас в днях = текущий положительный остаток ÷ средние продажи в день выбранного периода. Оборот за период = продажи ÷ текущий остаток — приближение, не бухгалтерская оборачиваемость: история средних остатков неизвестна. Категории показывают срок покрытия, а не гарантированный спрос.</p>
         <p>Продажи в день учитывают длительность выбранных месяцев и завершённость последнего месяца из ведомости. Только положительные продажи; возвраты исключены. Суммы = количество × текущая «Цена», не выручка. Отрицательные остатки не дают положительной стоимости запаса.</p>
-        <p>ABC: вклад продаж в закупочных ценах, отдельно внутри каждого склада по всем позициям: A — первые 80%, B — следующие до 95%, C — остальные. Пограничная позиция относится к классу по накопленной доле до неё; равные суммы не разделяются. Без цены класс не назначается. Фильтры не пересчитывают классы.</p>
-        <p>XYZ по выбранному периоду: коэффициент вариации помесячных продаж (стандартное отклонение ÷ среднее). X ≤ 10%, Y ≤ 25%, Z &gt; 25%. Нужно минимум 3 месяца; без продаж — отдельная группа. Неполный последний месяц приведён к полному для XYZ. Это отдельная аналитическая классификация, без сезонной очистки, не ABC/XYZ алгоритма закупок.</p>
+        <p>Помесячные цветные линии — оценка: один и тот же текущий остаток сопоставляется с продажами каждого месяца. Это не фактическая история запасов. График зависит от склада и поиска, но не от фильтра категории. Проценты по стоимости исключают строки без цены; проценты по количеству включают все позиции.</p>
         <p>Анализ использует текущие остатки и все строки ведомости независимо от фильтров таблицы и бюджета. Исторической ликвидности и отсутствия товара по месяцам в файле нет. Заказы и эталон не изменяются.</p>
       </details>
       <div id="liquidityContent" aria-live="polite"></div>
@@ -687,7 +684,7 @@
   <div id="ratingChartPopover" class="rating-chart-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=1"></script>
-  <script src="liquidity.js?v=1"></script>
+  <script src="liquidity.js?v=2"></script>
   <script src="app.js?v=4.18"></script>
 </body>
 </html>

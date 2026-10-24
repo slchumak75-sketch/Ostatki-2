@@ -16,7 +16,7 @@
   function analyze(rep,from,to) {
     const periods=rep?.periods||[],items=rep?.items||[];
     if(!Number.isInteger(from)||!Number.isInteger(to)||from<0||to>=periods.length||from>to)return {rows:[],days:0,error:'Начало периода должно быть не позже окончания.'};
-    const exposures=[];let days=0;
+    let days=0;
     for(let j=from;j<=to;j++) {
       const p=periods[j];
       let fraction=Number(p.completeness);
@@ -24,7 +24,7 @@
       if(!(fraction>0&&fraction<=1))fraction=1;
       const duration=new Date(Date.UTC(p.year,p.month,0)).getUTCDate();
       const elapsed=Math.max(1,Math.round(duration*fraction));
-      days+=elapsed;exposures.push(elapsed/duration);
+      days+=elapsed;
     }
     let missingPrices=0,negativeStocks=0,returns=0;
     const rows=items.map((it,index)=>{
@@ -32,33 +32,49 @@
       if(!validPrice)missingPrices++;
       const rawStock=Number(it.closingStock),stock=Number.isFinite(rawStock)?Math.max(0,rawStock):0;
       if(rawStock<0)negativeStocks++;
-      let sales=0;const months=[];
+      let sales=0;
       for(let j=from;j<=to;j++) {
         const raw=Number(it.monthlySales?.[j]||0),v=Number.isFinite(raw)?Math.max(0,raw):0;
         if(raw<0)returns++;
-        sales+=v;months.push(v/exposures[j-from]);
+        sales+=v;
       }
       const daily=sales/days,coverage=daily>0?stock/daily:null;
-      const mean=months.reduce((s,v)=>s+v,0)/months.length;
-      const cv=mean>0?Math.sqrt(months.reduce((s,v)=>s+(v-mean)**2,0)/months.length)/mean:null;
-      const xyz=sales<=0?'Нет продаж':months.length<3?'—':cv<=0.1?'X':cv<=0.25?'Y':'Z';
-      return {index,excelRow:it.excelRow,warehouse:String(it.warehouse||'Без склада'),sku:String(it.sku||''),name:String(it.name||''),group:String(it.group||'(Не указана)'),supplier:String(it.supplier||'(Не указан)'),rawStock,stock,sales,daily,coverage,turnover:stock>0?sales/stock:null,price:validPrice?price:null,salesValue:validPrice?sales*price:0,stockValue:validPrice?stock*price:0,abc:validPrice?'C':'—',xyz,cv,share:0,category:category(stock,sales,coverage)};
+      return {index,excelRow:it.excelRow,warehouse:String(it.warehouse||'Без склада'),sku:String(it.sku||''),name:String(it.name||''),group:String(it.group||'(Не указана)'),supplier:String(it.supplier||'(Не указан)'),rawStock,stock,sales,daily,coverage,turnover:stock>0?sales/stock:null,price:validPrice?price:null,salesValue:validPrice?sales*price:0,stockValue:validPrice?stock*price:0,category:category(stock,sales,coverage)};
     });
-    const warehouses=new Map();
-    for(const row of rows){if(!warehouses.has(row.warehouse))warehouses.set(row.warehouse,[]);warehouses.get(row.warehouse).push(row);}
-    for(const group of warehouses.values()) {
-      const ranked=group.filter(r=>r.price!==null).sort((a,b)=>b.salesValue-a.salesValue||a.index-b.index);
-      const total=ranked.reduce((s,r)=>s+r.salesValue,0);let before=0,lastValue=null,lastClass='C';
-      for(const row of ranked) {
-        row.share=total>0?row.salesValue/total:0;
-        if(row.salesValue>0) {
-          row.abc=row.salesValue===lastValue?lastClass:before/total<0.8?'A':before/total<0.95?'B':'C';
-          lastValue=row.salesValue;lastClass=row.abc;
-        }
-        before+=row.salesValue;
-      }
-    }
     return {rows,days,missingPrices,negativeStocks,returns,error:null};
+  }
+  const colors={fast:'#16a34a',normal:'#2563eb',slow:'#d97706',excess:'#9333ea',overyear:'#dc2626',nosales:'#64748b',nostock:'#0891b2'};
+  function monthlyTrend(rep,from,to,wh='',query='',basis='value') {
+    const q=query.trim().toLocaleLowerCase('ru');
+    const selected=(rep?.items||[]).filter(it=>(!wh||String(it.warehouse||'Без склада')===wh)&&(!q||`${it.name||''} ${it.sku||''} ${it.group||''} ${it.supplier||''}`.toLocaleLowerCase('ru').includes(q)));
+    const result=[];
+    for(let j=from;j<=to;j++) {
+      if(!rep?.periods?.[j])continue;
+      const p=rep.periods[j];let fraction=Number(p.completeness);
+      if(j===rep.periods.length-1 && Number(rep.lastMonthCompleteness)>0)fraction=Number(rep.lastMonthCompleteness);
+      if(!(fraction>0&&fraction<=1))fraction=1;
+      const days=Math.max(1,Math.round(new Date(Date.UTC(p.year,p.month,0)).getUTCDate()*fraction));
+      const totals=Object.fromEntries(Object.keys(names).map(k=>[k,0]));let total=0;
+      for(const it of selected) {
+        const rawStock=Number(it.closingStock),rawSales=Number(it.monthlySales?.[j]),price=Number(it.purchasePrice);
+        const stock=Number.isFinite(rawStock)?Math.max(0,rawStock):0,sales=Number.isFinite(rawSales)?Math.max(0,rawSales):0;
+        const weight=basis==='count'?1:Number.isFinite(price)&&price>0?stock*price:0;
+        const key=category(stock,sales,sales>0?stock*days/sales:null);
+        totals[key]+=weight;total+=weight;
+      }
+      result.push({key:monthKey(p),label:p.label||monthKey(p),total,percent:Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,total>0?100*v/total:0]))});
+    }
+    return result;
+  }
+  function trendHTML(rep,from,to,wh,query,basis) {
+    const months=monthlyTrend(rep,from,to,wh,query,basis);
+    const x=i=>90+(months.length===1?510:i*1020/Math.max(1,months.length-1)),y=v=>340-v*2.8;
+    const grid=[0,25,50,75,100].map(v=>`<line x1="90" x2="1110" y1="${y(v)}" y2="${y(v)}" stroke="#cbd5e1"/><text x="80" y="${y(v)+4}" text-anchor="end">${v}%</text>`).join('');
+    const lines=Object.entries(names).map(([key,label])=>`<g data-liq-series="${key}"><polyline fill="none" stroke="${colors[key]}" stroke-width="2.5" points="${months.map((m,i)=>`${x(i)},${y(m.percent[key])}`).join(' ')}"/>${months.map((m,i)=>`<circle cx="${x(i)}" cy="${y(m.percent[key])}" r="4" fill="${colors[key]}"><title>${esc(m.label)} · ${label}: ${num(m.percent[key])}%</title></circle>`).join('')}</g>`).join('');
+    const step=Math.max(1,Math.ceil(months.length/12));
+    const labels=months.map((m,i)=>i%step===0||i===months.length-1?`<text x="${x(i)}" y="365" text-anchor="end" transform="rotate(-25 ${x(i)} 365)">${esc(m.key)}</text>`:'').join('');
+    const values=months.map(m=>`<tr><td>${esc(m.label)}</td>${Object.keys(names).map(k=>`<td>${num(m.percent[k])}%</td>`).join('')}</tr>`).join('');
+    return `<section class="liquidity-trend"><h3>Изменение структуры ликвидности по месяцам · оценка</h3><p class="charts-note">Текущий остаток одинаков для всех месяцев; меняется только темп продаж месяца. Это не история фактических запасов. Доли — ${basis==='count'?'по количеству позиций':'по стоимости текущего запаса в «Цене»'}. График учитывает склад и поиск, но не фильтр категории.</p><div class="chart-legend">${Object.entries(names).map(([k,label])=>`<span><i style="background:${colors[k]}"></i>${label}</span>`).join('')}</div>${months.some(m=>m.total>0)?`<svg class="sales-chart" viewBox="0 0 1200 420" role="img" aria-label="Оценочная ликвидность по месяцам"><title>Доли категорий ликвидности по месяцам, проценты</title>${grid}${lines}${labels}</svg>`:'<p>Нет базы для расчёта процентов. Выберите другой склад, поиск или проценты по количеству позиций.</p>'}<details><summary>Помесячные проценты</summary><table class="chart-values"><thead><tr><th>Месяц</th>${Object.values(names).map(n=>`<th>${n}</th>`).join('')}</tr></thead><tbody>${values}</tbody></table></details></section>`;
   }
   function calculate() {
     page=0;
@@ -66,26 +82,30 @@
     render();
   }
   function filtered() {
-    const wh=$('liqWarehouse').value,cat=$('liqCategory').value,abc=$('liqABC').value,xyz=$('liqXYZ').value,q=$('liqSearch').value.trim().toLocaleLowerCase('ru');
-    return analysis.rows.filter(r=>(!wh||r.warehouse===wh)&&(!cat||r.category===cat)&&(!abc||r.abc===abc)&&(!xyz||r.xyz===xyz)&&(!q||`${r.name} ${r.sku} ${r.group} ${r.supplier}`.toLocaleLowerCase('ru').includes(q)));
+    const wh=$('liqWarehouse').value,cat=$('liqCategory').value,q=$('liqSearch').value.trim().toLocaleLowerCase('ru');
+    return analysis.rows.filter(r=>(!wh||r.warehouse===wh)&&(!cat||r.category===cat)&&(!q||`${r.name} ${r.sku} ${r.group} ${r.supplier}`.toLocaleLowerCase('ru').includes(q)));
   }
   function render() {
     const content=$('liquidityContent');if(!content)return;
     if(!analysis){content.innerHTML='<p class="charts-empty">Загрузите ведомость с помесячными продажами.</p>';return;}
     if(analysis.error){content.innerHTML=`<p class="charts-empty">${esc(analysis.error)}</p>`;return;}
-    const mode=$('liqMode').value,rows=filtered();
+    const rows=filtered(),basis=$('liqBasis').value;
     // No-sales and long coverage first; pagination only affects rendering, never totals/classes.
     rows.sort((a,b)=>(b.category==='nosales')-(a.category==='nosales')||b.stockValue-a.stockValue||a.index-b.index);
     const stockValue=rows.reduce((s,r)=>s+r.stockValue,0),salesValue=rows.reduce((s,r)=>s+r.salesValue,0);
     const summaries=new Map();
     for(const row of rows){const s=summaries.get(row.warehouse)||{count:0,stock:0,sales:0};s.count++;s.stock+=row.stockValue;s.sales+=row.salesValue;summaries.set(row.warehouse,s);}
-    const distribution=Object.entries(names).map(([key,label])=>{const group=rows.filter(r=>r.category===key),value=group.reduce((s,r)=>s+r.stockValue,0);return `<div class="liq-distribution-row"><span>${label}: ${group.length}</span><progress max="${stockValue||1}" value="${value}" aria-label="${label}"></progress><strong>${num(value)} руб.</strong></div>`;}).join('');
-    const coverage=mode!=='abcxyz',abcxyz=mode!=='coverage';
+    const distribution=Object.entries(names).map(([key,label])=>{
+      const group=rows.filter(r=>r.category===key),value=group.reduce((s,r)=>s+r.stockValue,0);
+      const denominator=basis==='count'?rows.length:stockValue,numerator=basis==='count'?group.length:value;
+      const percent=denominator>0?100*numerator/denominator:0;
+      return `<div class="liq-distribution-row"><span>${label}: ${group.length} поз.</span><progress max="100" value="${percent}" aria-label="${label}"></progress><strong>${num(value)} руб. · ${num(percent)}%</strong></div>`;
+    }).join('');
     page=Math.min(page,Math.max(0,Math.ceil(rows.length/pageSize)-1));
     const visible=rows.slice(page*pageSize,(page+1)*pageSize);
-    const head='<th>Склад</th><th>Артикул / номенклатура</th><th>Группа / поставщик</th><th>Продажи, ед.</th><th>Продажи, руб.</th><th>Остаток, ед.</th><th>Запас, руб.</th>'+(coverage?'<th>Запас, дней</th><th>Оборот*</th><th>Категория</th>':'')+(abcxyz?'<th>Доля склада, %</th><th>ABC</th><th>XYZ</th><th>CV, %</th>':'');
-    const body=visible.map(r=>`<tr data-liq-row="${r.excelRow}"><td>${esc(r.warehouse)}</td><td><small>${esc(r.sku||'Без артикула')}</small><br>${esc(r.name)}</td><td>${esc(r.group)}<br><small>${esc(r.supplier)}</small></td><td>${num(r.sales)}</td><td>${r.price===null?'Нет цены':num(r.salesValue)}</td><td>${num(r.rawStock)}</td><td>${r.price===null?'Нет цены':num(r.stockValue)}</td>${coverage?`<td>${r.coverage===null?(r.stock>0?'∞':'—'):num(r.coverage)}</td><td>${num(r.turnover)}</td><td>${names[r.category]}</td>`:''}${abcxyz?`<td>${r.price===null?'—':num(r.share*100)}</td><td>${r.abc}</td><td>${r.xyz}</td><td>${num(r.cv===null?null:r.cv*100)}</td>`:''}</tr>`).join('');
-    content.innerHTML=`<div class="liquidity-summary"><strong>Позиций: ${rows.length} из ${analysis.rows.length}</strong><span>Учтено дней: ${analysis.days}</span><span>Продажи: ${num(salesValue)} руб.</span><span>Текущий запас: ${num(stockValue)} руб.</span></div><div class="liquidity-warehouses">${[...summaries].map(([wh,s])=>`<div><strong>${esc(wh)}</strong> · ${s.count} поз. · Продажи ${num(s.sales)} руб. · Запас ${num(s.stock)} руб.</div>`).join('')}</div><p class="charts-note">По всей ведомости: без положительной цены ${analysis.missingPrices}; отрицательных остатков ${analysis.negativeStocks}; отрицательных месячных продаж исключено ${analysis.returns}. Суммы и сводка относятся ко всей выбранной выборке, не только странице. Классы ABC рассчитаны по полному складу.</p>${coverage?`<details open><summary>Стоимость запаса по срокам покрытия</summary>${distribution}</details>`:''}<div class="liquidity-pagination"><button type="button" data-liq-page="-1" ${page===0?'disabled':''}>Назад</button><span>Страница ${page+1} из ${Math.max(1,Math.ceil(rows.length/pageSize))} · по ${pageSize} строк</span><button type="button" data-liq-page="1" ${(page+1)*pageSize>=rows.length?'disabled':''}>Далее</button></div><div class="liquidity-table-wrap"><table class="liquidity-table"><thead><tr>${head}</tr></thead><tbody>${body||`<tr><td colspan="${7+(coverage?3:0)+(abcxyz?4:0)}">Нет позиций по выбранным фильтрам.</td></tr>`}</tbody></table></div>${coverage?'<p class="charts-note">* Оборот = продажи за период ÷ текущий положительный остаток; при нулевом остатке не определяется. Это не классическая оборачиваемость по среднему остатку.</p>':''}`;
+    const head='<th>Склад</th><th>Артикул / номенклатура</th><th>Группа / поставщик</th><th>Продажи, ед.</th><th>Продажи, руб.</th><th>Остаток, ед.</th><th>Запас, руб.</th><th>Доля запаса, %</th><th>Запас, дней</th><th>Оборот*</th><th>Категория</th>';
+    const body=visible.map(r=>`<tr data-liq-row="${r.excelRow}"><td>${esc(r.warehouse)}</td><td><small>${esc(r.sku||'Без артикула')}</small><br>${esc(r.name)}</td><td>${esc(r.group)}<br><small>${esc(r.supplier)}</small></td><td>${num(r.sales)}</td><td>${r.price===null?'Нет цены':num(r.salesValue)}</td><td>${num(r.rawStock)}</td><td>${r.price===null?'Нет цены':num(r.stockValue)}</td><td>${r.price===null?'—':num(stockValue>0?100*r.stockValue/stockValue:0)}</td><td>${r.coverage===null?(r.stock>0?'∞':'—'):num(r.coverage)}</td><td>${num(r.turnover)}</td><td>${names[r.category]}</td></tr>`).join('');
+    content.innerHTML=`<div class="liquidity-summary"><strong>Позиций: ${rows.length} из ${analysis.rows.length}</strong><span>Учтено дней: ${analysis.days}</span><span>Продажи: ${num(salesValue)} руб.</span><span>Текущий запас: ${num(stockValue)} руб.</span></div><div class="liquidity-warehouses">${[...summaries].map(([wh,s])=>`<div><strong>${esc(wh)}</strong> · ${s.count} поз. · Продажи ${num(s.sales)} руб. · Запас ${num(s.stock)} руб.</div>`).join('')}</div><p class="charts-note">По всей ведомости: без положительной цены ${analysis.missingPrices}; отрицательных остатков ${analysis.negativeStocks}; отрицательных месячных продаж исключено ${analysis.returns}. Суммы и сводка относятся ко всей выбранной выборке, не только странице. Доли в таблице — по стоимости запаса всей текущей выборки.</p><details open><summary>Распределение запаса · ${basis==='count'?'% позиций':'% стоимости'}</summary>${distribution}</details>${trendHTML(report,Number($('liqFrom').value),Number($('liqTo').value),$('liqWarehouse').value,$('liqSearch').value,basis)}<div class="liquidity-pagination"><button type="button" data-liq-page="-1" ${page===0?'disabled':''}>Назад</button><span>Страница ${page+1} из ${Math.max(1,Math.ceil(rows.length/pageSize))} · по ${pageSize} строк</span><button type="button" data-liq-page="1" ${(page+1)*pageSize>=rows.length?'disabled':''}>Далее</button></div><div class="liquidity-table-wrap"><table class="liquidity-table"><thead><tr>${head}</tr></thead><tbody>${body||`<tr><td colspan="11">Нет позиций по выбранным фильтрам.</td></tr>`}</tbody></table></div><p class="charts-note">* Оборот = продажи за период ÷ текущий положительный остаток; при нулевом остатке не определяется. Это не классическая оборачиваемость по среднему остатку.</p>`;
   }
   function update(rep) {
     report=rep;if(!$('liqWarehouse'))return;
@@ -101,8 +121,8 @@
     calculate();
   }
   for(const id of ['liqFrom','liqTo'])$(id)?.addEventListener('change',calculate);
-  for(const id of ['liqMode','liqWarehouse','liqCategory','liqABC','liqXYZ'])$(id)?.addEventListener('change',()=>{page=0;render();});
+  for(const id of ['liqBasis','liqWarehouse','liqCategory'])$(id)?.addEventListener('change',()=>{page=0;render();});
   $('liqSearch')?.addEventListener('input',()=>{page=0;render();});
   $('liquidityContent')?.addEventListener('click',e=>{const b=e.target.closest('[data-liq-page]');if(b&&!b.disabled){page+=Number(b.dataset.liqPage);render();}});
-  window.LiquidityAnalysis={update,analyze,category};update(null);
+  window.LiquidityAnalysis={update,analyze,category,monthlyTrend};update(null);
 })();
