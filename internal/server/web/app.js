@@ -3494,14 +3494,21 @@
     }
     bindExcelFilters();
 
-    setInterval(() => {
+    const heartbeat = () => {
       fetch('api/heartbeat', { method: 'POST', keepalive: true }).catch(() => {});
-    }, 3000);
-    window.addEventListener('pagehide', () => {
-      if (state.desktopMode && navigator.sendBeacon) {
-        navigator.sendBeacon('api/shutdown', '{}');
+    };
+    heartbeat();
+    setInterval(heartbeat, 3000);
+    window.addEventListener('pageshow', heartbeat);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) heartbeat(); });
+    // Reload/navigation is a detach hint, never an immediate shutdown. A fresh
+    // heartbeat cancels it; BFCache pages remain resumable without a detach hint.
+    window.addEventListener('pagehide', event => {
+      if (state.desktopMode && !isClosingConfirmed && !event.persisted && navigator.sendBeacon) {
+        navigator.sendBeacon('api/client-detach', '{}');
       }
     });
+
   }
 
   function initColumnResizers(root = document) {
