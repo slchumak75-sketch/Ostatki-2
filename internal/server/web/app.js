@@ -682,9 +682,10 @@
   }
 
   function switchTabUI(tabName) {
-    const nextTab = ['table', 'suppliers', 'overstock', 'charts'].includes(tabName) ? tabName : 'table';
+    const nextTab = ['table', 'suppliers', 'overstock', 'charts', 'liquidity'].includes(tabName) ? tabName : 'table';
     state.activeTab = nextTab;
     if(nextTab === 'charts') window.SalesCharts?.update(state.report);
+    if(nextTab === 'liquidity') window.LiquidityAnalysis?.update(state.report);
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
   }
@@ -757,6 +758,8 @@
     hideRatingChartPopover();
     captureNomenclatureRecords();
     state.report = null;
+    window.LiquidityAnalysis?.update(null);
+    window.SalesCharts?.update(null);
     state.rowMap.clear();
     state.canSaveInPlace = false;
     state.sourceFileName = '';
@@ -848,6 +851,7 @@
     state.lastSavedAt = env.lastSavedAt || '';
     state.report = env.report || null;
     window.SalesCharts?.update(state.report);
+    window.LiquidityAnalysis?.update(state.report);
 
     el('btnSaveInPlace')?.classList.toggle('hidden', !state.canSaveInPlace);
     if (!state.report) {
@@ -2565,6 +2569,7 @@
         exitComparison(true);
         state.activeTab = btn.dataset.tab;
         if(state.activeTab === 'charts') window.SalesCharts?.update(state.report);
+        if(state.activeTab === 'liquidity') window.LiquidityAnalysis?.update(state.report);
         document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.activeTab}`));
       });

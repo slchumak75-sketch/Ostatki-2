@@ -2440,3 +2440,21 @@ body {
 .chart-values { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
 .chart-values td,.chart-values th { padding:6px; border-bottom:1px solid var(--border); overflow-wrap:anywhere; text-align:right; }
 .chart-values td:first-child,.chart-values th:first-child { text-align:left; }
+
+/* Liquidity is a separate full-width read-only analysis, not an order filter. */
+.liquidity-controls input { min-height:30px; max-width:100%; }
+.liquidity-method { padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:6px; flex:0 0 auto; }
+.liquidity-method p { font-size:12px; margin:8px 0; }
+#liquidityContent { min-width:0; width:100%; }
+.liquidity-summary { display:flex; flex-wrap:wrap; gap:10px 25px; padding:12px; background:var(--surface); border:1px solid var(--border); border-radius:6px; }
+.liquidity-warehouses { display:flex; flex-wrap:wrap; gap:8px 20px; padding:10px 0; }
+.liq-distribution-row { display:grid; grid-template-columns:minmax(150px,1fr) minmax(80px,2fr) minmax(110px,1fr); gap:12px; align-items:center; padding:4px 8px; font-size:12px; }
+.liq-distribution-row progress { width:100%; accent-color:var(--primary); }
+.liq-distribution-row strong { text-align:right; }
+.liquidity-pagination { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; }
+.liquidity-table { width:100%; table-layout:fixed; border-collapse:collapse; background:var(--surface); font-size:12px; }
+.liquidity-table th,.liquidity-table td { padding:7px 4px; border-bottom:1px solid var(--border); vertical-align:top; overflow-wrap:anywhere; }
+.liquidity-table th { text-align:left; background:var(--surface-alt); }
+.liquidity-table th:nth-child(2),.liquidity-table th:nth-child(3) { width:15%; }
+.liquidity-table small { color:var(--text-muted); }
+@media (max-width:800px) { .liquidity-table { font-size:10px; } .liq-distribution-row { grid-template-columns:1fr; gap:3px; } }
