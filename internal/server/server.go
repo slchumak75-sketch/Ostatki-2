@@ -47,11 +47,12 @@ type AppServer struct {
 	report                  *model.CalculationReport
 	desktopMode             bool
 
-	hbMu          sync.Mutex
-	hasSeenClient bool
-	lastBeat      time.Time
-	shutdownCh    chan struct{}
-	shutdownOnce  sync.Once
+	hbMu             sync.Mutex
+	hasSeenClient    bool
+	lastBeat         time.Time
+	clientDetachedAt time.Time
+	shutdownCh       chan struct{}
+	shutdownOnce     sync.Once
 }
 
 type stateEnvelope struct {
@@ -208,7 +209,10 @@ func (s *AppServer) ShutdownChan() <-chan struct{} {
 	return s.shutdownCh
 }
 
-// StartDesktopWatchdog отслеживает закрытие окна приложения в десктопном режиме.
+// StartDesktopWatchdog завершает неподключившийся запуск или подтверждённое
+// отсоединение страницы без последующего подключения.
+// После подключения молчание браузера не означает закрытие: таймеры могут быть
+// приостановлены сворачиванием, сном Windows или фоновым ограничением Chromium.
 func (s *AppServer) StartDesktopWatchdog(idleTimeout time.Duration) {
 	if !s.desktopMode {
 		return
@@ -224,10 +228,10 @@ func (s *AppServer) StartDesktopWatchdog(idleTimeout time.Duration) {
 			case <-ticker.C:
 				s.hbMu.Lock()
 				seen := s.hasSeenClient
-				elapsed := time.Since(s.lastBeat)
+				detachedAt := s.clientDetachedAt
 				s.hbMu.Unlock()
 
-				if seen && elapsed > idleTimeout {
+				if !detachedAt.IsZero() && time.Since(detachedAt) > idleTimeout {
 					s.triggerShutdown()
 					return
 				}
@@ -286,6 +290,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/export/supplier-order", s.handleExportSingleSupplierOrderXLSX)
 	mux.HandleFunc("/api/export/staryo", s.handleExportStaryoXLSX)
 	mux.HandleFunc("/api/heartbeat", s.handleHeartbeat)
+	mux.HandleFunc("/api/client-detach", s.handleClientDetach)
 	mux.HandleFunc("/api/shutdown", s.handleShutdown)
 
 	subFS, err := fs.Sub(embeddedWeb, "web")
@@ -763,6 +768,17 @@ func (s *AppServer) handleExportStaryoXLSX(w http.ResponseWriter, r *http.Reques
 	sendXLSXAttachment(w, dlName, outBytes)
 }
 
+func (s *AppServer) handleClientDetach(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "требуется POST")
+		return
+	}
+	s.hbMu.Lock()
+	s.clientDetachedAt = time.Now()
+	s.hbMu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *AppServer) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 	s.touchHeartbeat()
 	w.WriteHeader(http.StatusNoContent)
@@ -784,6 +800,7 @@ func (s *AppServer) touchHeartbeat() {
 	s.hbMu.Lock()
 	s.hasSeenClient = true
 	s.lastBeat = time.Now()
+	s.clientDetachedAt = time.Time{}
 	s.hbMu.Unlock()
 }
 

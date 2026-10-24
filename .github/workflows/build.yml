@@ -280,6 +280,7 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/clear-database.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/property-row-order.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/virtual-scroll.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/desktop-lifecycle.cjs
 
       - name: Кросс-компиляция Windows x64 — «Вариант 4»
         run: |
