@@ -10,7 +10,6 @@ import (
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
-	"math"
 	"os"
 	"sort"
 	"time"
@@ -24,12 +23,14 @@ type Sample struct {
 }
 type Metric struct {
 	Mode                                         string
+	Cohort                                       string `json:",omitempty"`
 	Rows                                         int
 	Forecast, Actual, AbsoluteError, Over, Under float64
 }
 type Fold struct {
 	Date    string
 	Metrics []Metric
+	Cohorts []Metric
 }
 
 func main() {
@@ -110,34 +111,43 @@ func main() {
 			copyWB.Items[i].MonthlySales = s
 		}
 		fold := Fold{Date: date}
-		for _, mode := range modes {
+		for _, mode := range append(append([]model.SeasonMode(nil), modes...), model.SeasonMode("experimental-level")) {
 			p := model.DefaultParams()
 			p.SeasonMode = mode
+			if mode == "experimental-level" {
+				p.SeasonMode = model.SeasonHybrid
+			}
 			r := forecast.Calculate(&copyWB, p, nil)
 			met := Metric{Mode: string(mode)}
+			cohorts := map[string]*Metric{}
 			for i, it := range r.Items {
 				if it.SumSalesLast6M <= 0 {
 					continue
 				}
-				actual := 0.
+				actual := 0.0
 				for d := 1; d <= 34; d++ {
 					day := cut.AddDate(0, 0, d)
 					j := idx + 12*(day.Year()-cut.Year()) + int(day.Month()) - int(cut.Month())
 					days := time.Date(day.Year(), day.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day()
 					actual += wb.Items[i].MonthlySales[j] / float64(days)
 				}
-				err := it.ForecastDemand - actual
-				met.Rows++
-				met.Forecast += it.ForecastDemand
-				met.Actual += actual
-				met.AbsoluteError += math.Abs(err)
-				if err > 0 {
-					met.Over += err
-				} else {
-					met.Under -= err
+				predicted := it.ForecastDemand
+				if mode == "experimental-level" {
+					predicted *= experimentalFactor(it, r.LastMonthCompleteness)
 				}
+				met.add(predicted, actual)
+				cohort := historicalCohort(it.MonthlySales)
+				if cohorts[cohort] == nil {
+					cohorts[cohort] = &Metric{Mode: string(mode), Cohort: cohort}
+				}
+				cohorts[cohort].add(predicted, actual)
 			}
 			fold.Metrics = append(fold.Metrics, met)
+			for _, name := range []string{"falling", "rising", "stable", "low-base", "short-history"} {
+				if m := cohorts[name]; m != nil {
+					fold.Cohorts = append(fold.Cohorts, *m)
+				}
+			}
 		}
 		folds = append(folds, fold)
 	}
