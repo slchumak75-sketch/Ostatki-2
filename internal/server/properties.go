@@ -255,8 +255,8 @@ func (s *AppServer) savePropertiesLocked(dir string) (string, error) {
 }
 
 func (s *AppServer) handleExportProperties(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, 405, "требуется GET")
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeError(w, 405, "требуется GET или POST")
 		return
 	}
 	s.mu.Lock()
@@ -280,6 +280,10 @@ func (s *AppServer) handleExportProperties(w http.ResponseWriter, r *http.Reques
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	name := "Свойства Номенклатуры, " + time.Now().Format("02.01.2006, 15：04：05") + ".xlsx"
+	if r.Method == http.MethodPost {
+		s.saveExport(w, "Номенклатура", name, raw)
+		return
+	}
 	w.Header().Set("Content-Disposition", `attachment; filename="properties.xlsx"; filename*=UTF-8''`+url.PathEscape(name))
 	_, _ = w.Write(raw)
 }

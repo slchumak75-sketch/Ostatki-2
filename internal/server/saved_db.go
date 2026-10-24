@@ -13,10 +13,11 @@ import (
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
+	"github.com/slchumak75-sketch/Ostatki-2/internal/userpaths"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 )
 
-// SetSaveDir задаёт каталог для сохранения и автосохранения баз данных.
+// SetSaveDir задаёт каталог для сохранения и автосохранения ведомостей данных.
 func (s *AppServer) SetSaveDir(dir string) {
 	s.mu.Lock()
 	s.customSaveDir = strings.TrimSpace(dir)
@@ -35,33 +36,11 @@ func (s *AppServer) resolveSaveDirLocked() string {
 	if s.customSaveDir != "" {
 		return s.customSaveDir
 	}
-	if s.savedDBPath != "" {
-		return filepath.Dir(s.savedDBPath)
+	dir, err := userpaths.DownloadsDir()
+	if err != nil {
+		return ""
 	}
-	// В десктопном режиме Windows сохраняем рядом с исполняемым файлом программы (если не temp),
-	// иначе в текущем рабочем каталоге или домашнем каталоге пользователя.
-	if exePath, err := os.Executable(); err == nil && exePath != "" {
-		exeDir := filepath.Clean(filepath.Dir(exePath))
-		tmpDir := filepath.Clean(os.TempDir())
-		if exeDir != tmpDir && !strings.HasPrefix(exeDir, tmpDir+string(filepath.Separator)) {
-			if isWritableDir(exeDir) {
-				return exeDir
-			}
-		}
-	}
-	if wd, err := os.Getwd(); err == nil && wd != "" && isWritableDir(wd) {
-		return wd
-	}
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		dl := filepath.Join(home, "Downloads")
-		if isWritableDir(dl) {
-			return dl
-		}
-		if isWritableDir(home) {
-			return home
-		}
-	}
-	return os.TempDir()
+	return filepath.Join(dir, "Ведомость")
 }
 
 func isWritableDir(dir string) bool {
@@ -124,7 +103,7 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	if s.wb == nil || s.report == nil || len(s.rawXLSX) == 0 {
 		s.mu.Unlock()
-		writeError(w, http.StatusBadRequest, "нет активной загруженной базы для сохранения")
+		writeError(w, http.StatusBadRequest, "нет активной загруженной ведомости для сохранения")
 		return
 	}
 
@@ -211,26 +190,26 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		s.mu.Unlock()
-		writeError(w, http.StatusInternalServerError, "ошибка формирования файла базы: "+err.Error())
+		writeError(w, http.StatusInternalServerError, "ошибка формирования файла ведомости: "+err.Error())
 		return
 	}
 
 	tmpPath := targetPath + ".tmp"
 	if err := os.WriteFile(tmpPath, outBytes, 0o644); err != nil {
 		s.mu.Unlock()
-		writeError(w, http.StatusInternalServerError, "ошибка записи файла базы: "+err.Error())
+		writeError(w, http.StatusInternalServerError, "ошибка записи файла ведомости: "+err.Error())
 		return
 	}
 	if err := os.Rename(tmpPath, targetPath); err != nil {
 		_ = os.Remove(tmpPath)
 		if err2 := os.WriteFile(targetPath, outBytes, 0o644); err2 != nil {
 			s.mu.Unlock()
-			writeError(w, http.StatusInternalServerError, "не удалось перезаписать сохранённую базу (возможно, файл открыт в Excel): "+err2.Error())
+			writeError(w, http.StatusInternalServerError, "не удалось перезаписать сохранённую ведомость (возможно, файл открыт в Excel): "+err2.Error())
 			return
 		}
 	}
 
-	// Перезапись / удаление устаревших файлов сохранённой базы для этого же склада или сессии
+	// Перезапись / удаление устаревших файлов сохранённой ведомости для этого же склада или сессии
 	prevSavedPath := s.savedDBPath
 	if prevSavedPath != "" && filepath.Clean(prevSavedPath) != filepath.Clean(targetPath) {
 		_ = os.Remove(prevSavedPath)
@@ -352,7 +331,7 @@ func (s *AppServer) handleLoadSavedDatabaseFromDisk(w http.ResponseWriter, r *ht
 	}
 	baseName := filepath.Base(strings.TrimSpace(req.FileName))
 	if baseName == "" || baseName == "." || baseName == "/" {
-		writeError(w, http.StatusBadRequest, "не указано имя файла сохранённой базы")
+		writeError(w, http.StatusBadRequest, "не указано имя файла сохранённой ведомости")
 		return
 	}
 
@@ -360,7 +339,7 @@ func (s *AppServer) handleLoadSavedDatabaseFromDisk(w http.ResponseWriter, r *ht
 	fullPath := filepath.Join(saveDir, baseName)
 	raw, err := os.ReadFile(fullPath)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "не удалось прочитать файл сохранённой базы: "+err.Error())
+		writeError(w, http.StatusNotFound, "не удалось прочитать файл сохранённой ведомости: "+err.Error())
 		return
 	}
 
@@ -383,7 +362,7 @@ func (s *AppServer) handleUploadSavedDatabase(w http.ResponseWriter, r *http.Req
 	}
 	file, hdr, err := r.FormFile("file")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "не передан файл сохранённой базы: "+err.Error())
+		writeError(w, http.StatusBadRequest, "не передан файл сохранённой ведомости: "+err.Error())
 		return
 	}
 	defer file.Close()
@@ -420,7 +399,7 @@ func (s *AppServer) restoreSavedDatabaseBytes(raw []byte, displayName string, di
 	startEpoch := s.epoch.Load()
 	wb, err := xlsx.ParseBytes(raw, displayName)
 	if err != nil {
-		return fmt.Errorf("не удалось разобрать файл базы: %w", err)
+		return fmt.Errorf("не удалось разобрать файл ведомости: %w", err)
 	}
 	snap, err := xlsx.ExtractSavedDatabaseSnapshot(raw)
 	if err != nil {

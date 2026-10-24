@@ -100,6 +100,10 @@
     return {version:2,properties,nomenclature:records};
   }
   async function downloadNomenclature(path,name) {
+    if(state.desktopMode) {
+      await apiPost(path,{}, {unabortable:true});
+      return;
+    }
     const res=await fetch(path,{cache:'no-store'});
     if (!res.ok) throw new Error(await res.text());
     const disposition=res.headers?.get('Content-Disposition') || '';
@@ -616,7 +620,7 @@
     return widths.length === cols.length ? widths : null;
   }
 
-  // Нормализуем также ширины из старых баз: ни один colgroup не расширяет таблицу.
+  // Нормализуем также ширины из старых ведомостей: ни один colgroup не расширяет таблицу.
   function fitTableToViewport(table) {
     const cols = [...table.querySelectorAll(':scope > colgroup > col')];
     const widths = cols.map(col => parseFloat(col.style.width) || 1);
@@ -657,7 +661,7 @@
         const widths = saved[id];
         if (Array.isArray(widths) && widths.every(n => Number.isFinite(n) && n > 0)) applyTableColumnWidths(el(id), widths);
       }
-    } catch (_) { /* Отсутствие настроек не мешает загрузке базы. */ }
+    } catch (_) { /* Отсутствие настроек не мешает загрузке ведомости. */ }
   }
   async function saveFields() {
     try {
@@ -810,24 +814,24 @@
     if (el('btnResetOverstockFilters')) el('btnResetOverstockFilters').classList.add('hidden');
     switchTabUI('table');
 
-    if (el('fileMetaLine')) el('fileMetaLine').textContent = 'База очищена • Нажмите «Загрузить новую базу» или «Загрузить сохраненную базу»';
+    if (el('fileMetaLine')) el('fileMetaLine').textContent = 'Ведомость очищена • Нажмите «Загрузить новую ведомость» или «Загрузить сохраненную ведомость»';
     if (el('kpiOrderCost')) el('kpiOrderCost').textContent = '0,00 руб.';
     renderCurrentSupplier();
     if (el('cntTabTable')) el('cntTabTable').textContent = '0';
     if (el('cntTabSuppliers')) el('cntTabSuppliers').textContent = '0';
     if (el('cntTabOverstock')) el('cntTabOverstock').textContent = '0';
-    if (el('paginationInfo')) el('paginationInfo').textContent = 'База очищена (0 строк)';
+    if (el('paginationInfo')) el('paginationInfo').textContent = 'Ведомость очищена (0 строк)';
     if (el('tableBody')) {
-      el('tableBody').innerHTML = '<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text-muted)">База данных очищена — нажмите «Загрузить новую базу», «Загрузить сохраненную базу» или перетащите файл Ведомости</td></tr>';
+      el('tableBody').innerHTML = '<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text-muted)">Ведомость данных очищена — нажмите «Загрузить новую ведомость», «Загрузить сохраненную ведомость» или перетащите файл Ведомости</td></tr>';
     }
     if (el('tableFoot')) el('tableFoot').innerHTML = '';
     if (el('warehousesContainer')) el('warehousesContainer').innerHTML = '';
     if (el('suppliersBody')) {
-      el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">База данных очищена</td></tr>';
+      el('suppliersBody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">Ведомость данных очищена</td></tr>';
     }
     if (el('suppliersFoot')) el('suppliersFoot').innerHTML = '';
     if (el('overstockContainer')) {
-      el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">База данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
+      el('overstockContainer').innerHTML = '<p class="muted" style="margin:0;padding:12px 0">Ведомость данных очищена — загрузите файл Ведомости (.xlsx) для анализа неликвидов.</p>';
     }
     el('tableScrollContainer').scrollTop = 0;
   }
@@ -2093,7 +2097,7 @@
 
     const filteredFrozen = over.reduce((acc, it) => acc + (Number(it.overstockValue) || 0), 0);
     const totalHint = hasActiveFilter
-      ? ` (всего по базе: ${fmtInt(allOver.length)} поз. на ${fmtMoney(rep.overstockFrozenCost)} руб.)`
+      ? ` (всего по ведомости: ${fmtInt(allOver.length)} поз. на ${fmtMoney(rep.overstockFrozenCost)} руб.)`
       : '';
     const visibleOver = state.overstockLimit > 0 ? over.slice(0, state.overstockLimit) : over;
     const remainingOver = over.length - visibleOver.length;
@@ -2218,7 +2222,7 @@
   async function saveDatabase(reason = 'manual') {
     if (!state.report || isClearingDatabase) {
       if (reason === 'manual') {
-        showToast('Нет активной базы для сохранения');
+        showToast('Нет активной ведомости для сохранения');
       }
       return false;
     }
@@ -2242,14 +2246,14 @@
       if (state.report) renderKPIs(state.report);
 
       if (reason === 'manual') {
-        showToast(`База сохранена: «${res.fileName}»`);
+        showToast(`Ведомость сохранена: «${res.fileName}»`);
       } else if (reason === 'autosave') {
-        showToast(`Автосохранение базы: «${res.fileName}»`);
+        showToast(`Автосохранение ведомости: «${res.fileName}»`);
       }
       return true;
     } catch (err) {
       if (err?.name !== 'AbortError') {
-        showToast(err.message || 'Ошибка сохранения базы');
+        showToast(err.message || 'Ошибка сохранения ведомости');
       }
       return false;
     } finally {
@@ -2265,7 +2269,7 @@
     if (!modal || !listEl) return;
 
     modal.classList.remove('hidden');
-    listEl.innerHTML = '<div class="muted" style="padding:12px 4px">Поиск сохранённых баз…</div>';
+    listEl.innerHTML = '<div class="muted" style="padding:12px 4px">Поиск сохранённых ведомостей…</div>';
 
     try {
       const res = await apiGet('api/db/list');
@@ -2274,7 +2278,7 @@
         hintEl.textContent = `Папка автосохранения: ${res.saveDir}`;
       }
       if (files.length === 0) {
-        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых баз («Ведомость сохранена, дата.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
+        listEl.innerHTML = '<div class="muted" style="padding:14px 4px">В папке пока нет сохранённых ведомостей («Ведомость сохранена, дата.xlsx»). Вы можете выбрать любой сохранённый файл .xlsx с компьютера кнопкой выше.</div>';
         return;
       }
       listEl.innerHTML = files.map((f) => `
@@ -2305,12 +2309,12 @@
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
-    showToast(`Загрузка сохранённой базы «${fileName}»…`);
+    showToast(`Загрузка сохранённой ведомости «${fileName}»…`);
     try {
       const env = await apiPost('api/db/load', { fileName });
       if (reqEpoch !== state.clientEpoch) return;
       applyEnvelope(env, { restoreSaved: true });
-      showToast(`Сохранённая база восстановлена: «${fileName}»`);
+      showToast(`Сохранённая ведомость восстановлена: «${fileName}»`);
     } catch (err) {
       if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
       showToast(err.message);
@@ -2326,7 +2330,7 @@
     activeControllers.add(ctrl);
     const fd = new FormData();
     fd.append('file', file);
-    showToast(`Восстановление сохранённой базы «${file.name}»…`);
+    showToast(`Восстановление сохранённой ведомости «${file.name}»…`);
     try {
       const res = await fetch('api/db/upload', {
         method: 'POST',
@@ -2335,10 +2339,10 @@
         signal: ctrl.signal,
       });
       const env = await res.json();
-      if (!res.ok) throw new Error(env.error || 'Ошибка загрузки сохранённой базы');
+      if (!res.ok) throw new Error(env.error || 'Ошибка загрузки сохранённой ведомости');
       if (reqEpoch !== state.clientEpoch) return;
       applyEnvelope(env, { restoreSaved: true });
-      showToast(`Сохранённая база восстановлена: «${file.name}»`);
+      showToast(`Сохранённая ведомость восстановлена: «${file.name}»`);
     } catch (err) {
       if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
       showToast(err.message);
@@ -2354,12 +2358,12 @@
     if (sub) {
       if (state.report) {
         const wh = [...state.msFilters.warehouse].join(' + ') || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
-        sub.textContent = `Активная база: ${wh} (${state.report.fileName}). Свойства номенклатуры будут сохранены при выходе. Сохранить текущую базу?`;
+        sub.textContent = `Активная ведомость: ${wh} (${state.report.fileName}). Свойства номенклатуры будут сохранены при выходе. Сохранить текущую ведомость?`;
       } else {
         sub.textContent = 'Свойства номенклатуры будут сохранены при выходе. Закрыть программу?';
       }
     }
-    el('closeConfirmTitle').textContent = state.report ? 'Сохранить текущую базу?' : 'Закрыть программу?';
+    el('closeConfirmTitle').textContent = state.report ? 'Сохранить текущую ведомость?' : 'Закрыть программу?';
     modal.classList.remove('hidden');
   }
 
@@ -2395,7 +2399,7 @@
     activeControllers.add(ctrl);
     const fd = new FormData();
     fd.append('file', file);
-    showToast(`Загрузка новой базы «${file.name}»…`);
+    showToast(`Загрузка новой ведомости «${file.name}»…`);
     try {
       const res = await fetch('api/upload', {
         method: 'POST',
@@ -2409,7 +2413,7 @@
       state.selectedExcelRow = null;
       state.page = 1;
       applyEnvelope(env, { freshNewDb: true });
-      showToast(`Готово! Новая база загружена (${fmtInt(env.report.totalItems)} позиций)`);
+      showToast(`Готово! Новая ведомость загружена (${fmtInt(env.report.totalItems)} позиций)`);
     } catch (err) {
       if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
       showToast(err.message);
@@ -2455,7 +2459,7 @@
       const button=el('btnCompareEtalon');button.disabled=true;
       const generation=++comparisonGeneration,epoch=state.clientEpoch;
       try {
-        if(!state.report)throw new Error('Сначала загрузите текущую базу');
+        if(!state.report)throw new Error('Сначала загрузите текущую ведомость');
         await syncProperties();
         const data=await apiGet('api/etalon/compare');
         if(generation!==comparisonGeneration || epoch!==state.clientEpoch)return;
@@ -2466,12 +2470,22 @@
       } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
       finally {button.disabled=false;}
     });
-    el('btnBackupProperties').addEventListener('click', () => {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(nomenclatureBackup(),null,2)],{type:'application/json'}));
+    el('btnBackupProperties').addEventListener('click', async () => {
+      const snapshot=nomenclatureBackup();
+      if(state.desktopMode) {
+        try {
+          await apiPost('api/properties/backup',snapshot,{unabortable:true});
+          showToast('Резервная копия сохранена: Загрузки / Номенклатура');
+          return;
+        } catch(err) {
+          showToast(`Не удалось сохранить в папку Номенклатура: ${err.message}. JSON скачивается через браузер; выберите папку вручную.`);
+        }
+      }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}));
       const link = document.createElement('a');link.href=url;link.download='Свойства Номенклатуры, резервная копия.json';
       document.body.appendChild(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1500);
-      showToast('Резервная копия свойств выгружена из памяти. Сохраните скачанный JSON-файл.');
+      if(!state.desktopMode)showToast('Резервная копия свойств выгружена из памяти. Сохраните скачанный JSON-файл.');
     });
     el('btnSaveEtalon').addEventListener('click', async () => {
       const epoch=state.clientEpoch;
@@ -2519,16 +2533,8 @@
     el('btnExportProperties').addEventListener('click', async () => {
       try {
         await syncProperties();
-        const res = await fetch('api/properties/export');
-        if (!res.ok) throw new Error(await res.text());
-        const url = URL.createObjectURL(await res.blob());
-        const link = document.createElement('a');
-        link.href = url;
-        const now = new Date();
-        link.download = `Свойства Номенклатуры, ${now.toLocaleDateString('ru-RU')}, ${now.toLocaleTimeString('ru-RU').replaceAll(':','：')}.xlsx`;
-        isDownloadingFile = true;
-        link.click();
-        setTimeout(() => { URL.revokeObjectURL(url); isDownloadingFile = false; },1500);
+        await downloadNomenclature('api/properties/export');
+        showToast(state.desktopMode ? 'Свойства сохранены: Загрузки / Номенклатура' : 'Свойства выгружены.');
       } catch(err) { showToast(`Ошибка выгрузки свойств: ${err.message}. Для сохранения галочек без связи с сервером нажмите «Резервная копия свойств (JSON)».`); }
     });
     el('btnImportProperties').addEventListener('click', () => el('propertiesFileInput').click());
@@ -2627,7 +2633,7 @@
     });
     async function confirmClearDatabase(save) {
       if (clearConfirmBusy) return;
-      if (state.isSavingDb) { showToast('Дождитесь завершения сохранения базы'); return; }
+      if (state.isSavingDb) { showToast('Дождитесь завершения сохранения ведомости'); return; }
       clearConfirmBusy = true;
       btnClear.disabled = true;
       clearModal.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
@@ -2646,9 +2652,9 @@
         await apiPost(`api/clear?t=${Date.now()}`, {}, { unabortable: true });
         resetUIToEmptyDatabase();
         clearModal.classList.add('hidden');
-        showToast('База данных очищена');
+        showToast('Ведомость данных очищена');
       } catch (err) {
-        showToast(`Не удалось очистить базу: ${err.message}`);
+        showToast(`Не удалось очистить ведомость: ${err.message}`);
       } finally {
         isClearingDatabase = false;
         clearConfirmBusy = false;
@@ -3580,7 +3586,7 @@
     window.addEventListener('beforeunload', (e) => {
       if (!isClosingConfirmed && !isDownloadingFile && (propertiesDirty || (state.report && state.hasUnsavedChanges))) {
         e.preventDefault();
-        e.returnValue = 'Сохранить текущую базу?';
+        e.returnValue = 'Сохранить текущую ведомость?';
       }
     });
 
@@ -3810,7 +3816,7 @@
     const q = el('efSearchInput').value.trim().toLocaleLowerCase('ru');
     const matches = excelMenu.options.filter(o => o.label.toLocaleLowerCase('ru').includes(q));
     if (excelMenu.key === 'supplier' && excelMenu.sumSort) {
-      // Один проход по базе: агрегируем все строки каждого поставщика.
+      // Один проход по ведомости: агрегируем все строки каждого поставщика.
       const sums = new Map();
       for (const it of state.report?.items || []) {
         const supplier = normalizeSupName(it.supplier);

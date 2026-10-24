@@ -239,8 +239,8 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 
 // Export is read-only: even a download must not refresh the saved reference.
 func (s *AppServer) handleExportEtalon(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeError(w, 405, "требуется GET")
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeError(w, 405, "требуется GET или POST")
 		return
 	}
 	s.mu.Lock()
@@ -265,6 +265,10 @@ func (s *AppServer) handleExportEtalon(w http.ResponseWriter, r *http.Request) {
 	raw, err := xlsx.GenerateNomenclatureXLSX(records)
 	if err != nil {
 		writeError(w, 500, err.Error())
+		return
+	}
+	if r.Method == http.MethodPost {
+		s.saveExport(w, "Эталон", name, raw)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")

@@ -2371,3 +2371,15 @@ input[type="checkbox"] { accent-color: #dc2626; }
 /* Two ordered action rows. Existing parameter-button 2/3 sizing still applies. */
 .nomenclature-actions { display:flex; flex-direction:column; align-items:flex-start; gap:5px; }
 .comparison-hint { padding:5px 10px; background:#fef3c7; color:#713f12; font-size:12px; }
+
+/* Compact parameters without changing the main table geometry. */
+#paramsPanel { padding:3px 6px; }
+#staryoActions { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:2px 6px; }
+#staryoActions > .field-hint { font-size:9px; line-height:1.1; }
+#paramsPanel .params-header { gap:2px 6px; }
+#paramsBody { zoom:0.6666666667; margin-top:3px; padding-top:3px; gap:3px 5px; }
+/* The body already scales its descendants: don't shrink the reset button twice. */
+#paramsBody button { zoom:1; }
+@media(max-width:760px) {
+ #staryoActions { grid-template-columns:minmax(0,1fr); }
+}

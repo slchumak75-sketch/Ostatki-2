@@ -35,7 +35,7 @@ func (s *AppServer) handleCompareEtalon(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if s.report == nil || len(s.report.Items) == 0 {
-		writeError(w, 400, "Сначала загрузите текущую базу")
+		writeError(w, 400, "Сначала загрузите текущую ведомость")
 		return
 	}
 	if len(s.etalon) == 0 {

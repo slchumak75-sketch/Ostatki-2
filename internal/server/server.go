@@ -115,7 +115,7 @@ func (s *AppServer) buildStateEnvelopeLocked() stateEnvelope {
 }
 
 // LoadWorkbookFromPath загружает ведомость с диска и выполняет первичный расчёт
-// (если открыт файл сохранённой базы, автоматически восстанавливает всё её состояние).
+// (если открыт файл сохранённой ведомости, автоматически восстанавливает всё её состояние).
 func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	wb, raw, err := xlsx.ReadFile(filePath)
 	if err != nil {
@@ -152,8 +152,8 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	return nil
 }
 
-// LoadWorkbookFromBytes загружает новую ведомость из памяти (кнопка «Загрузить новую базу»).
-// Парсинг и тяжёлый расчёт выполняются вне глобальной блокировки, чтобы кнопка «Очистить базу»
+// LoadWorkbookFromBytes загружает новую ведомость из памяти (кнопка «Загрузить новую ведомость»).
+// Парсинг и тяжёлый расчёт выполняются вне глобальной блокировки, чтобы кнопка «Очистить ведомость»
 // срабатывала мгновенно даже при загрузке очень больших ведомостей.
 func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	startEpoch := s.epoch.Load()
@@ -190,7 +190,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	return nil
 }
 
-// ClearDatabase мгновенно очищает загруженную базу ведомости, отменяет фоновые расчёты старой эпохи
+// ClearDatabase мгновенно очищает загруженную ведомость ведомости, отменяет фоновые расчёты старой эпохи
 // и возвращает освобождённую оперативную память системе.
 func (s *AppServer) ClearDatabase() {
 	s.epoch.Add(1)
@@ -281,6 +281,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/column-widths", s.handleColumnWidths)
 	mux.HandleFunc("/api/properties", s.handleProperties)
 	mux.HandleFunc("/api/properties/export", s.handleExportProperties)
+	mux.HandleFunc("/api/properties/backup", s.handleBackupProperties)
 	mux.HandleFunc("/api/properties/import", s.handleImportProperties)
 	mux.HandleFunc("/api/etalon/save", s.handleSaveEtalon)
 	mux.HandleFunc("/api/etalon/export", s.handleExportEtalon)
@@ -367,7 +368,7 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	if s.epoch.Load() != startEpoch {
-		// Во время расчёта пользователь нажал «Очистить базу» или загрузил другой файл
+		// Во время расчёта пользователь нажал «Очистить ведомость» или загрузил другой файл
 		env := s.buildStateEnvelopeLocked()
 		s.mu.Unlock()
 		writeJSONForRequest(w, r, http.StatusOK, env)
@@ -768,7 +769,7 @@ func (s *AppServer) handleExportStaryoXLSX(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	if len(marked) == 0 {
-		writeError(w, http.StatusBadRequest, "выбранные строки с «+» не найдены в текущей базе")
+		writeError(w, http.StatusBadRequest, "выбранные строки с «+» не найдены в текущей ведомости")
 		return
 	}
 
