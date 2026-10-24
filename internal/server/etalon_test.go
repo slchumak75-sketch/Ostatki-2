@@ -296,3 +296,61 @@ func TestEtalonStoredDatePreservedOnExport(t *testing.T) {
 		t.Fatal("export changed saved stock/rating", records, err)
 	}
 }
+
+func TestSaveStatusesSurviveRestart(t *testing.T) {
+	dir := t.TempDir()
+	app := server.New(false)
+	app.SetSaveDir(dir)
+	rec := etalonRequest(t, app, http.MethodPost, "/api/properties", map[string]bool{"save": true})
+	var saved struct {
+		FileName string `json:"fileName"`
+		SavedAt  string `json:"savedAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &saved); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := time.Parse(time.RFC3339, saved.SavedAt); err != nil {
+		t.Fatal("no durable save timestamp", err)
+	}
+	r := model.NomenclatureRecord{SKU: "001", Name: "Товар", Warehouse: "Склад", Stock: 10, Rating: 1}
+	key := xlsx.NomenclaturePropertyKey(r.SKU, r.Group, r.Name, r.Warehouse)
+	catalog := model.NomenclatureCatalog{Version: 2, SavedAt: "2026-10-20T12:13:14+03:00", Properties: map[string]bool{key: false}, Nomenclature: map[string]model.NomenclatureRecord{key: r}}
+	raw, _ := json.Marshal(catalog)
+	uploaded := etalonUpload(t, app, "/api/etalon/import", "Эталон.json", raw)
+	if uploaded.Code != 200 {
+		t.Fatal(uploaded.Body.String())
+	}
+	var imported struct {
+		SavedAt string `json:"savedAt"`
+	}
+	_ = json.Unmarshal(uploaded.Body.Bytes(), &imported)
+	if _, err := time.Parse(time.RFC3339, imported.SavedAt); err != nil {
+		t.Fatal("missing import save timestamp")
+	}
+	restarted := server.New(false)
+	restarted.SetSaveDir(dir)
+	rec = etalonRequest(t, restarted, http.MethodGet, "/api/properties", nil)
+	var status struct {
+		LastFileName   string `json:"lastFileName"`
+		SavedAt        string `json:"savedAt"`
+		EtalonFileName string `json:"etalonFileName"`
+		EtalonSavedAt  string `json:"etalonSavedAt"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &status)
+	if status.EtalonFileName != "Эталон, 20.10.2026.xlsx" || status.EtalonSavedAt != imported.SavedAt {
+		t.Fatal("reference source date and in-program save time were not retained", status)
+	}
+	if status.LastFileName != "properties.json" || status.SavedAt == "" {
+		t.Fatal("catalog save metadata was not retained", status)
+	}
+	// A new manual snapshot's own filename/time must be restored exactly as well.
+	rec = etalonRequest(t, restarted, http.MethodPost, "/api/properties", map[string]bool{"save": true})
+	_ = json.Unmarshal(rec.Body.Bytes(), &saved)
+	again := server.New(false)
+	again.SetSaveDir(dir)
+	rec = etalonRequest(t, again, http.MethodGet, "/api/properties", nil)
+	_ = json.Unmarshal(rec.Body.Bytes(), &status)
+	if status.LastFileName != saved.FileName || status.SavedAt != saved.SavedAt {
+		t.Fatal("manual snapshot status changed after restart", status, saved)
+	}
+}

@@ -32,6 +32,9 @@ type AppServer struct {
 	nomenclature            map[string]model.NomenclatureRecord
 	etalon                  map[string]model.NomenclatureRecord
 	etalonSavedAt           string
+	etalonStoredAt          string
+	propertiesSavedAt       string
+	propertiesFileName      string
 	propertiesLoaded        bool
 	mu                      sync.RWMutex
 	epoch                   atomic.Uint64
@@ -281,6 +284,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/properties/import", s.handleImportProperties)
 	mux.HandleFunc("/api/etalon/save", s.handleSaveEtalon)
 	mux.HandleFunc("/api/etalon/export", s.handleExportEtalon)
+	mux.HandleFunc("/api/etalon/compare", s.handleCompareEtalon)
 	mux.HandleFunc("/api/etalon/import", s.handleImportEtalon)
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)

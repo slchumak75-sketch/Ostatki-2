@@ -35,10 +35,15 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 		s.nomenclature = map[string]model.NomenclatureRecord{}
 		s.etalon = map[string]model.NomenclatureRecord{}
 		s.etalonSavedAt = ""
+		s.etalonStoredAt = ""
+		s.propertiesSavedAt = ""
+		s.propertiesFileName = ""
+		loadedPath := latest
 		raw, err := os.ReadFile(latest)
 		if os.IsNotExist(err) && s.customSaveDir == "" {
 			// Read-only migration: never rewrite Variant 4's catalog.
-			raw, err = os.ReadFile(filepath.Join(filepath.Dir(filepath.Dir(latest)), "properties", "properties.json"))
+			loadedPath = filepath.Join(filepath.Dir(filepath.Dir(latest)), "properties", "properties.json")
+			raw, err = os.ReadFile(loadedPath)
 		}
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("не удалось прочитать свойства: %w", err)
@@ -50,6 +55,16 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 			}
 			s.properties = catalog.Properties
 			s.nomenclature = catalog.Nomenclature
+			s.propertiesSavedAt = catalog.SavedAt
+			if s.propertiesSavedAt == "" {
+				if info, err := os.Stat(loadedPath); err == nil {
+					s.propertiesSavedAt = info.ModTime().Format(time.RFC3339)
+				}
+			}
+			s.propertiesFileName = catalog.FileName
+			if s.propertiesFileName == "" {
+				s.propertiesFileName = "properties.json"
+			}
 		}
 		if raw, err := os.ReadFile(filepath.Join(filepath.Dir(latest), "etalon.json")); err == nil {
 			catalog, err := xlsx.DecodeNomenclatureCatalog(raw)
@@ -58,6 +73,13 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 			}
 			s.etalon = catalog.Nomenclature
 			s.etalonSavedAt = catalog.SavedAt
+			s.etalonStoredAt = catalog.StoredAt
+			if s.etalonStoredAt == "" {
+				s.etalonStoredAt = catalog.SavedAt
+				if info, err := os.Stat(filepath.Join(filepath.Dir(latest), "etalon.json")); err == nil {
+					s.etalonStoredAt = info.ModTime().Format(time.RFC3339)
+				}
+			}
 		} else if !os.IsNotExist(err) {
 			return err
 		}
@@ -132,12 +154,13 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	result := map[string]any{"fileName": name, "directory": dir, "persisted": req.Persist || req.Save, "markedCount": countMarkedProperties(s.properties)}
+	result := map[string]any{"fileName": name, "directory": dir, "persisted": req.Persist || req.Save, "markedCount": countMarkedProperties(s.properties), "savedAt": s.propertiesSavedAt, "lastFileName": s.propertiesFileName}
 	if r.Method == http.MethodGet || (!req.Persist && !req.Save) {
 		result["properties"] = s.properties
 		result["nomenclature"] = s.catalogLocked().Nomenclature
 		result["etalonLoaded"] = len(s.etalon) > 0
 		result["etalonFileName"] = etalonFileName(s.etalonSavedAt)
+		result["etalonSavedAt"] = s.etalonStoredAt
 	}
 	if changed && s.wb != nil {
 		result["state"] = s.buildStateEnvelopeLocked()
@@ -189,33 +212,43 @@ func writeVerifiedProperties(path string, raw []byte) error {
 }
 
 func (s *AppServer) persistPropertiesLocked(dir string) error {
+	return s.writePropertiesCatalogLocked(dir, "properties.json", false)
+}
+
+// Commit metadata together with the catalog; failed writes never advance the status.
+func (s *AppServer) writePropertiesCatalogLocked(dir, name string, snapshot bool) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(s.catalogLocked(), "", "  ")
+	catalog := s.catalogLocked()
+	catalog.SavedAt = time.Now().Format(time.RFC3339)
+	catalog.FileName = name
+	raw, err := json.MarshalIndent(catalog, "", "  ")
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, "properties.json")
-	if old, err := os.ReadFile(path); err == nil && json.Valid(old) && !bytes.Equal(old, raw) {
-		if err := writeVerifiedProperties(path+".bak", old); err != nil {
+	if snapshot {
+		if err = writeVerifiedProperties(filepath.Join(dir, name), raw); err != nil {
 			return err
 		}
 	}
-	return writeVerifiedProperties(path, raw)
+	path := filepath.Join(dir, "properties.json")
+	if old, err := os.ReadFile(path); err == nil && json.Valid(old) && !bytes.Equal(old, raw) {
+		if err = writeVerifiedProperties(path+".bak", old); err != nil {
+			return err
+		}
+	}
+	if err = writeVerifiedProperties(path, raw); err != nil {
+		return err
+	}
+	s.propertiesSavedAt = catalog.SavedAt
+	s.propertiesFileName = name
+	return nil
 }
 
-// Manual saves additionally create a dated snapshot; incremental saves only update the catalog.
 func (s *AppServer) savePropertiesLocked(dir string) (string, error) {
-	if err := s.persistPropertiesLocked(dir); err != nil {
-		return "", err
-	}
-	raw, err := json.MarshalIndent(s.catalogLocked(), "", "  ")
-	if err != nil {
-		return "", err
-	}
 	name := "Свойства Номенклатуры, " + time.Now().Format("02.01.2006, 15：04：05") + ".json"
-	if err := writeVerifiedProperties(filepath.Join(dir, name), raw); err != nil {
+	if err := s.writePropertiesCatalogLocked(dir, name, true); err != nil {
 		return "", err
 	}
 	return name, nil

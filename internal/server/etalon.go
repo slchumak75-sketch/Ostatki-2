@@ -127,7 +127,7 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Эталон не активирован: "+err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"fileName": name, "directory": dir, "savedInProgram": true, "state": s.buildStateEnvelopeLocked()})
+	writeJSON(w, 200, map[string]any{"fileName": name, "directory": dir, "savedInProgram": true, "savedAt": s.etalonStoredAt, "state": s.buildStateEnvelopeLocked()})
 }
 
 // Only the two explicit reference actions call this function.
@@ -138,6 +138,7 @@ func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCat
 	if catalog.SavedAt == "" {
 		catalog.SavedAt = time.Now().Format(time.RFC3339)
 	}
+	catalog.StoredAt = time.Now().Format(time.RFC3339)
 	raw, err := json.MarshalIndent(catalog, "", "  ")
 	if err != nil {
 		return err
@@ -153,6 +154,7 @@ func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCat
 	}
 	s.etalon = catalog.Nomenclature
 	s.etalonSavedAt = catalog.SavedAt
+	s.etalonStoredAt = catalog.StoredAt
 	return nil
 }
 
@@ -232,7 +234,7 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 		s.epoch.Add(1)
 		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
-	writeJSON(w, 200, map[string]any{"properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "state": s.buildStateEnvelopeLocked(), "imported": len(catalog.Nomenclature)})
+	writeJSON(w, 200, map[string]any{"properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "state": s.buildStateEnvelopeLocked(), "imported": len(catalog.Nomenclature), "fileName": etalonFileName(s.etalonSavedAt), "savedAt": s.etalonStoredAt})
 }
 
 // Export is read-only: even a download must not refresh the saved reference.

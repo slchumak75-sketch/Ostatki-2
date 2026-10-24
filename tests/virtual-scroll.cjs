@@ -16,7 +16,7 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(resolve=>setTimeout(resolve,45));
 (async()=>{
  try {
-  await tick();
+  await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
   const scroll=d.getElementById('tableScrollContainer');
   const height=parseFloat(d.getElementById('itemsTable').style.getPropertyValue('--item-row-height'));
   assert.equal(height,24);

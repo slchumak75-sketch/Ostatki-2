@@ -17,7 +17,7 @@ async function run(count) {
  };
  w.scrollTo=()=>{};w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
  try {
-  await tick();const scroll=d.getElementById('tableScrollContainer');
+  await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();const scroll=d.getElementById('tableScrollContainer');
   if(count>400){scroll.scrollTop=1800;scroll.dispatchEvent(new w.Event('scroll'));await tick();}
   const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(row=>Number(row.dataset.row));
   const before=rows(),position=scroll.scrollTop,target=before[3];

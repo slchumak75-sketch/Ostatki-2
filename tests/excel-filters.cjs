@@ -15,7 +15,7 @@ const alerts=[];w.alert=message=>alerts.push(message);
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
- await tick();
+ await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Default excludes products without 12-month sales');
  assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2']);
  assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
@@ -69,10 +69,19 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
  assert.ok(d.getElementById('btnSaveFields').closest('#paramsPanel'));
  assert.equal(d.getElementById('paramsPanel').classList.contains('hidden'),false);
  assert.equal(d.getElementById('paramsBody').classList.contains('hidden'),false);
- for(let i=0;i<3;i++) paramsButton.click();
  paramsButton.click();
- assert.equal(paramsButton.getAttribute('aria-expanded'),'false');
+ assert.equal(paramsButton.getAttribute('aria-expanded'),'false','One click closes the open panel');
  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));
+ assert.ok(d.getElementById('paramsBody').classList.contains('hidden'));
+ for(let i=0;i<3;i++) {
+  paramsButton.click();
+  assert.equal(paramsButton.getAttribute('aria-expanded'),'false','Reopening still requires four clicks');
+ }
+ paramsButton.click();
+ assert.equal(paramsButton.getAttribute('aria-expanded'),'true');
+ d.getElementById('btnAdminNoticeOk').click();
+ paramsButton.click();
+ assert.equal(paramsButton.getAttribute('aria-expanded'),'false','Close resets the opening counter');
 
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
  d.querySelector('[data-filter-col="name"]').click();
