@@ -34,6 +34,7 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 		s.properties = make(map[string]bool)
 		s.nomenclature = map[string]model.NomenclatureRecord{}
 		s.etalon = map[string]model.NomenclatureRecord{}
+		s.etalonSavedAt = ""
 		raw, err := os.ReadFile(latest)
 		if os.IsNotExist(err) && s.customSaveDir == "" {
 			// Read-only migration: never rewrite Variant 4's catalog.
@@ -56,6 +57,7 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 				return fmt.Errorf("эталон повреждён: %w", err)
 			}
 			s.etalon = catalog.Nomenclature
+			s.etalonSavedAt = catalog.SavedAt
 		} else if !os.IsNotExist(err) {
 			return err
 		}
@@ -135,6 +137,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		result["properties"] = s.properties
 		result["nomenclature"] = s.catalogLocked().Nomenclature
 		result["etalonLoaded"] = len(s.etalon) > 0
+		result["etalonFileName"] = etalonFileName(s.etalonSavedAt)
 	}
 	if changed && s.wb != nil {
 		result["state"] = s.buildStateEnvelopeLocked()

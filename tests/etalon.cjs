@@ -8,16 +8,16 @@ const key=JSON.stringify(['sku','0001','Склад А']);
 const props={[key]:true};
 const items=[{excelRow:8,sku:'0001',name:'Товар',warehouse:'Склад А',group:'Группа',salesSegment:4,closingStock:13.5,monthlySales:[],finalOrderQty:0,purchasePrice:1},
  {excelRow:9,sku:'0001',name:'Товар',warehouse:'Склад Б',group:'Группа',salesSegment:1,closingStock:0,monthlySales:[],finalOrderQty:0,purchasePrice:1}];
-const calls=[],intervals=[],blobs=[];
+const calls=[],intervals=[],blobs=[],downloads=[];
 w.scrollTo=()=>{};
 w.setInterval=(fn,ms)=>{intervals.push(fn);return intervals.length;};
 w.URL.createObjectURL=blob=>{blobs.push(blob);return 'blob:test';};w.URL.revokeObjectURL=()=>{};
-w.HTMLAnchorElement.prototype.click=function(){};
+w.HTMLAnchorElement.prototype.click=function(){downloads.push(this.download);};
 w.fetch=async(path,opts={})=>{
  let body={};if(typeof opts.body==='string')body=JSON.parse(opts.body);calls.push({path,body});
- if(path==='api/properties') {Object.assign(props,body.properties||{});return {ok:true,json:async()=>({properties:props,persisted:true,markedCount:1,directory:'test',nomenclature:{}})};}
+ if(path==='api/properties') {Object.assign(props,body.properties||{});return {ok:true,json:async()=>({properties:props,persisted:true,markedCount:1,directory:'test',nomenclature:{},etalonFileName:'Эталон, 24.10.2026.xlsx'})};}
  if(path==='api/etalon/save')return {ok:true,json:async()=>({fileName:'Эталон, 24.10.2026.xlsx',directory:'test'})};
- if(path==='api/etalon/export'||path==='api/properties/export')return {ok:true,blob:async()=>new w.Blob(['xlsx'])};
+ if(path==='api/etalon/export'||path==='api/properties/export')return {ok:true,headers:{get:()=>"attachment; filename*=UTF-8''"+encodeURIComponent('Эталон, 20.10.2026.xlsx')},blob:async()=>new w.Blob(['xlsx'])};
  if(path==='api/etalon/import')return {ok:true,json:async()=>({properties:props,nomenclature:{}})};
  return {ok:true,json:async()=>({report:{items,params:{},warehouses:[],suppliers:[],groups:[],periods:[],fileName:'1C.xlsx'}})};
 };
@@ -26,7 +26,7 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
 const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(blob);});
 (async()=>{
  await tick();
- for(const id of ['btnSaveEtalon','btnLoadEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
+ for(const id of ['btnSaveEtalon','btnExportEtalon','btnLoadEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
  assert.ok(d.getElementById('propertiesFileInput').accept.includes('.json'),'Offline backups must be importable');
  assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,0,'Bootstrap must not save a reference');
  for(const fn of intervals)fn();await tick();
@@ -34,7 +34,14 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  d.getElementById('btnSaveEtalon').click();await tick();
  assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Only an explicit click creates a reference');
  assert.ok(d.getElementById('etalonStorageHint').textContent.includes('Эталон, 24.10.2026.xlsx'));
- assert.ok(calls.some(c=>c.path==='api/etalon/export'),'Manual save offers a downloadable copy');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,0,'Saving in the program must not download a file');
+ assert.ok(d.getElementById('etalonStorageHint').textContent.includes('Рейтинг и остаток зафиксированы'));
+ assert.equal(blobs.length,0,'Saving in the program must not create a download blob');
+ assert.equal(downloads.length,0,'Saving in the program must not initiate a download');
+ d.getElementById('btnExportEtalon').click();await tick();
+ assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,1,'Only the separate export button downloads a snapshot');
+ assert.equal(downloads[0],'Эталон, 20.10.2026.xlsx','Download preserves the saved snapshot date from the server');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Export must never save/update the reference');
  d.getElementById('btnBackupProperties').click();
  const backup=JSON.parse(await blobText(blobs.at(-1)));
  assert.equal(backup.version,2);

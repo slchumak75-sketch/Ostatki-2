@@ -14,6 +14,7 @@ type NomenclatureRecord struct {
 }
 
 type NomenclatureCatalog struct {
+	SavedAt      string                        `json:"savedAt,omitempty"`
 	Version      int                           `json:"version"`
 	Properties   map[string]bool               `json:"properties"`
 	Nomenclature map[string]NomenclatureRecord `json:"nomenclature"`

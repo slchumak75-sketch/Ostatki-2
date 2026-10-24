@@ -102,7 +102,7 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 	}
 	// Freeze only the currently loaded 1C base. Old checkbox-only records do
 	// not have known ratings/stock and must not become fabricated zero ratings.
-	catalog := model.NomenclatureCatalog{Version: 2, Properties: map[string]bool{}, Nomenclature: map[string]model.NomenclatureRecord{}}
+	catalog := model.NomenclatureCatalog{SavedAt: time.Now().Format(time.RFC3339), Version: 2, Properties: map[string]bool{}, Nomenclature: map[string]model.NomenclatureRecord{}}
 	for _, it := range s.etalonReportLocked(s.report).Items {
 		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
 		record := model.NomenclatureRecord{Warehouse: it.Warehouse, SKU: it.SKU, Name: it.Name, Group: it.Group, Checked: s.properties[key], Rating: it.SalesSegment, Stock: it.ClosingStock}
@@ -118,7 +118,7 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	name := "Эталон, " + time.Now().Format("02.01.2006") + ".xlsx"
+	name := etalonFileName(catalog.SavedAt)
 	if err = writeVerifiedProperties(filepath.Join(dir, name), raw); err != nil {
 		writeError(w, 500, "Эталон не сохранён: "+err.Error())
 		return
@@ -127,13 +127,16 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Эталон не активирован: "+err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"fileName": name, "directory": dir, "state": s.buildStateEnvelopeLocked()})
+	writeJSON(w, 200, map[string]any{"fileName": name, "directory": dir, "savedInProgram": true, "state": s.buildStateEnvelopeLocked()})
 }
 
 // Only the two explicit reference actions call this function.
 func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCatalog) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
+	}
+	if catalog.SavedAt == "" {
+		catalog.SavedAt = time.Now().Format(time.RFC3339)
 	}
 	raw, err := json.MarshalIndent(catalog, "", "  ")
 	if err != nil {
@@ -149,6 +152,7 @@ func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCat
 		return err
 	}
 	s.etalon = catalog.Nomenclature
+	s.etalonSavedAt = catalog.SavedAt
 	return nil
 }
 
@@ -242,6 +246,7 @@ func (s *AppServer) handleExportEtalon(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		err = s.loadPropertiesLocked(filepath.Join(dir, "properties.json"))
 	}
+	name := etalonFileName(s.etalonSavedAt)
 	records := map[string]model.NomenclatureRecord{}
 	for k, v := range s.etalon {
 		records[k] = v
@@ -262,7 +267,15 @@ func (s *AppServer) handleExportEtalon(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	name := "Эталон, " + time.Now().Format("02.01.2006") + ".xlsx"
 	w.Header().Set("Content-Disposition", `attachment; filename="Etalon.xlsx"; filename*=UTF-8''`+url.PathEscape(name))
 	_, _ = w.Write(raw)
+}
+
+// Keep the snapshot's original date on export, including after restart.
+func etalonFileName(savedAt string) string {
+	date, err := time.Parse(time.RFC3339, savedAt)
+	if err != nil {
+		date = time.Now()
+	}
+	return "Эталон, " + date.Format("02.01.2006") + ".xlsx"
 }

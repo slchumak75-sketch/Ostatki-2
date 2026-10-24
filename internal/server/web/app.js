@@ -101,6 +101,9 @@
   async function downloadNomenclature(path,name) {
     const res=await fetch(path,{cache:'no-store'});
     if (!res.ok) throw new Error(await res.text());
+    const disposition=res.headers?.get('Content-Disposition') || '';
+    const fileName=disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    name=name || (fileName ? decodeURIComponent(fileName[1]) : `Эталон, ${new Date().toLocaleDateString('ru-RU')}.xlsx`);
     const url=URL.createObjectURL(await res.blob());
     const link=document.createElement('a');link.href=url;link.download=name;
     isDownloadingFile=true;document.body.appendChild(link);link.click();link.remove();
@@ -2428,11 +2431,18 @@
         await syncProperties();
         const result=await apiPost('api/etalon/save',{}, {unabortable:true});
         if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
-        el('etalonStorageHint').textContent=`Эталон сохранён вручную: ${result.directory} / ${result.fileName}. Рейтинг зафиксирован; остаток — из 1С.`;
-        showToast(`Эталон сохранён: ${result.fileName}`);
-        try {await downloadNomenclature('api/etalon/export',result.fileName);}
-        catch(err) {showToast(`Эталон записан в ${result.directory}, но не скачан: ${err.message}`);}
+        el('etalonStorageHint').textContent=`Эталон сохранён в программе: ${result.directory} / ${result.fileName}. Рейтинг и остаток зафиксированы на момент сохранения.`;
+        showToast(`Эталон сохранён в программе: ${result.fileName}. Рейтинг и остаток зафиксированы.`);
       } catch(err) {showToast(`Ошибка сохранения эталона: ${err.message}`);}
+      finally {button.disabled=false;}
+    });
+    el('btnExportEtalon').addEventListener('click',async()=>{
+      const button=el('btnExportEtalon');button.disabled=true;
+      try {
+        // Export the stored snapshot only; never save/refresh it implicitly.
+        await downloadNomenclature('api/etalon/export');
+        showToast('Сохранённый эталон выгружен. Рейтинг и остаток не изменены.');
+      } catch(err) {showToast(`Ошибка выгрузки эталона: ${err.message}`);}
       finally {button.disabled=false;}
     });
     el('btnLoadEtalon').addEventListener('click',()=>el('etalonFileInput').click());
@@ -2450,8 +2460,8 @@
         acknowledgedProperties={...nomenclatureProperties};propertiesRevision+=1;propertiesDirty=false;
         if(epoch===state.clientEpoch && data.state)applyEnvelope(data.state);
         applyNomenclatureProperties();
-        el('etalonStorageHint').textContent=`Эталон загружен: ${file.name}. Рейтинг фиксирован; остаток — из текущей ведомости 1С.`;
-        showToast('Эталон загружен. Рейтинг зафиксирован, остатки 1С сохранены.');
+        el('etalonStorageHint').textContent=`Эталон загружен: ${file.name}. Рейтинг и остаток эталона зафиксированы.`;
+        showToast('Эталон загружен в программу. Рейтинг и остаток эталона сохранены; рабочие остатки 1С не изменены.');
       } catch(err) {showToast(`Ошибка загрузки эталона: ${err.message}`);}
       finally {e.target.value='';button.disabled=false;}
     });
@@ -3918,7 +3928,7 @@
       const properties = await apiGet('api/properties');
       nomenclatureProperties = properties.properties || {};
       nomenclatureRecords = properties.nomenclature || {};
-      if (properties.etalonLoaded) el('etalonStorageHint').textContent = 'Эталон подключён: рейтинг фиксирован, остаток — из новой ведомости 1С. Изменение эталона — только вручную.';
+      if (properties.etalonLoaded) el('etalonStorageHint').textContent = 'Эталон подключён: рейтинг и остаток эталона зафиксированы. Изменение эталона — только вручную.';
       acknowledgedProperties = {...nomenclatureProperties};
       if (properties.directory) {
         el('propertiesStorageHint').title = `Папка свойств: ${properties.directory}`;

@@ -31,6 +31,7 @@ type AppServer struct {
 	properties              map[string]bool
 	nomenclature            map[string]model.NomenclatureRecord
 	etalon                  map[string]model.NomenclatureRecord
+	etalonSavedAt           string
 	propertiesLoaded        bool
 	mu                      sync.RWMutex
 	epoch                   atomic.Uint64
