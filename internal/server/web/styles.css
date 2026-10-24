@@ -520,6 +520,12 @@ html, body {
   font-weight: 600;
 }
 
+/* Scale every Parameters button (including presets/reset) to 2/3 size.
+   Unlike transform, zoom also shrinks its layout box and clickable area. */
+#paramsPanel button {
+  zoom: 0.6666666667;
+}
+
 .params-body {
   margin-top: 6px;
   padding-top: 6px;
