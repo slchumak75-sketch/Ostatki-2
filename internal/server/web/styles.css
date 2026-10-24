@@ -2387,8 +2387,13 @@ input[type="checkbox"] { accent-color: #dc2626; }
 /* Leave the final table row and scrollbar above an overlapping Windows taskbar.
    Padding participates in flex layout, so virtualization sees the reduced viewport. */
 body {
-  padding-bottom: max(52px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
 }
 @media print {
   body { padding-bottom: 0; }
 }
+
+/* Supplier visibility (left) and procurement budget (right) are independent. */
+.ef-supplier-help { flex-basis:100%; font-size:11px; color:var(--text-muted); }
+.ef-opt-row > [data-supplier-budget] { flex:0 0 auto; margin-left:6px; }
+.ef-opt-row > [data-excel-value] { flex:0 0 auto; }
