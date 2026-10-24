@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -143,12 +144,30 @@ func TestEtalonManualOnlyFrozenRatingsAndFresh1CStock(t *testing.T) {
 	if got.SalesSegment != frozen || got.ClosingStock != newStock {
 		t.Fatal("restart lost reference or replaced stock")
 	}
+	// Stored stock is a constant too: reading/exporting the reference must
+	// retain the imported balance, not the new live 1C balance.
+	exported := etalonRequest(t, restarted, http.MethodGet, "/api/etalon/export", nil)
+	stored, err := xlsx.ParseNomenclatureXLSX(exported.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := stored[key]; r.Rating != frozen || r.Stock != 999999 {
+		t.Fatal("stored reference stock/rating changed without manual save", r)
+	}
+	unchanged, _ := os.ReadFile(filepath.Join(storage, "etalon.json"))
+	if !bytes.Equal(before, unchanged) {
+		t.Fatal("restart/export rewrote the reference")
+	}
 	save := etalonRequest(t, restarted, http.MethodPost, "/api/etalon/save", nil)
 	var ack struct {
-		FileName string `json:"fileName"`
+		FileName       string `json:"fileName"`
+		SavedInProgram bool   `json:"savedInProgram"`
 	}
 	_ = json.Unmarshal(save.Body.Bytes(), &ack)
 	want := "Эталон, " + time.Now().Format("02.01.2006") + ".xlsx"
+	if !ack.SavedInProgram {
+		t.Fatal("server did not confirm saving in the program")
+	}
 	if ack.FileName != want {
 		t.Fatal("reference must use date-only name", ack.FileName)
 	}
@@ -242,5 +261,38 @@ func TestVariant5MigratesVariant4PropertiesReadOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "Ostatki2", "properties-v5", "properties.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestEtalonStoredDatePreservedOnExport(t *testing.T) {
+	dir := t.TempDir()
+	app := server.New(false)
+	app.SetSaveDir(dir)
+	r := model.NomenclatureRecord{Warehouse: "Склад А", SKU: "001", Name: "Товар", Rating: 4, Stock: 12.5}
+	key := xlsx.NomenclaturePropertyKey(r.SKU, r.Group, r.Name, r.Warehouse)
+	c := model.NomenclatureCatalog{Version: 2, SavedAt: "2026-10-20T14:15:00+03:00", Properties: map[string]bool{key: false}, Nomenclature: map[string]model.NomenclatureRecord{key: r}}
+	raw, _ := json.Marshal(c)
+	rec := etalonUpload(t, app, "/api/etalon/import", "Эталон.json", raw)
+	if rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	restarted := server.New(false)
+	restarted.SetSaveDir(dir)
+	info := etalonRequest(t, restarted, http.MethodGet, "/api/properties", nil)
+	var result struct {
+		FileName string `json:"etalonFileName"`
+	}
+	_ = json.Unmarshal(info.Body.Bytes(), &result)
+	if result.FileName != "Эталон, 20.10.2026.xlsx" {
+		t.Fatal("snapshot date lost", result.FileName)
+	}
+	exported := etalonRequest(t, restarted, http.MethodGet, "/api/etalon/export", nil)
+	disposition, params, err := mime.ParseMediaType(exported.Header().Get("Content-Disposition"))
+	if err != nil || disposition != "attachment" || params["filename"] != result.FileName {
+		t.Fatal("export filename mismatch", params, err)
+	}
+	records, err := xlsx.ParseNomenclatureXLSX(exported.Body.Bytes())
+	if err != nil || records[key] != r {
+		t.Fatal("export changed saved stock/rating", records, err)
 	}
 }

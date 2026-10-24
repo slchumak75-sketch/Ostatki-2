@@ -76,10 +76,11 @@
           <button class="btn btn-beige" id="btnImportProperties" type="button">Загрузить свойства Номенклатуры</button>
           <button type="button" class="btn btn-beige" id="btnBackupProperties">Резервная копия свойств (JSON)</button>
           <input type="file" id="propertiesFileInput" accept=".xlsx,.json" hidden>
-          <button type="button" class="btn btn-beige" id="btnSaveEtalon">Сохранить эталон Номенклатуры</button>
+          <button type="button" class="btn btn-beige" id="btnSaveEtalon" title="Сохранить в программе: зафиксировать текущие рейтинг и остаток без скачивания файла">Сохранить эталон Номенклатуры</button>
+          <button type="button" class="btn btn-beige" id="btnExportEtalon">Выгрузить эталон Номенклатуры (Excel)</button>
           <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон Номенклатуры</button>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
-          <span class="field-hint" id="etalonStorageHint">Эталон — только вручную: рейтинг фиксирован, остаток — из новой ведомости 1С</span>
+          <span class="field-hint" id="etalonStorageHint">Эталон хранится в программе: рейтинг и остаток фиксируются при ручном сохранении</span>
           <button type="button" class="btn btn-beige" id="btnSaveProperties">Сохранить свойства номенклатуры</button>
           <span class="field-hint" id="propertiesStorageHint">Отметки «+»: проверяемая запись на диск при изменении и сохранение при выходе</span>
         </div>
