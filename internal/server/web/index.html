@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Остатки 2 (Вариант 4 PRO) — Управление закупками • Рейтинг • SBA</title>
+  <title>Остатки 2 (Вариант 5 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M6 23V15h4v8H6zm6 0V9h4v14h-4zm6 0v-9h4v9h-4zm6 0V6h2v17h-2z' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css?v=4.16" />
 </head>
@@ -32,7 +32,7 @@
         <div>
           <div class="brand-title-row">
             <h1>Остатки 2</h1>
-            <span class="badge badge-v2">Сборка: Вариант 4 • PRO SCM</span>
+            <span class="badge badge-v2">Сборка: Вариант 5 • PRO SCM</span>
             <span class="badge badge-accent">Рейтинг 5..0 • SBA</span>
           </div>
           <div class="file-meta" id="fileMetaLine">Загрузка ведомости…</div>
@@ -66,7 +66,7 @@
     </header>
 
     <div class="header-controls-strip">
-      <!-- Панель параметров сезонного алгоритма Вариант 4 -->
+      <!-- Панель параметров сезонного алгоритма Вариант 5 -->
       <section class="params-panel hidden" id="paramsPanel">
         <div class="presets-bar" id="staryoActions">
           <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
@@ -75,7 +75,11 @@
           <button class="btn btn-beige" id="btnExportProperties" type="button">Выгрузить Свойства номенклатуры</button>
           <button class="btn btn-beige" id="btnImportProperties" type="button">Загрузить свойства Номенклатуры</button>
           <button type="button" class="btn btn-beige" id="btnBackupProperties">Резервная копия свойств (JSON)</button>
-          <input type="file" id="propertiesFileInput" accept=".xlsx" hidden>
+          <input type="file" id="propertiesFileInput" accept=".xlsx,.json" hidden>
+          <button type="button" class="btn btn-beige" id="btnSaveEtalon">Сохранить эталон Номенклатуры</button>
+          <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон Номенклатуры</button>
+          <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
+          <span class="field-hint" id="etalonStorageHint">Эталон — только вручную: рейтинг фиксирован, остаток — из новой ведомости 1С</span>
           <button type="button" class="btn btn-beige" id="btnSaveProperties">Сохранить свойства номенклатуры</button>
           <span class="field-hint" id="propertiesStorageHint">Отметки «+»: проверяемая запись на диск при изменении и сохранение при выходе</span>
         </div>

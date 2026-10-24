@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
-	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
-	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
+	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
+	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 )
 
 // Свойства не зависят от текущей ведомости и не очищаются вместе с базой.
@@ -25,19 +27,37 @@ func (s *AppServer) propertiesDirLocked() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "Ostatki2", "properties"), nil
+	return filepath.Join(dir, "Ostatki2", "properties-v5"), nil
 }
 func (s *AppServer) loadPropertiesLocked(latest string) error {
 	if !s.propertiesLoaded {
 		s.properties = make(map[string]bool)
+		s.nomenclature = map[string]model.NomenclatureRecord{}
+		s.etalon = map[string]model.NomenclatureRecord{}
 		raw, err := os.ReadFile(latest)
+		if os.IsNotExist(err) && s.customSaveDir == "" {
+			// Read-only migration: never rewrite Variant 4's catalog.
+			raw, err = os.ReadFile(filepath.Join(filepath.Dir(filepath.Dir(latest)), "properties", "properties.json"))
+		}
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("не удалось прочитать свойства: %w", err)
 		}
 		if err == nil {
-			if err := json.Unmarshal(raw, &s.properties); err != nil {
+			catalog, err := xlsx.DecodeNomenclatureCatalog(raw)
+			if err != nil {
 				return fmt.Errorf("файл свойств повреждён: %w", err)
 			}
+			s.properties = catalog.Properties
+			s.nomenclature = catalog.Nomenclature
+		}
+		if raw, err := os.ReadFile(filepath.Join(filepath.Dir(latest), "etalon.json")); err == nil {
+			catalog, err := xlsx.DecodeNomenclatureCatalog(raw)
+			if err != nil {
+				return fmt.Errorf("эталон повреждён: %w", err)
+			}
+			s.etalon = catalog.Nomenclature
+		} else if !os.IsNotExist(err) {
+			return err
 		}
 		if s.properties == nil {
 			s.properties = make(map[string]bool)
@@ -83,6 +103,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 			changed = true
 		}
 		delete(s.properties, key)
+		delete(s.nomenclature, key)
 	}
 	for key, value := range req.Properties {
 		if prev, ok := s.properties[key]; !ok || prev != value {
@@ -112,6 +133,8 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{"fileName": name, "directory": dir, "persisted": req.Persist || req.Save, "markedCount": countMarkedProperties(s.properties)}
 	if r.Method == http.MethodGet || (!req.Persist && !req.Save) {
 		result["properties"] = s.properties
+		result["nomenclature"] = s.catalogLocked().Nomenclature
+		result["etalonLoaded"] = len(s.etalon) > 0
 	}
 	if changed && s.wb != nil {
 		result["state"] = s.buildStateEnvelopeLocked()
@@ -166,7 +189,7 @@ func (s *AppServer) persistPropertiesLocked(dir string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	raw, err := json.MarshalIndent(s.properties, "", "  ")
+	raw, err := json.MarshalIndent(s.catalogLocked(), "", "  ")
 	if err != nil {
 		return err
 	}
@@ -184,7 +207,7 @@ func (s *AppServer) savePropertiesLocked(dir string) (string, error) {
 	if err := s.persistPropertiesLocked(dir); err != nil {
 		return "", err
 	}
-	raw, err := json.MarshalIndent(s.properties, "", "  ")
+	raw, err := json.MarshalIndent(s.catalogLocked(), "", "  ")
 	if err != nil {
 		return "", err
 	}
@@ -212,22 +235,9 @@ func (s *AppServer) handleExportProperties(w http.ResponseWriter, r *http.Reques
 		writeError(w, 500, err.Error())
 		return
 	}
-	props := make(map[string]bool, len(s.properties))
-	for k, v := range s.properties {
-		props[k] = v
-	}
-	var items []model.CalculatedItem
-	if s.report != nil {
-		items = append(items, s.report.Items...)
-		for _, it := range items {
-			key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
-			if _, ok := props[key]; !ok {
-				props[key] = false
-			}
-		}
-	}
+	records := s.catalogLocked().Nomenclature
 	s.mu.Unlock()
-	raw, err := xlsx.GeneratePropertiesXLSX(props, items)
+	raw, err := xlsx.GenerateNomenclatureXLSX(records)
 	if err != nil {
 		writeError(w, 500, err.Error())
 		return
@@ -248,7 +258,7 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
-	f, _, err := r.FormFile("file")
+	f, header, err := r.FormFile("file")
 	if err != nil {
 		writeError(w, 400, "выберите Excel-файл")
 		return
@@ -259,7 +269,20 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 		writeError(w, 400, err.Error())
 		return
 	}
-	imported, err := xlsx.ParsePropertiesXLSX(raw)
+	var imported map[string]model.NomenclatureRecord
+	var marks map[string]bool
+	if strings.HasSuffix(strings.ToLower(header.Filename), ".json") {
+		var c model.NomenclatureCatalog
+		c, err = xlsx.DecodeNomenclatureCatalog(raw)
+		imported = c.Nomenclature
+		marks = c.Properties
+	} else {
+		imported, err = xlsx.ParseNomenclatureXLSX(raw)
+		marks = map[string]bool{}
+		for k, v := range imported {
+			marks[k] = v.Checked
+		}
+	}
 	if err != nil {
 		writeError(w, 400, err.Error())
 		return
@@ -276,6 +299,9 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	for k, v := range imported {
+		s.nomenclature[k] = v
+	}
+	for k, v := range marks {
 		s.properties[k] = v
 	}
 	if s.wb != nil {
@@ -283,7 +309,7 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"properties": s.properties, "imported": len(imported), "state": s.buildStateEnvelopeLocked()})
+	_ = json.NewEncoder(w).Encode(map[string]any{"properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "imported": len(marks), "state": s.buildStateEnvelopeLocked()})
 }
 
 // Caller holds at least s.mu.RLock. Catalog entries are scoped to warehouse + nomenclature.
