@@ -30,7 +30,6 @@
   --radius: 10px;
   --sticky-head-top: 39px;
   --sticky-toolbar-top: 39px;
-  --sticky-table-head-top: 83px;
 }
 
 [data-theme="dark"] {
@@ -1066,8 +1065,33 @@ body.col-resize-active * {
   top: 0;
 }
 
-#view-overstock .data-table thead th {
-  top: var(--sticky-table-head-top, 44px);
+/* Radar owns one scroll viewport: header sticks to the table, not toolbar. */
+#view-overstock.tab-view.active { overflow: hidden; }
+#view-overstock > .toolbar { flex: 0 0 auto; }
+#overstockContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#overstockContainer > h3,
+#overstockContainer > p { flex: 0 0 auto; }
+#overstockContainer > .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  isolation: isolate;
+}
+#view-overstock .data-table thead th { top: 0; }
+@media print {
+  #view-overstock.tab-view.active, #overstockContainer,
+  #overstockContainer > .table-scroll {
+    display: block;
+    overflow: visible;
+    height: auto;
+    max-height: none;
+  }
 }
 
 .data-table thead th:last-child {

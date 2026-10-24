@@ -3614,7 +3614,6 @@
     const syncStickyHeaderOffset = () => {
       document.documentElement.style.setProperty('--sticky-head-top', '0px');
       document.documentElement.style.setProperty('--sticky-toolbar-top', '0px');
-      document.documentElement.style.setProperty('--sticky-table-head-top', `${el('overstockToolbar').offsetHeight + 5}px`);
     };
     syncStickyHeaderOffset();
     if (typeof ResizeObserver !== 'undefined') {

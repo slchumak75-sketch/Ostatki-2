@@ -463,7 +463,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"#fltSupplier",
 		"width: 330px",
 		"--sticky-toolbar-top",
-		"--sticky-table-head-top",
+		"#view-overstock .data-table thead th { top: 0; }",
 		".budget-inline-card",
 		"#itemsTable:not(.show-plus-col) th.plus-col",
 		".plus-input",
