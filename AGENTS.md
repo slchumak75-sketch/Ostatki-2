@@ -163,7 +163,7 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 ## Защита эталона и единая копия
 - UI сохраняет эталон через GET /api/etalon/preview + POST /api/etalon/save-confirmed с token. Токен SHA256 включает report, properties, etalon и дату; проверка под mutex. Старый /api/etalon/save оставлен для совместимости.
 - commitEtalonLocked архивирует прежний etalon.json до замены; reference-history содержит до 10 предыдущих JSON. История и ZIP-восстановление не применяют галочки эталона к рабочим свойствам неявно.
-- comparisonReason и CompareExport используют ту же серверную выборку, новые неизвестные referenceLookup позиции полностью исключены. XLSX: 8 столбцов A:H, текст безопасный, количественные поля числовые.
+- comparisonReason и CompareExport используют ту же серверную выборку, новые неизвестные referenceLookup позиции включаются с isNew=true и отдельной причиной; это отменяет прежнее правило игнорирования. XLSX: 8 столбцов A:H, текст безопасный, количественные поля числовые.
 - /api/workbook/check только читает XLSX и не меняет wb/report. UI требует подтверждения перед всеми тремя путями загрузки.
 - /api/backup/full: ZIP версии 1 с manifest, etalon, properties, settings и column-widths; без ведомостей/заказов/истории. Restore ограничивает размер, отклоняет лишние пути и дубли, проверяет все выбранные разделы до записи, пытается откатить при ошибке. Ни один раздел по умолчанию не выбран.
 - preferredParamsLocked читает восстановленные settings.json для новой ведомости; сохранённые базы сохраняют собственные настройки.
@@ -187,3 +187,5 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - Количество colspan и видимые ширины зависят от staryoMode; applyTableColumnWidths адаптирует сохранённые 15/16 значений к наличию «+».
 
 - fitFloatingMenu ограничивает выпадающие меню по visualViewport с запасом 64 CSS px снизу. Не возвращать фиксированную высоту без ограничения: при раскрытых Параметрах нижние кнопки уходят под taskbar. Регрессия tests/excel-filters.cjs эмулирует низкий якорь и resize.
+
+- Новая строка сравнения: isNew=true, matches=true, причина «новый товар»; StockIncreased/RatingDropped=false. Не выдавать отсутствие истории за рост из 0. В XLSX D/F пустые для IsNew. Сравнение read-only, эталон не дополняет.

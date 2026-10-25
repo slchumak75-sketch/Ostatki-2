@@ -151,6 +151,9 @@ func (s *AppServer) handleReferenceHistory(w http.ResponseWriter, r *http.Reques
 }
 
 func comparisonReason(row etalonComparisonRow, currentStock float64) string {
+	if row.IsNew {
+		return "новый товар"
+	}
 	parts := []string{}
 	if row.Matches && row.StockIncreased && row.EtalonChecked {
 		parts = append(parts, fmt.Sprintf("Остаток вырос: %g → %g", row.EtalonStock, currentStock))

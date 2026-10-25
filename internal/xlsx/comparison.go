@@ -8,6 +8,7 @@ import (
 )
 
 type ComparisonExportRow struct {
+	IsNew                        bool
 	Warehouse, SKU, Name, Reason string
 	OldStock, Stock              float64
 	OldRating, Rating            int
@@ -27,7 +28,11 @@ func GenerateComparisonXLSX(items []ComparisonExportRow) ([]byte, error) {
 			sheet.WriteString(inlineStrCell(ColIndexToLetters(j+1)+r, 2, v))
 		}
 		for j, v := range []float64{it.OldStock, it.Stock, float64(it.OldRating), float64(it.Rating)} {
-			sheet.WriteString(numCell(ColIndexToLetters(j+4)+r, 3, v))
+			if it.IsNew && (j == 0 || j == 2) {
+				sheet.WriteString(emptyStyledCell(ColIndexToLetters(j+4)+r, 3))
+			} else {
+				sheet.WriteString(numCell(ColIndexToLetters(j+4)+r, 3, v))
+			}
 		}
 		sheet.WriteString(inlineStrCell("H"+r, 2, it.Reason) + `</row>`)
 	}
