@@ -111,12 +111,29 @@
     const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download=name;isDownloadingFile=true;document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
   }
+  let referenceApprovedDay = null;
+  function localCalendarDay() {
+    const now=new Date();return `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+  }
+  function canLoadWorkbook() {return etalonLoaded && referenceApprovedDay===localCalendarDay();}
+  function syncWorkbookGate() {
+    if(referenceApprovedDay!==null && referenceApprovedDay!==localCalendarDay())referenceApprovedDay=null;
+    const ready=canLoadWorkbook();
+    for(const id of ['btnUpload','btnLoadSavedDb']){
+      const button=el(id);button.disabled=!ready;
+      button.classList.toggle('workbook-ready',ready);button.classList.toggle('workbook-locked',!ready);
+      button.setAttribute('aria-disabled',String(!ready));
+      button.title=ready?'Эталон загружен в этом запуске сегодня. Можно загрузить ведомость.':'Сначала загрузите эталон заново в этом запуске и за текущую дату.';
+    }
+    return ready;
+  }
+  function approveReferenceLoad(){referenceApprovedDay=localCalendarDay();syncWorkbookGate();}
   let etalonMarks = {}, etalonLoaded = false;
   function updateEtalon(data) {
     etalonMarks = data.etalonProperties || {};
     etalonLoaded = Boolean(data.etalonLoaded);
     referenceDate=etalonLoaded?(data.etalonSavedAt || data.savedAt || referenceDate):'';referenceName=etalonLoaded?(data.etalonFileName || data.fileName || referenceName):'';renderSafetyStatus();
-    for(const id of ['btnUpload','btnLoadSavedDb'])el(id).disabled=!etalonLoaded;
+    syncWorkbookGate();
     if(state.report){refreshExcelTable();renderOverstockView(state.report);}
   }
   function etalonMarked(it) {return Boolean(etalonMarks[propertyKey(it)]);}
@@ -2306,7 +2323,7 @@
   }
 
   async function openSavedDbModal() {
-    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
+    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     const modal = el('savedDbModal');
     const listEl = el('savedDbList');
     const hintEl = el('savedDbFolderHint');
@@ -2349,9 +2366,10 @@
   }
 
   async function loadSavedDatabaseByName(fileName) {
-    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
+    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     if (!fileName) return;
     try {if(!await inspectWorkbook(null,fileName))return;}catch(err){showToast(err.message);return;}
+    if(!syncWorkbookGate()){showToast('Дата изменилась. Загрузите эталон заново.');return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
@@ -2368,9 +2386,10 @@
   }
 
   async function uploadSavedDatabaseFile(file) {
-    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
+    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     if (!file) return;
     try {if(!await inspectWorkbook(file))return;}catch(err){showToast(err.message);return;}
+    if(!syncWorkbookGate()){showToast('Дата изменилась. Загрузите эталон заново.');return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
@@ -2440,9 +2459,10 @@
   }
 
   async function uploadExcelFile(file) {
-    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
+    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     if (!file) return;
     try {if(!await inspectWorkbook(file))return;}catch(err){showToast(err.message);return;}
+    if(!syncWorkbookGate()){showToast('Дата изменилась. Загрузите эталон заново.');return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     const ctrl = new AbortController();
@@ -2542,7 +2562,7 @@
         const selected=[...el('safetyDialogFields').querySelectorAll('input:checked')].map(c=>c.dataset.restorePart);if(!selected.length){showToast('Ни один раздел не выбран');return;}
         const form=new FormData();form.append('file',file);form.append('selected',JSON.stringify(selected));form.append('token',preview.token);
         const response=await fetch('api/backup/restore',{method:'POST',body:form});const result=await response.json();if(!response.ok)throw new Error(result.error||'Ошибка восстановления');
-        const props=await apiGet('api/properties');nomenclatureProperties=props.properties||{};nomenclatureRecords=props.nomenclature||{};acknowledgedProperties={...nomenclatureProperties};propertiesRevision++;propertiesDirty=false;updateEtalon(props);
+        const props=await apiGet('api/properties');nomenclatureProperties=props.properties||{};nomenclatureRecords=props.nomenclature||{};acknowledgedProperties={...nomenclatureProperties};propertiesRevision++;propertiesDirty=false;updateEtalon(props);if(selected.includes('etalon.json')&&etalonLoaded)approveReferenceLoad();
         const widths=await apiGet('api/column-widths');savedColumnWidths=widths.widths||{};exitComparison();applyEnvelope(await apiGet('api/state'));applyNomenclatureProperties();if(state.report)state.hasUnsavedChanges=true;refreshExcelTable();renderSafetyStatus();showToast('Выбранные разделы восстановлены');
       }catch(err){showToast(err.message);}finally{e.target.value='';}
     });
@@ -2599,6 +2619,7 @@
         const res=await fetch('api/etalon/import',{method:'POST',body:form});
         const data=await res.json();if(!res.ok)throw new Error(data.error||'Не удалось загрузить эталон');
         updateEtalon(data);
+        if(etalonLoaded)approveReferenceLoad();
         nomenclatureProperties=data.properties||{};
         nomenclatureRecords=data.nomenclature||{};
         acknowledgedProperties={...nomenclatureProperties};propertiesRevision+=1;propertiesDirty=false;
@@ -4051,6 +4072,10 @@
     el('itemsTable').style.setProperty('--item-row-height', `${VIRTUAL_ROW_HEIGHT}px`);
     initColumnResizers();
     bindEvents();
+    syncWorkbookGate();
+    setInterval(syncWorkbookGate,1000);
+    window.addEventListener('focus',syncWorkbookGate);
+    document.addEventListener('visibilitychange',syncWorkbookGate);
     try {
       const properties = await apiGet('api/properties');
       updateEtalon(properties);

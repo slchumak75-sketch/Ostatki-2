@@ -10,6 +10,7 @@ const reference={etalonLoaded:true,etalonProperties:{},fileName:'Эталон.xl
 w.fetch=async(path,options={})=>{
  calls.push({path,options});let data=env;
  if(path==='api/db/save'){if(saveWait)await saveWait;return {ok:true,json:async()=>({fileName:'Сохранена.xlsx',savedAt:'25.10.2026 21:20:15'})};}
+ if(path==='api/etalon/import')data={properties:{},nomenclature:{},...reference};
  if(path==='api/properties')data={properties:{},...reference};
  if(path==='api/column-widths')data={widths:{}};
  if(path==='api/etalon/preview')data={token:'revision-1',source:'Старая.xlsx',newSource:'Текущая.xlsx',savedAt:'2026-10-20',total:1,marks:1,stocks:1,ratings:1,added:0};
@@ -34,6 +35,7 @@ const choose=yes=>d.getElementById(yes?'safetyDialogYes':'safetyDialogNo').click
  d.getElementById('btnReferenceHistory').click();await tick();choose(true);await tick();assert.equal(calls.filter(c=>c.path==='api/etalon/history'&&c.options.method==='POST').length,1);
  d.getElementById('btnCompareEtalon').click();await tick();assert.match(d.querySelector('.comparison-reason').textContent,/Рейтинг снизился/);
  d.getElementById('btnCompareExport').click();d.getElementById('btnFullBackup').click();await tick();assert.ok(downloads.includes('Сравнение с эталоном.xlsx'));assert.ok(downloads.includes('Ostatki2-backup.zip'));
+ const referenceInput=d.getElementById('etalonFileInput');Object.defineProperty(referenceInput,'files',{configurable:true,value:[new w.File(['ref'],'Эталон.xlsx')]});referenceInput.dispatchEvent(new w.Event('change'));await tick();choose(true);await tick();
  const input=d.getElementById('fileInput');Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['x'],'Новая.xlsx')]});input.dispatchEvent(new w.Event('change'));await tick();assert.match(d.getElementById('safetyDialogText').textContent,/Без положительной цены: 3/);choose(false);await tick();assert.equal(count('api/upload'),0,'Cancel preflight must keep active report');
  input.dispatchEvent(new w.Event('change'));await tick();choose(true);await tick();assert.equal(count('api/upload'),1);
  const restore=d.getElementById('fullRestoreInput');Object.defineProperty(restore,'files',{configurable:true,value:[new w.File(['zip'],'backup.zip')]});restore.dispatchEvent(new w.Event('change'));await tick();assert.equal(d.querySelectorAll('[data-restore-part]:checked').length,0);d.querySelector('[data-restore-part="settings.json"]').checked=true;choose(true);await tick();const req=calls.find(c=>c.path==='api/backup/restore');assert.deepEqual(JSON.parse(req.options.body.get('selected')),['settings.json']);

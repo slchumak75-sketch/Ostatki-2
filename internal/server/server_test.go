@@ -323,7 +323,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<input type="number" id="inpHorizon"`,
 		`<div class="params-body hidden" id="paramsBody">`,
 		`id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры`,
-		`<button class="btn btn-beige" id="btnUpload"`,
+		`id="btnUpload" disabled`,
 		`Загрузить новую ведомость`,
 		`id="btnLoadSavedDb"`,
 		`Загрузить сохраненную ведомость`,

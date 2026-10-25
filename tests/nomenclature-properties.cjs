@@ -12,7 +12,7 @@ const env=(name,items)=>({report:{fileName:name,items,warehouses:[],groups:[],su
 let uploaded=env('new.xlsx',[makeItem(55,'A'),makeItem(56,'B'),makeItem(57,'','Без артикула')]);
 let snapshots=0;
 let importedProps=null;
-w.fetch=async(path,options={})=>{if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};
+w.fetch=async(path,options={})=>{if(path==='api/etalon/import')return {ok:true,json:async()=>({etalonLoaded:true,etalonProperties:{},properties:{...props},nomenclature:{}})};if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};
  if(path==='api/properties/import') return {ok:true,json:async()=>({properties:importedProps})};
  if(path==='api/properties') {
   const req=options.body ? JSON.parse(options.body):{};
@@ -35,7 +35,9 @@ const load=async()=>{
  for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
 };
 (async()=>{
- await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+ await tick();
+ const referenceInput=d.getElementById('etalonFileInput');Object.defineProperty(referenceInput,'files',{configurable:true,value:[new w.File(['ref'],'Эталон.xlsx')]});referenceInput.dispatchEvent(new w.Event('change'));await tick();
+for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
  assert.equal(checked(8),true);
  assert.equal(checked(9),false,'A mark on one warehouse must not affect another');
  const other=d.querySelector('[data-plus-row="9"]');other.checked=true;other.dispatchEvent(new w.Event('change',{bubbles:true}));
