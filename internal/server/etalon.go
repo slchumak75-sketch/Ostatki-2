@@ -157,9 +157,9 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 405, "требуется POST")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<20)
-	if err := r.ParseMultipartForm(16 << 20); err != nil {
-		writeError(w, 400, "ошибка загрузки эталона")
+	r.Body = http.MaxBytesReader(w, r.Body, 65<<20)
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		writeError(w, 400, "Не удалось принять эталон: допустимый размер файла — до 64 МБ")
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
@@ -169,9 +169,13 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	raw, err := io.ReadAll(f)
+	raw, err := io.ReadAll(io.LimitReader(f, (64<<20)+1))
 	if err != nil {
 		writeError(w, 400, err.Error())
+		return
+	}
+	if len(raw) > 64<<20 {
+		writeError(w, 413, "Эталон превышает допустимый размер файла 64 МБ")
 		return
 	}
 	var catalog model.NomenclatureCatalog

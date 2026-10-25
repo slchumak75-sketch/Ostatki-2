@@ -2466,3 +2466,8 @@ body {
 
 .comparison-reason {font-size:11px;color:#7a4512;white-space:normal;margin-top:3px;}
 #safetyStatus {padding:4px 12px;white-space:normal;}
+
+/* Session/day gate: disabled controls must remain visibly red, not faded beige. */
+#btnUpload.workbook-locked, #btnLoadSavedDb.workbook-locked {background:#f5b9b4;color:#7c1712;border-color:#bd3e35;opacity:1;cursor:not-allowed;}
+#btnUpload.workbook-ready, #btnLoadSavedDb.workbook-ready {background:#bde5c4;color:#164d25;border-color:#438955;opacity:1;}
+#btnUpload.workbook-ready:hover, #btnLoadSavedDb.workbook-ready:hover {background:#a8dcb2;}

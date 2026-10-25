@@ -222,6 +222,18 @@ func ParsePropertiesXLSX(raw []byte) (map[string]bool, error) {
 	return props, nil
 }
 
+// XLSX compresses worksheet XML heavily: large valid references exceed 32 MiB.
+// Bound both individual entries and aggregate expansion to retain ZIP-bomb protection.
+const maxNomenclatureEntryBytes uint64 = 128 << 20
+const maxNomenclatureExpandedBytes uint64 = 256 << 20
+
+func checkNomenclatureEntrySize(size, total uint64) error {
+	if size > maxNomenclatureEntryBytes || total > maxNomenclatureExpandedBytes || size > maxNomenclatureExpandedBytes-total {
+		return fmt.Errorf("слишком большой Excel: максимум 128 МБ на распакованный компонент и 256 МБ на всё распакованное содержимое")
+	}
+	return nil
+}
+
 func ParseNomenclatureXLSX(raw []byte) (map[string]model.NomenclatureRecord, error) {
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
@@ -230,8 +242,8 @@ func ParseNomenclatureXLSX(raw []byte) (map[string]model.NomenclatureRecord, err
 	files := map[string]*zip.File{}
 	var total uint64
 	for _, f := range zr.File {
-		if f.UncompressedSize64 > 32<<20 || total > 32<<20-f.UncompressedSize64 {
-			return nil, fmt.Errorf("слишком большой файл")
+		if err := checkNomenclatureEntrySize(f.UncompressedSize64, total); err != nil {
+			return nil, err
 		}
 		total += f.UncompressedSize64
 		files[f.Name] = f

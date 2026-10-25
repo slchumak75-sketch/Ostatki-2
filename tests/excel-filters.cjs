@@ -9,14 +9,16 @@ const requests=[];
 const heartbeatTimers=[];
 const realInterval=w.setInterval.bind(w);
 w.setInterval=(cb,ms)=>{if(ms===3000) heartbeatTimers.push(cb);return realInterval(cb,ms);};
-w.fetch=async(path,options={})=>{if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true,etalonProperties:{}})};requests.push({path,body:options.body});return ({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});};
+w.fetch=async(path,options={})=>{if(path==='api/etalon/import')return {ok:true,json:async()=>({etalonLoaded:true,etalonProperties:{},properties:{},nomenclature:{}})};if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true,etalonProperties:{}})};requests.push({path,body:options.body});return ({ok:true,json:async()=>({report:{items:[item(8,'Кабель',0),item(9,'Автомат',2)],warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})});};
 w.scrollTo=()=>{};
 const alerts=[];w.alert=message=>alerts.push(message);
 new w.MutationObserver(()=>{const box=d.getElementById('safetyDialog');if(box&&!box.classList.contains('hidden'))d.getElementById('safetyDialogYes').click();}).observe(d.body,{subtree:true,attributes:true,attributeFilter:['class']});
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
- await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+ await tick();
+ const referenceInput=d.getElementById('etalonFileInput');Object.defineProperty(referenceInput,'files',{configurable:true,value:[new w.File(['ref'],'Эталон.xlsx')]});referenceInput.dispatchEvent(new w.Event('change'));await tick();
+for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Default excludes products without 12-month sales');
  assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2']);
  assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
