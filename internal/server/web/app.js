@@ -2990,6 +2990,7 @@
           state.msLimits[key] = 500;
           if (state.report) populateFilterDropdowns(state.report);
           renderMultiSelectMenu(key);
+          fitFloatingMenu(menu,trig);
           const sInp = menu.querySelector('[data-ms-search]');
           if (sInp) requestAnimationFrame(() => sInp.focus());
         }
@@ -3084,6 +3085,7 @@
       el('btnSupplierDropdown').setAttribute('aria-expanded', String(!isHidden));
       if (!isHidden) {
         if (state.report) populateFilterDropdowns(state.report);
+        fitFloatingMenu(menu,el('btnSupplierDropdown'));
         requestAnimationFrame(() => el('inpSupplierFilter')?.focus());
       }
     });
@@ -3866,6 +3868,28 @@
     if(state.report) {renderKPIs(state.report);renderSuppliersView(state.report);populateFilterDropdowns(state.report);}
   }
 
+  // Reserve space even when an auto-hidden Windows taskbar overlays the viewport.
+  const floatingMenuAnchors = new Map();
+  function fitFloatingMenu(pop,anchor) {
+    if(!pop || !anchor || pop.classList.contains('hidden'))return;
+    floatingMenuAnchors.set(pop,anchor);
+    const viewport=window.visualViewport;
+    const topEdge=(viewport?.offsetTop||0)+8;
+    const bottomEdge=(viewport?.offsetTop||0)+(viewport?.height||window.innerHeight)-64;
+    const leftEdge=(viewport?.offsetLeft||0)+8;
+    const rightEdge=(viewport?.offsetLeft||0)+(viewport?.width||window.innerWidth)-8;
+    pop.style.position='fixed';pop.style.right='auto';
+    pop.style.maxHeight=`${Math.max(1,bottomEdge-topEdge)}px`;
+    pop.style.maxWidth=`${Math.max(1,rightEdge-leftEdge)}px`;
+    const r=anchor.getBoundingClientRect();
+    const height=pop.getBoundingClientRect().height||pop.offsetHeight;
+    const width=pop.getBoundingClientRect().width||pop.offsetWidth;
+    pop.style.left=`${Math.max(leftEdge,Math.min(r.right-width,rightEdge-width))}px`;
+    pop.style.top=`${Math.max(topEdge,Math.min(r.bottom+5,bottomEdge-height))}px`;
+  }
+  function repositionFloatingMenus(){
+    for(const [pop,anchor] of floatingMenuAnchors)fitFloatingMenu(pop,anchor);
+  }
   let excelMenu = null;
   const filterIcon = '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h14L10 8v5l-4 2V8z"/></svg>';
   const caretIcon = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6h10l-5 5z"/></svg>';
@@ -3969,9 +3993,7 @@
     pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
     pop.classList.remove('hidden');
     renderExcelOptions();
-    const r = anchor.getBoundingClientRect();
-    pop.style.left = `${Math.max(8,Math.min(r.right-pop.offsetWidth,window.innerWidth-pop.offsetWidth-8))}px`;
-    pop.style.top = `${Math.max(8,Math.min(r.bottom+5,window.innerHeight-pop.offsetHeight-8))}px`;
+    fitFloatingMenu(pop,anchor);
     syncExcelHeaders();
     el('efSearchInput').focus();
   }
@@ -4075,6 +4097,9 @@
     el('itemsTable').style.setProperty('--item-row-height', `${VIRTUAL_ROW_HEIGHT}px`);
     initColumnResizers();
     bindEvents();
+    window.addEventListener('resize',repositionFloatingMenus,{passive:true});
+    window.visualViewport?.addEventListener('resize',repositionFloatingMenus,{passive:true});
+    window.visualViewport?.addEventListener('scroll',repositionFloatingMenus,{passive:true});
     syncWorkbookGate();
     setInterval(syncWorkbookGate,1000);
     window.addEventListener('focus',syncWorkbookGate);
