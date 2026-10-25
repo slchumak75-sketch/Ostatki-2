@@ -710,12 +710,14 @@ func FormatSupplierOrderFilename(warehouse string, supplier string, orderDate ti
 }
 
 // GenerateSingleSupplierOrderXLSX формирует одностраничную Excel-таблицу заказа поставщику
-// без цветовой заливки ячеек строго из 5 столбцов:
+// без цветовой заливки ячеек из 7 столбцов:
 //  1. Наименование склада
 //  2. Артикул
 //  3. Номенклатура
 //  4. Ед. ("шт.")
-//  5. Заказ
+//  5. Продажи (последние 12 месяцев)
+//  6. Остаток
+//  7. Заказ
 func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWarehouse string, filterSupplier string) ([]byte, error) {
 	var orderItems []model.CalculatedItem
 	for _, it := range report.Items {
@@ -823,11 +825,11 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
   <col min="2" max="2" width="16" customWidth="1"/>
   <col min="3" max="3" width="54" customWidth="1"/>
   <col min="4" max="4" width="8" customWidth="1"/>
-  <col min="5" max="5" width="12" customWidth="1"/>
+  <col min="5" max="7" width="12" customWidth="1"/>
 </cols><sheetData>`)
 
 	s1.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, h := range []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Заказ"} {
+	for i, h := range []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Продажи", "Остаток", "Заказ"} {
 		s1.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s1.WriteString(`</row>`)
@@ -839,12 +841,14 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
 		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
 		s1.WriteString(inlineStrCell("D"+rs, 4, "шт."))
-		s1.WriteString(numCell("E"+rs, 3, float64(it.FinalOrderQty)))
+		s1.WriteString(numCell("E"+rs, 3, it.SumSalesLast12M))
+		s1.WriteString(numCell("F"+rs, 3, it.ClosingStock))
+		s1.WriteString(numCell("G"+rs, 3, float64(it.FinalOrderQty)))
 		s1.WriteString(`</row>`)
 	}
 	s1.WriteString(`</sheetData>`)
 	if len(orderItems) > 0 {
-		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:E%d"/>`, len(orderItems)+1))
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:G%d"/>`, len(orderItems)+1))
 	}
 	s1.WriteString(`</worksheet>`)
 	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {

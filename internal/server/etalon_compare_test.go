@@ -49,7 +49,7 @@ func TestComparisonUsesRawRatingAndWarehouseScopedUnion(t *testing.T) {
 		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
 		app.report.Items = append(app.report.Items, it)
 		app.properties[key] = c.checked
-		app.etalon[key] = model.NomenclatureRecord{SKU: it.SKU, Warehouse: it.Warehouse, Name: it.Name, Group: it.Group, Stock: c.refStock, Rating: c.refRating}
+		app.etalon[key] = model.NomenclatureRecord{SKU: it.SKU, Warehouse: it.Warehouse, Name: it.Name, Group: it.Group, Stock: c.refStock, Rating: c.refRating, Checked: c.checked}
 	}
 	// A new item that has no warehouse-matching reference must be absent.
 	app.report.Items = append(app.report.Items, model.CalculatedItem{RawItem: model.RawItem{ExcelRow: 99, SKU: "001", Warehouse: "Новый склад", Name: "Товар", ClosingStock: 999}, SalesSegment: 0})
@@ -129,5 +129,93 @@ func TestFailedPropertiesWriteDoesNotAdvanceSaveStatus(t *testing.T) {
 	}
 	if app.propertiesFileName != "previous.json" || app.propertiesSavedAt != "2026-10-20T10:00:00+03:00" {
 		t.Fatal("failed write changed the last successful save metadata")
+	}
+}
+
+// Reproduce correction -> ordinary save -> clear/reload -> compare -> restart.
+// Both the reference bytes and the result must survive live checkbox changes.
+func TestComparisonReferenceMarksSurviveCorrectionAndReload(t *testing.T) {
+	dir := t.TempDir()
+	app := New(false)
+	app.SetSaveDir(dir)
+	storage, err := app.propertiesDirLocked()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.loadPropertiesLocked(storage + "/properties.json"); err != nil {
+		t.Fatal(err)
+	}
+	items := []model.CalculatedItem{
+		{RawItem: model.RawItem{ExcelRow: 8, SKU: "001", Warehouse: "Склад", Name: "Снять отметку", ClosingStock: 11}, SalesSegment: 3},
+		{RawItem: model.RawItem{ExcelRow: 9, SKU: "002", Warehouse: "Склад", Name: "Добавить отметку", ClosingStock: 11}, SalesSegment: 3},
+	}
+	key := func(i int) string {
+		it := items[i]
+		return xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
+	}
+	refs := referenceRecords(items, map[string]bool{key(0): true})
+	for k, v := range refs {
+		v.Stock = 10
+		refs[k] = v
+	}
+	if err := app.commitEtalonLocked(storage, model.NomenclatureCatalog{Version: 2, Properties: map[string]bool{key(0): true, key(1): false}, Nomenclature: refs}); err != nil {
+		t.Fatal(err)
+	}
+	path := storage + "/etalon.json"
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare := func(app *AppServer) []etalonComparisonRow {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/etalon/compare", nil))
+		if rec.Code != 200 {
+			t.Fatal(rec.Code, rec.Body.String())
+		}
+		var data struct {
+			Rows []etalonComparisonRow `json:"rows"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &data); err != nil {
+			t.Fatal(err)
+		}
+		if len(data.Rows) != 2 || !data.Rows[0].Matches || data.Rows[1].Matches {
+			t.Fatalf("comparison borrowed live marks: %+v", data.Rows)
+		}
+		return data.Rows
+	}
+	app.properties[key(0)] = true
+	app.report = &model.CalculationReport{Items: items}
+	initial := compare(app)
+	// The correction reverses both live marks, but does not explicitly save reference.
+	app.properties[key(0)] = false
+	app.properties[key(1)] = true
+	if err := app.persistPropertiesLocked(storage); err != nil {
+		t.Fatal(err)
+	}
+	if got := compare(app); !reflect.DeepEqual(initial, got) {
+		t.Fatal("correction changed comparison")
+	}
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/clear", nil))
+	if rec.Code != 200 {
+		t.Fatal(rec.Code, rec.Body.String())
+	}
+	app.report = &model.CalculationReport{Items: append([]model.CalculatedItem(nil), items...)}
+	if got := compare(app); !reflect.DeepEqual(initial, got) {
+		t.Fatal("reload changed comparison")
+	}
+	restarted := New(false)
+	restarted.SetSaveDir(dir)
+	restarted.report = &model.CalculationReport{Items: items}
+	if got := compare(restarted); !reflect.DeepEqual(initial, got) {
+		t.Fatal("restart changed comparison")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("reference file changed without explicit save")
 	}
 }

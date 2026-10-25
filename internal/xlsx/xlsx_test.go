@@ -162,15 +162,15 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 				`<c r="B1" s="1" t="inlineStr"><is><t xml:space="preserve">Артикул</t></is></c>`,
 				`<c r="C1" s="1" t="inlineStr"><is><t xml:space="preserve">Номенклатура</t></is></c>`,
 				`<c r="D1" s="1" t="inlineStr"><is><t xml:space="preserve">Ед.</t></is></c>`,
-				`<c r="E1" s="1" t="inlineStr"><is><t xml:space="preserve">Заказ</t></is></c>`,
+				`<c r="G1" s="1" t="inlineStr"><is><t xml:space="preserve">Заказ</t></is></c>`,
 				`<c r="D2" s="4" t="inlineStr"><is><t xml:space="preserve">шт.</t></is></c>`,
 			} {
 				if !strings.Contains(xmlStr, colHdr) {
 					t.Fatalf("single supplier order sheet1.xml missing expected cell: %s", colHdr)
 				}
 			}
-			if strings.Contains(xmlStr, `r="F1"`) {
-				t.Fatalf("single supplier order must contain strictly 5 columns (A..E), found F1")
+			if strings.Contains(xmlStr, `r="H1"`) {
+				t.Fatalf("single supplier order must contain strictly 7 columns (A..G), found H1")
 			}
 		}
 	}

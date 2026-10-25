@@ -2463,4 +2463,3 @@ body {
 .liquidity-trend h3 { margin:0 0 8px; font-size:16px; }
 
 /* Export remains visible directly below Parameters, outside its hidden panel. */
-.radar-export-actions { display:flex; flex-direction:column; align-items:stretch; gap:3px; flex:0 0 auto; }
