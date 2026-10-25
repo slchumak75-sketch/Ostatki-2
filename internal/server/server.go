@@ -303,6 +303,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/export/orders", s.handleExportOrdersXLSX)
 	mux.HandleFunc("/api/export/supplier-order", s.handleExportSingleSupplierOrderXLSX)
 	mux.HandleFunc("/api/export/staryo", s.handleExportStaryoXLSX)
+	mux.HandleFunc("/api/export/radar", s.handleExportRadar)
 	mux.HandleFunc("/api/heartbeat", s.handleHeartbeat)
 	mux.HandleFunc("/api/client-detach", s.handleClientDetach)
 	mux.HandleFunc("/api/shutdown", s.handleShutdown)

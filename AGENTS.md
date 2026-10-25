@@ -134,3 +134,14 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
   Склад и поиск действуют; фильтр категории таблицы не меняет состав/знаменатель линий.
 - Пагинация 100 строк только для DOM, все суммы считаются до среза страницы.
   `tests/liquidity.cjs` проверяет покрытие, проценты, линии, пустые базы и интеграцию.
+
+## Excel радара
+- `btnExportRadar` расположен под `btnToggleAdvanced` вне скрытого paramsPanel.
+- `renderOverstockView` сохраняет полные отсортированные ExcelRow в
+  `state.overstockExportRows` ДО ограничения overstockLimit. Не собирать выборку из DOM.
+- POST `/api/export/radar` принимает excelRows, берёт только IsOverstock текущего
+  server report, проверяет устаревшие/неподходящие номера, сохраняет порядок и убирает дубли.
+- `xlsx.GenerateRadarXLSX` — отдельная однолистовая выгрузка 11 столбцов радара,
+  автофильтр без итоговой строки, закрепление шапки, сумма OverstockValue внизу.
+- Скачивание через браузер; не подменять эталон/заказы/бюджет и не применять выборку
+  checkedSuppliers. Проверки: radar_export_test.go и tests/radar-export.cjs.

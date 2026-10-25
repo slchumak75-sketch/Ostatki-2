@@ -758,6 +758,7 @@
     hideRatingChartPopover();
     captureNomenclatureRecords();
     state.report = null;
+    state.overstockExportRows = [];
     window.LiquidityAnalysis?.update(null);
     window.SalesCharts?.update(null);
     state.rowMap.clear();
@@ -2100,6 +2101,7 @@
       return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * ovMult;
     });
 
+    state.overstockExportRows = over.map(it=>it.excelRow);
     const filteredFrozen = over.reduce((acc, it) => acc + (Number(it.overstockValue) || 0), 0);
     const totalHint = hasActiveFilter
       ? ` (всего по ведомости: ${fmtInt(allOver.length)} поз. на ${fmtMoney(rep.overstockFrozenCost)} руб.)`
@@ -2563,6 +2565,25 @@
         showToast('Свойства номенклатуры загружены');
       } catch(err) { showToast(`Ошибка загрузки свойств: ${err.message}`); }
       finally { e.target.value = ''; }
+    });
+    el('btnExportRadar').addEventListener('click',async()=>{
+      const button=el('btnExportRadar');button.disabled=true;
+      try {
+        if(!state.report)throw new Error('Сначала загрузите ведомость');
+        renderOverstockView(state.report);
+        const excelRows=state.overstockExportRows||[];
+        if(!excelRows.length)throw new Error('В текущей выборке радара нет позиций');
+        const res=await fetch('api/export/radar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({excelRows})});
+        if(!res.ok){const data=await res.json();throw new Error(data.error||'Не удалось выгрузить радар');}
+        const url=URL.createObjectURL(await res.blob()),link=document.createElement('a');
+        const disposition=res.headers?.get('Content-Disposition')||'';
+        const match=disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        link.href=url;link.download=match?decodeURIComponent(match[1]):`Радар неликвидов, ${new Date().toLocaleDateString('ru-RU')}.xlsx`;
+        isDownloadingFile=true;document.body.appendChild(link);link.click();link.remove();
+        setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
+        showToast(`Радар выгружен: ${excelRows.length} позиций`);
+      }catch(err){showToast(`Ошибка выгрузки радара: ${err.message}`);}
+      finally{button.disabled=false;}
     });
     document.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
