@@ -285,6 +285,7 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/etalon-comparison.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/sales-charts.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/liquidity.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/radar-export.cjs
 
       - name: Кросс-компиляция Windows x64 — «Вариант 5»
         run: |
