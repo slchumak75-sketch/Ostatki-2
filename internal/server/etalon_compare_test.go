@@ -51,7 +51,7 @@ func TestComparisonUsesRawRatingAndWarehouseScopedUnion(t *testing.T) {
 		app.properties[key] = c.checked
 		app.etalon[key] = model.NomenclatureRecord{SKU: it.SKU, Warehouse: it.Warehouse, Name: it.Name, Group: it.Group, Stock: c.refStock, Rating: c.refRating, Checked: c.checked}
 	}
-	// A new item that has no warehouse-matching reference must be absent.
+	// An identity absent in this warehouse is shown explicitly as new.
 	app.report.Items = append(app.report.Items, model.CalculatedItem{RawItem: model.RawItem{ExcelRow: 99, SKU: "001", Warehouse: "Новый склад", Name: "Товар", ClosingStock: 999}, SalesSegment: 0})
 	original := append([]model.CalculatedItem(nil), app.report.Items...)
 	app.mu.RLock()
@@ -83,8 +83,12 @@ func TestComparisonUsesRawRatingAndWarehouseScopedUnion(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Rows) != len(cases) || got.Count != 7 {
+	if len(got.Rows) != len(cases)+1 || got.Count != 8 {
 		t.Fatal(got)
+	}
+	newRow := got.Rows[len(cases)]
+	if !newRow.IsNew || !newRow.Matches || newRow.StockIncreased || newRow.RatingDropped || newRow.Reason != "новый товар" {
+		t.Fatal(newRow)
 	}
 	for i, c := range cases {
 		r := got.Rows[i]

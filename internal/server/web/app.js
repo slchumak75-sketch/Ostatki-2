@@ -104,7 +104,7 @@
     else response=await fetch('api/workbook/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fileName})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'Не удалось проверить ведомость');
     if(!Number.isFinite(data.items))throw new Error('Сервер не вернул результат проверки');
-    return safetyDialog('Проверка ведомости перед загрузкой',`Файл: ${data.fileName}\nПериод: ${data.first} — ${data.last}\nПозиций: ${data.items}\nСклады: ${(data.warehouses||[]).join(', ')}\nПовторяющихся строк: ${data.duplicates}\nБез положительной цены: ${data.noPrices}\n\nНовая номенклатура при сравнении игнорируется.\nПродолжить загрузку? Текущая ведомость будет заменена.`);
+    return safetyDialog('Проверка ведомости перед загрузкой',`Файл: ${data.fileName}\nПериод: ${data.first} — ${data.last}\nПозиций: ${data.items}\nСклады: ${(data.warehouses||[]).join(', ')}\nПовторяющихся строк: ${data.duplicates}\nБез положительной цены: ${data.noPrices}\n\nНовая номенклатура при сравнении будет показана с отдельным пояснением.\nПродолжить загрузку? Текущая ведомость будет заменена.`);
   }
   async function downloadSafetyFile(path,name){
     const res=await fetch(path);if(!res.ok){const data=await res.json();throw new Error(data.error||'Ошибка выгрузки');}
@@ -1563,7 +1563,7 @@
       return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * mult;
     });
 
-    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Галочка в эталоне + рост остатка ИЛИ рейтинг 1–5 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
+    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Новая номенклатура ИЛИ галочка в эталоне + рост остатка ИЛИ рейтинг 1–5 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
     state.filteredItems = list;
     state.vStart = 0;
     state.vEnd = 0;

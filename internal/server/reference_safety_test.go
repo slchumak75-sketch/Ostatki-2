@@ -175,14 +175,14 @@ func TestSelectiveBackupRestore(t *testing.T) {
 	}
 }
 
-func TestComparisonReasonsExportAndNewItemsIgnored(t *testing.T) {
+func TestComparisonReasonsExportAndNewItemsShown(t *testing.T) {
 	app := safetyApp(t)
 	safetyRequest(app, "POST", "/api/etalon/save-confirmed", map[string]string{"token": safetyToken(t, app)})
 	app.report.Items[0].ClosingStock = 10
 	app.report.Items[0].SalesSegment = 0
 	app.report.Items = append(app.report.Items, model.CalculatedItem{RawItem: model.RawItem{ExcelRow: 9, SKU: "NEW", Name: "Новый", ClosingStock: 999}})
 	rec := safetyRequest(app, "GET", "/api/etalon/compare", nil)
-	if strings.Contains(rec.Body.String(), `"excelRow":9`) || !strings.Contains(rec.Body.String(), "Остаток вырос") || !strings.Contains(rec.Body.String(), "Рейтинг снизился") {
+	if !strings.Contains(rec.Body.String(), `"excelRow":9`) || !strings.Contains(rec.Body.String(), "Остаток вырос") || !strings.Contains(rec.Body.String(), "Рейтинг снизился") {
 		t.Fatal(rec.Body.String())
 	}
 	rec = safetyRequest(app, "GET", "/api/etalon/compare/export", nil)
@@ -200,8 +200,11 @@ func TestComparisonReasonsExportAndNewItemsIgnored(t *testing.T) {
 			raw, _ := io.ReadAll(r)
 			r.Close()
 			text := string(raw)
-			if strings.Contains(text, "Новый") || !strings.Contains(text, "Товар &lt;1&gt;") || !strings.Contains(text, `A1:H2`) {
+			if !strings.Contains(text, "Новый") || !strings.Contains(text, "Товар &lt;1&gt;") || !strings.Contains(text, `A1:H3`) {
 				t.Fatal(text)
+			}
+			if !strings.Contains(text, "новый товар") || strings.Contains(text, `<c r="D3" s="3"><v>0</v>`) || strings.Contains(text, `<c r="F3" s="3"><v>0</v>`) {
+				t.Fatal("new rows must not fabricate historical values", text)
 			}
 			found = true
 		}
