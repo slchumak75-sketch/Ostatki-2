@@ -159,6 +159,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		result["properties"] = s.properties
 		result["nomenclature"] = s.catalogLocked().Nomenclature
 		result["etalonLoaded"] = len(s.etalon) > 0
+		result["etalonProperties"] = etalonProperties(s.etalon)
 		result["etalonFileName"] = etalonFileName(s.etalonSavedAt)
 		result["etalonSavedAt"] = s.etalonStoredAt
 	}

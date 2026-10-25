@@ -10,7 +10,7 @@ const comparison=[{excelRow:8,etalonStock:10,etalonRating:4,currentRating:4},{ex
 let deferred=null,fail=false;
 w.fetch=async(path,opts={})=>{
  calls.push(path);
- if(path==='api/properties')return {ok:true,json:async()=>({properties:props,persisted:true,lastFileName:'Свойства.json',savedAt:'2026-10-24T10:20:30+03:00',directory:'C:\\Users\\hidden\\',etalonLoaded:true,etalonFileName:'Эталон, 20.10.2026.xlsx',etalonSavedAt:'2026-10-24T09:10:11+03:00'})};
+ if(path==='api/properties')return {ok:true,json:async()=>({properties:props,etalonProperties:{...props},etalonLoaded:true,persisted:true,lastFileName:'Свойства.json',savedAt:'2026-10-24T10:20:30+03:00',directory:'C:\\Users\\hidden\\',etalonLoaded:true,etalonFileName:'Эталон, 20.10.2026.xlsx',etalonSavedAt:'2026-10-24T09:10:11+03:00'})};
  if(path==='api/etalon/compare'){
   if(deferred)await deferred;
   return {ok:!fail,json:async()=>fail?{error:'Нет эталона'}:{rows:comparison}};
@@ -25,8 +25,7 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
  await tick();
  const compare=d.getElementById('btnCompareEtalon');
  assert.deepEqual(rows(),[10],'Both protected filters start enabled');
- assert.deepEqual([...d.querySelectorAll('#propertiesActions button')].map(x=>x.id),['btnExportProperties','btnImportProperties','btnSaveProperties','btnBackupProperties']);
- assert.deepEqual([...d.querySelectorAll('#etalonActions button')].map(x=>x.id),['btnSaveEtalon','btnLoadEtalon','btnExportEtalon','btnCompareEtalon','btnSaveFields']);
+ assert.equal(d.getElementById('propertiesActions'),null);
  for(const id of ['etalonStorageHint','propertiesStorageHint']){
   const text=d.getElementById(id).textContent;assert.match(text,/\.\w+.*\d{2}\.\d{2}\.\d{4}.*\d{2}:\d{2}:\d{2}/);assert.ok(!text.includes('Users')&&!text.includes('Папка'));
  }
