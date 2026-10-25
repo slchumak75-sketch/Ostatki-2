@@ -65,7 +65,7 @@
       status: 500,
     },
     searchNameLimit: 300,
-    staryoMode: true,
+    staryoMode: false,
     staryoRows: new Set(),
     sales12Only: true,
     unmarkedOnly: true,
@@ -128,15 +128,13 @@
     return ready;
   }
   function approveReferenceLoad(){referenceApprovedDay=localCalendarDay();syncWorkbookGate();}
-  let etalonMarks = {}, etalonLoaded = false;
+  let etalonLoaded = false;
   function updateEtalon(data) {
-    etalonMarks = data.etalonProperties || {};
     etalonLoaded = Boolean(data.etalonLoaded);
     referenceDate=etalonLoaded?(data.etalonSavedAt || data.savedAt || referenceDate):'';referenceName=etalonLoaded?(data.etalonFileName || data.fileName || referenceName):'';renderSafetyStatus();
     syncWorkbookGate();
     if(state.report){refreshExcelTable();renderOverstockView(state.report);}
   }
-  function etalonMarked(it) {return Boolean(etalonMarks[propertyKey(it)]);}
   let nomenclatureProperties = {};
   let nomenclatureRecords = {};
   function captureNomenclatureRecords() {
@@ -687,6 +685,11 @@
     const targetThs = table.id === 'itemsTable' && !state.staryoMode
       ? allThs.filter((h) => !h.classList.contains('plus-col'))
       : allThs;
+    if(table.id==='itemsTable') {
+      const plusIndex=allThs.findIndex(h=>h.classList.contains('plus-col'));
+      if(!state.staryoMode && widths.length===allThs.length)widths=widths.filter((_,i)=>i!==plusIndex);
+      else if(state.staryoMode && widths.length===allThs.length-1){widths=[...widths];widths.splice(plusIndex,0,32);}
+    }
     if (targetThs.length !== widths.length) return;
     table.querySelector(':scope > colgroup')?.remove();
     const colgroup = document.createElement('colgroup');
@@ -831,14 +834,14 @@
     clearAllMultiSelectFilters();
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
-    state.staryoMode = true;
+    state.staryoMode = !state.unmarkedOnly;
     state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
     state.lastLoadedFile = null;
 
     if (el('itemsTable')) {
       resetTableColumnWidths(el('itemsTable'));
-      el('itemsTable').classList.add('show-plus-col');
+      el('itemsTable').classList.toggle('show-plus-col',!state.unmarkedOnly);
     }
     if (el('suppliersTable')) {
       resetTableColumnWidths(el('suppliersTable'));
@@ -922,7 +925,7 @@
       state.ovColWidths = null;
       state.sortKey = 'finalOrderQty';
       state.sortDir = 'desc';
-      state.staryoMode = true;
+      state.staryoMode = !state.unmarkedOnly;
       state.staryoRows.clear();
       state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
@@ -931,7 +934,7 @@
       state.hasUnsavedChanges = true;
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
-      el('itemsTable')?.classList.add('show-plus-col');
+      el('itemsTable')?.classList.toggle('show-plus-col',!state.unmarkedOnly);
       if (el('fltSupplier')) el('fltSupplier').value = '';
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
       if (el('inpSearch')) el('inpSearch').value = '';
@@ -971,7 +974,7 @@
 
     if (shouldRestoreSaved) {
       const ui = env.uiState || {};
-      state.staryoMode = true;
+      state.staryoMode = !state.unmarkedOnly;
       state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
       state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
@@ -1249,7 +1252,7 @@
     for (let i = 0; i < rep.items.length; i++) {
       const it = rep.items[i];
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && etalonMarked(it)) continue;
+      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
 
       if (it.finalOrderQty > 0) {
@@ -1496,7 +1499,7 @@
       const it = src[i];
       if(state.comparison) {const match=comparisonItem(it);if(match)list.push(match);continue;}
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && etalonMarked(it)) continue;
+      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
       if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
       if (skuSet.size > 0 && !skuSet.has(String(it.sku || '').trim())) continue;
@@ -2053,7 +2056,7 @@
   function renderOverstockView(rep) {
     if (!rep) return;
     const allOver = rep.items
-      .filter((it) => it.isOverstock && (!state.sales12Only || Number(it.sumSalesLast12M) > 0) && (!state.unmarkedOnly || !etalonMarked(it)))
+      .filter((it) => it.isOverstock && (!state.sales12Only || Number(it.sumSalesLast12M) > 0) && (!state.unmarkedOnly || !state.staryoRows.has(it.excelRow)))
       .sort((a, b) => b.overstockValue - a.overstockValue);
 
     const setSelectOptions = (selectEl, items, defaultLabel, formatter) => {
@@ -2493,6 +2496,14 @@
   }
 
   function syncPropertyFilters() {
+    state.staryoMode = !state.unmarkedOnly;
+    const table=el('itemsTable');
+    if(table && table.classList.contains('show-plus-col')!==state.staryoMode){
+      resetTableColumnWidths(table);
+      table.classList.toggle('show-plus-col',state.staryoMode);
+      applyTableColumnWidths(table,savedColumnWidths.itemsTable);
+    }
+
     for (const [id, active] of [['btnSales12', state.sales12Only], ['btnRelevant', state.unmarkedOnly]]) {
       el(id)?.classList.toggle('property-filter-active', active);
       el(id)?.setAttribute('aria-pressed', String(active));
@@ -2956,14 +2967,6 @@
     // Обработчики всех выпадающих списков с галочками на горизонтальной плашке
     const applyAfterMultiSelectChange = (changedKey) => {
       state.page = 1;
-      if (changedKey === 'plus' && state.msFilters.plus.has('checked') && !state.staryoMode) {
-        state.staryoMode = true;
-        const tableEl = el('itemsTable');
-        if (tableEl) {
-          resetTableColumnWidths(tableEl);
-          tableEl.classList.add('show-plus-col');
-        }
-      }
       if (state.report) {
         populateFilterDropdowns(state.report);
       }
@@ -3938,7 +3941,7 @@
     const counts = new Map();
     for (const it of state.report.items) {
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && etalonMarked(it)) continue;
+      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
       if (!matchesExcelFilters(it, key)) continue;
       const value = excelValue(it, key);
       counts.set(value, (counts.get(value) || 0) + 1);

@@ -10,7 +10,7 @@ const calls=[],intervals=[];
 w.setInterval=(cb,ms)=>{intervals.push({cb,ms});return intervals.length;};
 w.fetch=async(path,options={})=>{
  const body=options.body && typeof options.body==='string'?JSON.parse(options.body):{};calls.push({path,body});
- if(path==='api/properties') {Object.assign(props,body.properties);return {ok:true,json:async()=>({properties:props,etalonProperties:{...props},etalonLoaded:true})};}
+ if(path==='api/properties') {Object.assign(props,body.properties);return {ok:true,json:async()=>({properties:props,etalonProperties:{[JSON.stringify(['sku','8','Склад'])]:true},etalonLoaded:true})};}
  return {ok:true,json:async()=>({report:{items,warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})};
 };
 w.scrollTo=()=>{};
@@ -21,18 +21,21 @@ const tick=()=>new Promise(r=>setTimeout(r,40));
  const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number(tr.dataset.row)).sort((a,b)=>a-b);
  const sales=d.getElementById('btnSales12'),relevant=d.getElementById('btnRelevant');
  assert.deepEqual(rows(),[8],'Both filters are enabled by default');
+ assert.ok(!d.getElementById('itemsTable').classList.contains('show-plus-col'),'Active relevance hides plus column');
  assert.equal(d.getElementById('btnActiveFilter'),null);
  for(const id of ['btnSales12','btnRelevant'])assert.ok(d.getElementById(id).closest('.topbar-actions'));
  for(const id of ['btnExportProperties','btnImportProperties','btnSaveProperties','btnSaveDb'])assert.equal(d.getElementById(id),null);
  for(const button of [sales,relevant])assert.equal(button.getAttribute('aria-pressed'),'true');
  for(let i=0;i<3;i++){sales.click();assert.deepEqual(rows(),[8],'First three clicks must not disable sales');}
  sales.click();assert.deepEqual(rows(),[8,9,10,12],'Fourth click disables sales');
- for(let i=0;i<3;i++){relevant.click();assert.deepEqual(rows(),[8,9,10,12]);}
+ for(let i=0;i<3;i++){relevant.click();assert.deepEqual(rows(),[8,9,10,12]);assert.ok(!d.getElementById('itemsTable').classList.contains('show-plus-col'));}
  relevant.click();assert.deepEqual(rows(),[8,9,10,11,12],'Fourth click disables unmarked');
+ assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
  sales.click();assert.deepEqual(rows(),[8,11],'Re-enable sales immediately');
  relevant.click();assert.deepEqual(rows(),[8]);
+ assert.ok(!d.getElementById('itemsTable').classList.contains('show-plus-col'),'One click re-enables relevance and hides plus');
  const chk=d.querySelector('[data-plus-row="8"]');chk.checked=true;chk.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.deepEqual(rows(),[8],'Live marking must not change frozen-reference relevance');
+ assert.deepEqual(rows(),[],'Live marking hides the current row immediately');
  for(const button of [sales,relevant])for(let i=0;i<4;i++)button.click();
  assert.deepEqual(rows(),[8,9,10,11,12]);
  assert.equal(relevant.getAttribute('aria-pressed'),'false');
