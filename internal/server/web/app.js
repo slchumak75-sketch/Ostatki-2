@@ -81,10 +81,41 @@
     ovColWidths: null,
   };
 
+  let referenceDate='',referenceName='',dialogBusy=false,workRevision=0;
+  function renderSafetyStatus(){
+    const target=el('safetyStatus');if(!target)return;
+    const stamp=state.lastSavedAt ? (/^\d{2}\.\d{2}\.\d{4}/.test(state.lastSavedAt)?state.lastSavedAt:new Date(state.lastSavedAt).toLocaleString('ru-RU')) : 'ещё не сохранено';
+    target.textContent=`Эталон: ${referenceName || 'не загружен'}${referenceDate?' • '+new Date(referenceDate).toLocaleString('ru-RU'):''} | Ведомость: ${state.report?.fileName || 'не загружена'} | Сохранение: ${state.isSavingDb?'запись…':stamp}${state.report && state.hasUnsavedChanges?' • Есть несохранённые изменения':''}`;
+  }
+  function safetyDialog(title,lines,fields='') {
+    if(dialogBusy)return Promise.resolve(false);
+    dialogBusy=true;const box=el('safetyDialog'),before=document.activeElement;
+    el('safetyDialogTitle').textContent=title;el('safetyDialogText').textContent=lines;
+    el('safetyDialogFields').innerHTML=fields;box.classList.remove('hidden');el('safetyDialogNo').focus();
+    return new Promise(resolve=>{
+      const finish=value=>{box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;box.removeEventListener('keydown',key);before?.focus();resolve(value);};
+      const key=e=>{if(e.key==='Escape'){e.stopPropagation();finish(false);}if(e.key==='Tab'){const controls=[...box.querySelectorAll('button,input,select')].filter(x=>!x.disabled);if(e.shiftKey&&document.activeElement===controls[0]){e.preventDefault();controls.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===controls.at(-1)){e.preventDefault();controls[0].focus();}}};
+      box.addEventListener('keydown',key);el('safetyDialogYes').onclick=()=>finish(true);el('safetyDialogNo').onclick=()=>finish(false);
+    });
+  }
+  async function inspectWorkbook(file,fileName){
+    let response;
+    if(file){const form=new FormData();form.append('file',file);response=await fetch('api/workbook/check',{method:'POST',body:form});}
+    else response=await fetch('api/workbook/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fileName})});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'Не удалось проверить ведомость');
+    if(!Number.isFinite(data.items))throw new Error('Сервер не вернул результат проверки');
+    return safetyDialog('Проверка ведомости перед загрузкой',`Файл: ${data.fileName}\nПериод: ${data.first} — ${data.last}\nПозиций: ${data.items}\nСклады: ${(data.warehouses||[]).join(', ')}\nПовторяющихся строк: ${data.duplicates}\nБез положительной цены: ${data.noPrices}\n\nНовая номенклатура при сравнении игнорируется.\nПродолжить загрузку? Текущая ведомость будет заменена.`);
+  }
+  async function downloadSafetyFile(path,name){
+    const res=await fetch(path);if(!res.ok){const data=await res.json();throw new Error(data.error||'Ошибка выгрузки');}
+    const url=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=url;a.download=name;isDownloadingFile=true;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
+  }
   let etalonMarks = {}, etalonLoaded = false;
   function updateEtalon(data) {
     etalonMarks = data.etalonProperties || {};
     etalonLoaded = Boolean(data.etalonLoaded);
+    referenceDate=etalonLoaded?(data.etalonSavedAt || data.savedAt || referenceDate):'';referenceName=etalonLoaded?(data.etalonFileName || data.fileName || referenceName):'';renderSafetyStatus();
     for(const id of ['btnUpload','btnLoadSavedDb'])el(id).disabled=!etalonLoaded;
     if(state.report){refreshExcelTable();renderOverstockView(state.report);}
   }
@@ -820,6 +851,7 @@
     if (el('btnResetOverstockFilters')) el('btnResetOverstockFilters').classList.add('hidden');
     switchTabUI('table');
 
+    renderSafetyStatus();
     if (el('fileMetaLine')) el('fileMetaLine').textContent = 'Ведомость очищена • Нажмите «Загрузить новую ведомость» или «Загрузить сохраненную ведомость»';
     if (el('kpiOrderCost')) el('kpiOrderCost').textContent = '0,00 руб.';
     renderCurrentSupplier();
@@ -1389,6 +1421,7 @@
   }
 
   function renderKPIs(rep) {
+    renderSafetyStatus();
     const firstP = rep.periods[0]?.label || '';
     const lastP = rep.periods[rep.periods.length - 1]?.label || '';
     const savedSuffix = state.savedFileName
@@ -1587,7 +1620,7 @@
       <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
       <td class="sku-cell">${esc(it.sku)}</td>
-      <td class="name-cell">${esc(it.name)}</td>
+      <td class="name-cell">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
       <td class="unit-cell">шт.</td>
       <td class="num-col col-5digits"${surplusTitle}>${fmtInt(surplusVal)}</td>
       <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
@@ -2235,7 +2268,8 @@
       return false;
     }
     if (state.isSavingDb) return false;
-    state.isSavingDb = true;
+    const savingRevision=workRevision,savingEpoch=state.clientEpoch;
+    state.isSavingDb = true;renderSafetyStatus();
     const btnSave = el('btnSaveDb');
     if (btnSave && reason === 'manual') btnSave.disabled = true;
     try {
@@ -2248,9 +2282,10 @@
         ui: collectUIState(),
       }, { unabortable: reason === 'close' });
 
+      if(savingEpoch!==state.clientEpoch)return false;
       state.savedFileName = res.fileName || state.savedFileName;
       state.lastSavedAt = res.savedAt || state.lastSavedAt;
-      state.hasUnsavedChanges = false;
+      state.hasUnsavedChanges = workRevision!==savingRevision || state.clientEpoch!==savingEpoch;
       if (state.report) renderKPIs(state.report);
 
       if (reason === 'manual') {
@@ -2265,7 +2300,7 @@
       }
       return false;
     } finally {
-      state.isSavingDb = false;
+      state.isSavingDb = false;renderSafetyStatus();
       if (btnSave) btnSave.disabled = false;
     }
   }
@@ -2316,6 +2351,7 @@
   async function loadSavedDatabaseByName(fileName) {
     if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     if (!fileName) return;
+    try {if(!await inspectWorkbook(null,fileName))return;}catch(err){showToast(err.message);return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
@@ -2334,6 +2370,7 @@
   async function uploadSavedDatabaseFile(file) {
     if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     if (!file) return;
+    try {if(!await inspectWorkbook(file))return;}catch(err){showToast(err.message);return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
@@ -2405,6 +2442,7 @@
   async function uploadExcelFile(file) {
     if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     if (!file) return;
+    try {if(!await inspectWorkbook(file))return;}catch(err){showToast(err.message);return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     const ctrl = new AbortController();
@@ -2482,6 +2520,32 @@
       } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
       finally {button.disabled=false;}
     });
+    el('btnReferenceHistory').addEventListener('click',async()=>{
+      try {
+        const data=await apiGet('api/etalon/history');if(!data.entries?.length){showToast('История эталонов пока пуста');return;}
+        const preview=await apiGet('api/etalon/preview');
+        const fields=`<label>Версия: <select id="historyChoice">${data.entries.map(e=>`<option value="${esc(e.id)}">${esc(e.savedAt||e.id)} • ${esc(e.source||'источник неизвестен')} • ${e.items} поз.</option>`).join('')}</select></label>`;
+        if(!await safetyDialog('Восстановить предыдущий эталон?','Будет заменён только эталон. Текущая ведомость и рабочие отметки не изменятся. Действующий эталон останется в истории.',fields))return;
+        const result=await apiPost('api/etalon/history',{id:el('historyChoice').value,token:preview.token});updateEtalon(result);exitComparison(true);storageStatus('etalonStorageHint',result.fileName,result.savedAt);showToast('Эталон восстановлен');
+      }catch(err){showToast(err.message);}
+    });
+    el('btnCompareExport').addEventListener('click',async()=>{try{await downloadSafetyFile('api/etalon/compare/export','Сравнение с эталоном.xlsx');}catch(err){showToast(err.message);}});
+    el('btnFullBackup').addEventListener('click',async()=>{try{await syncProperties();await downloadSafetyFile('api/backup/full','Ostatki2-backup.zip');}catch(err){showToast(err.message);}});
+    el('btnFullRestore').addEventListener('click',()=>el('fullRestoreInput').click());
+    el('fullRestoreInput').addEventListener('change',async e=>{
+      const file=e.target.files?.[0];if(!file)return;
+      try {
+        await propertiesQueue.catch(()=>{});
+        const preview=await apiGet('api/etalon/preview');
+        const fields=[['etalon.json','Эталон'],['properties.json','Рабочие отметки'],['settings.json','Параметры расчёта'],['column-widths.json','Ширины столбцов']].map(([id,title])=>`<label style="display:block"><input type="checkbox" data-restore-part="${id}"> ${title}</label>`).join('');
+        if(!await safetyDialog('Восстановление из резервной копии',`Файл: ${file.name}\nВыберите разделы. Выбранные данные будут заменены. Ведомость не входит в этот архив. Перед восстановлением рекомендуется скачать текущую резервную копию.`,fields))return;
+        const selected=[...el('safetyDialogFields').querySelectorAll('input:checked')].map(c=>c.dataset.restorePart);if(!selected.length){showToast('Ни один раздел не выбран');return;}
+        const form=new FormData();form.append('file',file);form.append('selected',JSON.stringify(selected));form.append('token',preview.token);
+        const response=await fetch('api/backup/restore',{method:'POST',body:form});const result=await response.json();if(!response.ok)throw new Error(result.error||'Ошибка восстановления');
+        const props=await apiGet('api/properties');nomenclatureProperties=props.properties||{};nomenclatureRecords=props.nomenclature||{};acknowledgedProperties={...nomenclatureProperties};propertiesRevision++;propertiesDirty=false;updateEtalon(props);
+        const widths=await apiGet('api/column-widths');savedColumnWidths=widths.widths||{};exitComparison();applyEnvelope(await apiGet('api/state'));applyNomenclatureProperties();if(state.report)state.hasUnsavedChanges=true;refreshExcelTable();renderSafetyStatus();showToast('Выбранные разделы восстановлены');
+      }catch(err){showToast(err.message);}finally{e.target.value='';}
+    });
     el('btnBackupEtalon').addEventListener('click',async()=>{
       try {
         if(state.desktopMode) {
@@ -2503,7 +2567,9 @@
       const button=el('btnSaveEtalon');button.disabled=true;
       try {
         await syncProperties();
-        const result=await apiPost('api/etalon/save',{}, {unabortable:true});
+        const preview=await apiGet('api/etalon/preview');
+        if(!await safetyDialog('Заменить действующий эталон?',`Действующий эталон: ${preview.source||'источник неизвестен'} • ${preview.savedAt||'не сохранён'}\nНовый источник: ${preview.newSource}\nПозиций: ${preview.total}\nИзменится галочек: ${preview.marks}\nОстатков: ${preview.stocks}\nРейтингов: ${preview.ratings}\nДобавится новых строк: ${preview.added}\n\nПредыдущий эталон останется в истории (до 10 версий).`))return;
+        const result=await apiPost('api/etalon/save-confirmed',{token:preview.token}, {unabortable:true});
         if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
         updateEtalon(result);
         exitComparison(true);
@@ -2528,6 +2594,7 @@
       const button=el('btnLoadEtalon');button.disabled=true;
       try {
         await syncProperties();
+        if(etalonLoaded && !await safetyDialog('Заменить эталон из файла?',`Текущий эталон: ${referenceName}\nНовый файл: ${file.name}\nРабочие галочки будут применены из загруженного эталона. Предыдущий эталон останется в истории.`))return;
         const form=new FormData();form.append('file',file);
         const res=await fetch('api/etalon/import',{method:'POST',body:form});
         const data=await res.json();if(!res.ok)throw new Error(data.error||'Не удалось загрузить эталон');
@@ -3975,6 +4042,8 @@
       syncSelectedSuppliersToServer();
       if(state.report) {renderSuppliersView(state.report);populateFilterDropdowns(state.report);renderKPIs(state.report);}
     });
+    document.addEventListener('input',()=>{workRevision++;setTimeout(renderSafetyStatus,0);});
+    document.addEventListener('change',()=>{workRevision++;setTimeout(renderSafetyStatus,0);});
     syncExcelHeaders();
   }
 

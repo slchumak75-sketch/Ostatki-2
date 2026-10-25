@@ -31,6 +31,7 @@ type AppServer struct {
 	properties              map[string]bool
 	nomenclature            map[string]model.NomenclatureRecord
 	etalon                  map[string]model.NomenclatureRecord
+	etalonSource            string
 	etalonSavedAt           string
 	etalonStoredAt          string
 	propertiesSavedAt       string
@@ -147,7 +148,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.savedDBPath = ""
 	s.savedDBName = ""
 	s.lastSavedAt = ""
-	s.params = model.DefaultParams()
+	s.params = s.preferredParamsLocked()
 	s.report = forecast.Calculate(s.wb, s.params, s.overrides, excludedRows)
 	return nil
 }
@@ -165,7 +166,9 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 		return nil
 	}
 
-	p := model.DefaultParams()
+	s.mu.RLock()
+	p := s.preferredParamsLocked()
+	s.mu.RUnlock()
 	emptyOverrides := make(map[int]int)
 	rep := forecast.Calculate(wb, p, emptyOverrides, s.orderExclusions(wb))
 
@@ -284,6 +287,13 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/properties/backup", s.handleBackupProperties)
 	mux.HandleFunc("/api/properties/import", s.handleImportProperties)
 	mux.HandleFunc("/api/etalon/backup", s.handleBackupEtalon)
+	mux.HandleFunc("/api/etalon/preview", s.handleReferencePreview)
+	mux.HandleFunc("/api/etalon/history", s.handleReferenceHistory)
+	mux.HandleFunc("/api/etalon/save-confirmed", s.handleSaveEtalon)
+	mux.HandleFunc("/api/etalon/compare/export", s.handleCompareEtalon)
+	mux.HandleFunc("/api/workbook/check", s.handleWorkbookCheck)
+	mux.HandleFunc("/api/backup/full", s.handleFullBackup)
+	mux.HandleFunc("/api/backup/restore", s.handleFullRestore)
 	mux.HandleFunc("/api/etalon/save", s.handleSaveEtalon)
 	mux.HandleFunc("/api/etalon/export", s.handleExportEtalon)
 	mux.HandleFunc("/api/etalon/compare", s.handleCompareEtalon)

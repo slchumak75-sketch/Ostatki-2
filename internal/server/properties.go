@@ -72,6 +72,7 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 				return fmt.Errorf("эталон повреждён: %w", err)
 			}
 			s.etalon = catalog.Nomenclature
+			s.etalonSource = catalog.FileName
 			s.etalonSavedAt = catalog.SavedAt
 			s.etalonStoredAt = catalog.StoredAt
 			if s.etalonStoredAt == "" {

@@ -71,6 +71,15 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
+	if r.URL.Path == "/api/etalon/save-confirmed" {
+		var req struct {
+			Token string `json:"token"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil || req.Token != s.referenceTokenLocked() {
+			writeError(w, 409, "Данные изменились. Подтвердите замену заново.")
+			return
+		}
+	}
 	if s.report == nil || len(s.report.Items) == 0 {
 		writeError(w, 400, "Сначала загрузите ведомость 1С для сохранения текущего эталона")
 		return
@@ -81,7 +90,7 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 	}
 	// Freeze only the currently loaded 1C base. Old checkbox-only records do
 	// not have known ratings/stock and must not become fabricated zero ratings.
-	catalog := model.NomenclatureCatalog{SavedAt: time.Now().Format(time.RFC3339), Version: 2, Properties: map[string]bool{}, Nomenclature: map[string]model.NomenclatureRecord{}}
+	catalog := model.NomenclatureCatalog{FileName: s.report.FileName, SavedAt: time.Now().Format(time.RFC3339), Version: 2, Properties: map[string]bool{}, Nomenclature: map[string]model.NomenclatureRecord{}}
 	// Explicitly saving a new reference captures calculated ratings, never the
 	// previous reference's frozen display overlay.
 	catalog.Nomenclature = referenceRecords(s.report.Items, s.properties)
@@ -123,6 +132,9 @@ func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCat
 	if err != nil {
 		return err
 	}
+	if err := archiveReference(dir); err != nil {
+		return err
+	}
 	path := filepath.Join(dir, "etalon.json")
 	if old, err := os.ReadFile(path); err == nil {
 		if err = writeVerifiedProperties(path+".bak", old); err != nil {
@@ -133,6 +145,8 @@ func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCat
 		return err
 	}
 	s.etalon = catalog.Nomenclature
+	s.etalonSource = catalog.FileName
+	trimReferenceHistory(dir)
 	s.etalonSavedAt = catalog.SavedAt
 	s.etalonStoredAt = catalog.StoredAt
 	return nil
@@ -196,6 +210,9 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 	if err = s.loadPropertiesLocked(filepath.Join(dir, "properties.json")); err != nil {
 		writeError(w, 500, err.Error())
 		return
+	}
+	if catalog.FileName == "" {
+		catalog.FileName = header.Filename
 	}
 	if err = s.commitEtalonLocked(dir, catalog); err != nil {
 		writeError(w, 500, fmt.Sprintf("Не удалось записать эталон: %v", err))
@@ -296,7 +313,7 @@ func (s *AppServer) handleBackupEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Сначала загрузите эталон")
 		return
 	}
-	catalog := model.NomenclatureCatalog{Version: 2, SavedAt: s.etalonSavedAt, StoredAt: s.etalonStoredAt, Properties: etalonProperties(s.etalon), Nomenclature: s.etalon}
+	catalog := model.NomenclatureCatalog{FileName: s.etalonSource, Version: 2, SavedAt: s.etalonSavedAt, StoredAt: s.etalonStoredAt, Properties: etalonProperties(s.etalon), Nomenclature: s.etalon}
 	raw, err := json.MarshalIndent(catalog, "", "  ")
 	name := strings.TrimSuffix(etalonFileName(s.etalonSavedAt), ".xlsx") + ", резервная копия.json"
 	s.mu.Unlock()

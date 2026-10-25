@@ -17,13 +17,15 @@ w.HTMLAnchorElement.prototype.click=function(){downloads.push(this.download);};
 w.fetch=async(path,opts={})=>{
  let body={};if(typeof opts.body==='string')body=JSON.parse(opts.body);calls.push({path,body});
  if(path==='api/properties') {Object.assign(props,body.properties||{});return {ok:true,json:async()=>({properties:props,persisted:true,markedCount:1,directory:'test',nomenclature:{},etalonFileName:'Эталон, 24.10.2026.xlsx'})};}
- if(path==='api/etalon/save')return {ok:true,json:async()=>({fileName:'Эталон, 24.10.2026.xlsx',directory:'test',savedAt:'2026-10-24T10:20:30+03:00'})};
+ if(path==='api/etalon/preview')return {ok:true,json:async()=>({token:'preview',source:'old.xlsx',newSource:'new.xlsx',total:2,marks:1,stocks:1,ratings:0,added:0})};
+ if(path==='api/etalon/save-confirmed')return {ok:true,json:async()=>({fileName:'Эталон, 24.10.2026.xlsx',directory:'test',savedAt:'2026-10-24T10:20:30+03:00'})};
  if(path==='api/etalon/export'||path==='api/properties/export')return {ok:true,headers:{get:()=>"attachment; filename*=UTF-8''"+encodeURIComponent('Эталон, 20.10.2026.xlsx')},blob:async()=>new w.Blob(['xlsx'])};
  if(path==='api/etalon/backup')return {ok:true,blob:async()=>new w.Blob([JSON.stringify({version:2,properties:props,nomenclature:{}})],{type:'application/json'})};
  if(path==='api/etalon/import' && failImport)return {ok:false,json:async()=>({error:'Повреждённый эталон'})};
  if(path==='api/etalon/import')return {ok:true,json:async()=>({properties:props,nomenclature:{},etalonLoaded:true,etalonProperties:{...props}})};
  return {ok:true,json:async()=>({report:{items,params:{},warehouses:[],suppliers:[],groups:[],periods:[],fileName:'1C.xlsx'}})};
 };
+new w.MutationObserver(()=>{const box=d.getElementById('safetyDialog');if(box&&!box.classList.contains('hidden'))d.getElementById('safetyDialogYes').click();}).observe(d.body,{subtree:true,attributes:true,attributeFilter:['class']});
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,60));
 const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(blob);});
@@ -34,7 +36,7 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnToggleAdvanced');
  assert.equal(d.getElementById('btnUpload').disabled,true);
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,true);
- assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,0,'Bootstrap must not save a reference');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Bootstrap must not save a reference');
  const blocked=d.getElementById('fileInput');Object.defineProperty(blocked,'files',{configurable:true,value:[new w.File(['xlsx'],'1C.xlsx')]});
  blocked.dispatchEvent(new w.Event('change'));await tick();
  assert.equal(calls.filter(c=>c.path==='api/upload').length,0,'File event cannot bypass missing reference');
@@ -44,9 +46,9 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,true);failImport=false;
 
  for(const fn of intervals)fn();await tick();
- assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,0,'Autosave must not save a reference');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Autosave must not save a reference');
  d.getElementById('btnSaveEtalon').click();await tick();
- assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Only an explicit click creates a reference');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Only an explicit click creates a reference');
  assert.ok(d.getElementById('etalonStorageHint').textContent.includes('Эталон, 24.10.2026.xlsx'));
  assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,0,'Saving in the program must not download a file');
  assert.match(d.getElementById('etalonStorageHint').textContent,/Эталон, 24.10.2026.xlsx.*24.10.2026.*\d{2}:\d{2}:\d{2}/);
@@ -56,18 +58,18 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  d.getElementById('btnExportEtalon').click();await tick();
  assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,1,'Only the separate export button downloads a snapshot');
  assert.equal(downloads[0],'Эталон, 20.10.2026.xlsx','Download preserves the saved snapshot date from the server');
- assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Export must never save/update the reference');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Export must never save/update the reference');
  d.getElementById('btnBackupEtalon').click();await tick();
  assert.ok(calls.some(c=>c.path==='api/etalon/backup'));
  assert.match(downloads.at(-1),/Эталон.*json$/);
- assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Backup must not save current changes into reference');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Backup must not save current changes into reference');
  const input=d.getElementById('etalonFileInput');
  Object.defineProperty(input,'files',{value:[new w.File(['xlsx'],'Эталон.xlsx')],configurable:true});
  input.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
  assert.ok(calls.some(c=>c.path==='api/etalon/import'));
  assert.equal(d.getElementById('btnUpload').disabled,false);
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,false);
- assert.equal(calls.filter(c=>c.path==='api/etalon/save').length,1,'Loading a reference must not invoke save');
+ assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Loading a reference must not invoke save');
  assert.equal(d.getElementById('etalonFileInput').value,'');
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');
  assert.match(css,/#paramsPanel button\s*\{\s*zoom: 0\.6666666667;/,'New buttons retain the 1.5x size reduction');
