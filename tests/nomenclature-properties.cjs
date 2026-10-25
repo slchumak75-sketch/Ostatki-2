@@ -12,7 +12,7 @@ const env=(name,items)=>({report:{fileName:name,items,warehouses:[],groups:[],su
 let uploaded=env('new.xlsx',[makeItem(55,'A'),makeItem(56,'B'),makeItem(57,'','Без артикула')]);
 let snapshots=0;
 let importedProps=null;
-w.fetch=async(path,options={})=>{
+w.fetch=async(path,options={})=>{if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};
  if(path==='api/properties/import') return {ok:true,json:async()=>({properties:importedProps})};
  if(path==='api/properties') {
   const req=options.body ? JSON.parse(options.body):{};
@@ -24,6 +24,7 @@ w.fetch=async(path,options={})=>{
  return {ok:true,json:async()=>path==='api/upload' ? uploaded : env('old.xlsx',[makeItem(8,'A'),{...makeItem(9,'A'),warehouse:'Другой склад'},makeItem(10,'B'),makeItem(11,'','Без артикула'),makeItem(12,'LEG'),{...makeItem(13,'LEG'),warehouse:'Другой склад'}])};
 };
 w.scrollTo=()=>{};
+new w.MutationObserver(()=>{const box=d.getElementById('safetyDialog');if(box&&!box.classList.contains('hidden'))d.getElementById('safetyDialogYes').click();}).observe(d.body,{subtree:true,attributes:true,attributeFilter:['class']});
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(resolve=>setTimeout(resolve,40));
 const checked=row=>d.querySelector(`[data-plus-row="${row}"]`).checked;

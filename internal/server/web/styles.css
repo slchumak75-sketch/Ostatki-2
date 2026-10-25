@@ -2463,3 +2463,6 @@ body {
 .liquidity-trend h3 { margin:0 0 8px; font-size:16px; }
 
 /* Export remains visible directly below Parameters, outside its hidden panel. */
+
+.comparison-reason {font-size:11px;color:#7a4512;white-space:normal;margin-top:3px;}
+#safetyStatus {padding:4px 12px;white-space:normal;}

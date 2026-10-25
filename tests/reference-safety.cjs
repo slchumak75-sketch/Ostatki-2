@@ -1,0 +1,41 @@
+const {JSDOM}=require('jsdom');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window,d=w.document,calls=[],downloads=[],timers=[];
+let saveWait=null;
+w.scrollTo=()=>{};w.setInterval=(cb,ms)=>{timers.push({cb,ms});return timers.length;};w.URL.createObjectURL=()=> 'blob:safety';w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){downloads.push(this.download);};
+const item={excelRow:8,sku:'001',name:'Товар',warehouse:'Мир',group:'Группа',supplier:'Поставщик',closingStock:10,sumSalesLast12M:5,salesSegment:0,purchasePrice:1,monthlySales:[],finalOrderQty:2};
+const env={report:{items:[item],fileName:'Текущая.xlsx',periods:[],warehouses:[],suppliers:[],groups:[],params:{},totalItems:1},savedFileName:'Сохранена.xlsx',lastSavedAt:'25.10.2026 21:10:15'};
+const reference={etalonLoaded:true,etalonProperties:{},fileName:'Эталон.xlsx',savedAt:'2026-10-25T18:00:00Z'};
+w.fetch=async(path,options={})=>{
+ calls.push({path,options});let data=env;
+ if(path==='api/db/save'){if(saveWait)await saveWait;return {ok:true,json:async()=>({fileName:'Сохранена.xlsx',savedAt:'25.10.2026 21:20:15'})};}
+ if(path==='api/properties')data={properties:{},...reference};
+ if(path==='api/column-widths')data={widths:{}};
+ if(path==='api/etalon/preview')data={token:'revision-1',source:'Старая.xlsx',newSource:'Текущая.xlsx',savedAt:'2026-10-20',total:1,marks:1,stocks:1,ratings:1,added:0};
+ if(path==='api/etalon/save-confirmed'||path==='api/etalon/history'&&options.method==='POST')data=reference;
+ if(path==='api/etalon/history'&&!options.method)data={entries:[{id:'version.json',source:'Старая.xlsx',savedAt:'2026-10-20',items:1}]};
+ if(path==='api/etalon/compare')data={rows:[{excelRow:8,matches:true,currentRating:0,reason:'Остаток вырос: 5 → 10; Рейтинг снизился: 3 → 0'}]};
+ if(path==='api/workbook/check')data={fileName:'Новая.xlsx',items:100,first:'Январь',last:'Декабрь',warehouses:['Мир'],duplicates:2,noPrices:3};
+ return {ok:true,json:async()=>data,blob:async()=>new w.Blob(['file'])};
+};
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
+const tick=()=>new Promise(resolve=>setTimeout(resolve,60));
+const count=path=>calls.filter(x=>x.path===path).length;
+const choose=yes=>d.getElementById(yes?'safetyDialogYes':'safetyDialogNo').click();
+(async()=>{try{
+ await tick();assert.match(d.getElementById('safetyStatus').textContent,/25\.10\.2026 21:10:15/);assert.ok(!d.getElementById('safetyStatus').textContent.includes('Invalid Date'));
+ let resolveSave;saveWait=new Promise(resolve=>{resolveSave=resolve;});timers.find(t=>t.ms===180000).cb();await tick();
+ const search=d.getElementById('inpSearch');search.value='Товар';search.dispatchEvent(new w.Event('input',{bubbles:true}));resolveSave();await tick();saveWait=null;
+ assert.match(d.getElementById('safetyStatus').textContent,/Есть несохранённые изменения/,'Changes arriving during a save must stay dirty');
+ d.getElementById('btnSaveEtalon').click();await tick();assert.equal(count('api/etalon/save-confirmed'),0);assert.match(d.getElementById('safetyDialogText').textContent,/Изменится галочек: 1/);choose(false);await tick();assert.equal(count('api/etalon/save-confirmed'),0);
+ d.getElementById('btnSaveEtalon').click();await tick();choose(true);await tick();assert.equal(count('api/etalon/save-confirmed'),1);assert.equal(JSON.parse(calls.find(x=>x.path==='api/etalon/save-confirmed').options.body).token,'revision-1');
+ d.getElementById('btnReferenceHistory').click();await tick();assert.equal(d.getElementById('historyChoice').value,'version.json');choose(false);await tick();assert.equal(calls.filter(c=>c.path==='api/etalon/history'&&c.options.method==='POST').length,0);
+ d.getElementById('btnReferenceHistory').click();await tick();choose(true);await tick();assert.equal(calls.filter(c=>c.path==='api/etalon/history'&&c.options.method==='POST').length,1);
+ d.getElementById('btnCompareEtalon').click();await tick();assert.match(d.querySelector('.comparison-reason').textContent,/Рейтинг снизился/);
+ d.getElementById('btnCompareExport').click();d.getElementById('btnFullBackup').click();await tick();assert.ok(downloads.includes('Сравнение с эталоном.xlsx'));assert.ok(downloads.includes('Ostatki2-backup.zip'));
+ const input=d.getElementById('fileInput');Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['x'],'Новая.xlsx')]});input.dispatchEvent(new w.Event('change'));await tick();assert.match(d.getElementById('safetyDialogText').textContent,/Без положительной цены: 3/);choose(false);await tick();assert.equal(count('api/upload'),0,'Cancel preflight must keep active report');
+ input.dispatchEvent(new w.Event('change'));await tick();choose(true);await tick();assert.equal(count('api/upload'),1);
+ const restore=d.getElementById('fullRestoreInput');Object.defineProperty(restore,'files',{configurable:true,value:[new w.File(['zip'],'backup.zip')]});restore.dispatchEvent(new w.Event('change'));await tick();assert.equal(d.querySelectorAll('[data-restore-part]:checked').length,0);d.querySelector('[data-restore-part="settings.json"]').checked=true;choose(true);await tick();const req=calls.find(c=>c.path==='api/backup/restore');assert.deepEqual(JSON.parse(req.options.body.get('selected')),['settings.json']);
+ console.log('Reference confirmation/cancel, history, reasons, export, preflight cancel/accept, selective restore and save status passed');
+}finally{w.close();}})().catch(err=>{console.error(err);process.exitCode=1;});
