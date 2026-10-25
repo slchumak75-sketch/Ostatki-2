@@ -136,7 +136,7 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
   `tests/liquidity.cjs` проверяет покрытие, проценты, линии, пустые базы и интеграцию.
 
 ## Excel радара
-- `btnExportRadar` расположен под `btnToggleAdvanced` вне скрытого paramsPanel.
+- `btnExportRadar` расположен внутри скрываемого paramsPanel; на основной панели остаётся только btnToggleAdvanced.
 - `renderOverstockView` сохраняет полные отсортированные ExcelRow в
   `state.overstockExportRows` ДО ограничения overstockLimit. Не собирать выборку из DOM.
 - POST `/api/export/radar` принимает excelRows, берёт только IsOverstock текущего
@@ -145,3 +145,11 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
   автофильтр без итоговой строки, закрепление шапки, сумма OverstockValue внизу.
 - Скачивание через браузер; не подменять эталон/заказы/бюджет и не применять выборку
   checkedSuppliers. Проверки: radar_export_test.go и tests/radar-export.cjs.
+
+## Неизменность сравнения эталона
+- Условие роста остатка использует ref.Checked из сохранённого эталона, НЕ s.properties / state.staryoRows.
+- Клиент использует серверное row.matches: локальные изменения галочек не должны менять состав сравнения.
+- Текущий рейтинг и остаток по-прежнему рассчитываются из текущей ведомости.
+- Регрессия TestComparisonReferenceMarksSurviveCorrectionAndReload проверяет правки рабочих свойств, очистку, повторную загрузку отчёта, рестарт, неизменность etalon.json и результата.
+
+- Excel-заказ GenerateSingleSupplierOrderXLSX: 7 столбцов A:G, продажи SumSalesLast12M в E, ClosingStock в F, FinalOrderQty в G.

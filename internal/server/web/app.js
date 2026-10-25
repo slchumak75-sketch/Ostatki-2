@@ -201,9 +201,8 @@
   function comparisonItem(it) {
     const row=state.comparison?.get(it.excelRow);
     if(!row)return null;
-    const increased=state.staryoRows.has(it.excelRow) && Number(it.closingStock)>row.etalonStock;
-    const dropped=row.etalonRating>0 && row.currentRating===0;
-    return increased || dropped ? {...it,salesSegment:row.currentRating} : null;
+    // The server compares against frozen reference checkmarks, not live properties.
+    return row.matches ? {...it,salesSegment:row.currentRating} : null;
   }
 
   function syncProperties(save = false) {
@@ -1509,7 +1508,7 @@
       return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * mult;
     });
 
-    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Галочка + рост остатка ИЛИ рейтинг 1–5 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
+    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Галочка в эталоне + рост остатка ИЛИ рейтинг 1–5 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
     state.filteredItems = list;
     state.vStart = 0;
     state.vEnd = 0;

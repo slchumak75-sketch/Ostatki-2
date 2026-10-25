@@ -62,10 +62,7 @@
         </button>
         <button class="btn btn-ghost property-filter-active" id="btnSales12" type="button" aria-pressed="true">Продажи 12 мес.</button>
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
-        <div class="radar-export-actions">
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
-          <button class="btn btn-beige btn-xs" id="btnExportRadar" type="button">Выгрузить радар в Excel</button>
-        </div>
       </div>
     </header>
 
@@ -91,6 +88,9 @@
           <span class="field-hint" id="etalonStorageHint">Эталон ещё не сохранён</span>
           <input type="file" id="propertiesFileInput" accept=".xlsx,.json" hidden>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
+        </div>
+        <div class="presets-bar">
+          <button class="btn btn-beige" id="btnExportRadar" type="button">Выгрузить радар в Excel</button>
         </div>
         <div class="params-header">
           <div class="presets-bar">

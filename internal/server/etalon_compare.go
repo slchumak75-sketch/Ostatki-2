@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 	"net/http"
 	"path/filepath"
 )
@@ -17,7 +16,7 @@ type etalonComparisonRow struct {
 }
 
 // Read only. Use the real calculated rating, not the frozen display overlay.
-// Include all matched identities so local checkbox changes can update the selection.
+// Reference membership is frozen too: live checkbox edits must not change comparison.
 func (s *AppServer) handleCompareEtalon(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, 405, "требуется GET")
@@ -46,13 +45,12 @@ func (s *AppServer) handleCompareEtalon(w http.ResponseWriter, r *http.Request) 
 	count := 0
 	lookup := referenceLookup(s.etalon)
 	for _, it := range s.report.Items {
-		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
 		ref, ok := lookup(it)
 		if !ok {
 			continue
 		}
 		row := etalonComparisonRow{ExcelRow: it.ExcelRow, EtalonStock: ref.Stock, EtalonRating: ref.Rating, CurrentRating: it.SalesSegment, StockIncreased: it.ClosingStock > ref.Stock, RatingDropped: ref.Rating > 0 && it.SalesSegment == 0}
-		row.Matches = (s.properties[key] && row.StockIncreased) || row.RatingDropped
+		row.Matches = (ref.Checked && row.StockIncreased) || row.RatingDropped
 		if row.Matches {
 			count++
 		}

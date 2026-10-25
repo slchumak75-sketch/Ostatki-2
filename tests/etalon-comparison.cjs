@@ -6,7 +6,7 @@ w.scrollTo=()=>{};w.setInterval=()=>1;
 const item=(row,stock,rating,sales)=>({excelRow:row,sku:'00'+row,name:'Товар '+row,warehouse:'Склад',group:'Группа',supplier:'Поставщик',closingStock:stock,salesSegment:rating,sumSalesLast12M:sales,monthlySales:[],finalOrderQty:1,purchasePrice:10});
 const items=[item(8,11,4,10),item(9,10,0,0),item(10,11,3,5),item(11,-1,2,0),item(12,10,2,0),item(13,10,4,0),item(14,999,4,0)];
 const props={};for(const row of [8,11,13,14])props[JSON.stringify(['sku','00'+row,'Склад'])]=true;
-const comparison=[{excelRow:8,etalonStock:10,etalonRating:4,currentRating:4},{excelRow:9,etalonStock:20,etalonRating:1,currentRating:0},{excelRow:10,etalonStock:10,etalonRating:3,currentRating:3},{excelRow:11,etalonStock:-2,etalonRating:5,currentRating:0},{excelRow:12,etalonStock:20,etalonRating:2,currentRating:0},{excelRow:13,etalonStock:10,etalonRating:0,currentRating:0}];
+const comparison=[{excelRow:8,etalonStock:10,etalonRating:4,currentRating:4},{excelRow:9,etalonStock:20,etalonRating:1,currentRating:0},{excelRow:10,etalonStock:10,etalonRating:3,currentRating:3},{excelRow:11,etalonStock:-2,etalonRating:5,currentRating:0},{excelRow:12,etalonStock:20,etalonRating:2,currentRating:0},{excelRow:13,etalonStock:10,etalonRating:0,currentRating:0}].map(row=>({...row,matches:[8,9,11,12].includes(row.excelRow)}));
 let deferred=null,fail=false;
 w.fetch=async(path,opts={})=>{
  calls.push(path);
@@ -43,13 +43,13 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
   d.querySelector(`.tab-btn[data-tab="${tab}"]`).click();
   assert.equal(compare.getAttribute('aria-pressed'),'false');assert.ok(d.getElementById('comparisonHint').classList.contains('hidden'));assert.deepEqual(rows(),[10]);
  }
- // A stock-only match disappears when its current mark is removed, even
- // when both ordinary protected filters were explicitly disabled.
+ // A stock-only match must survive live checkbox edits: reference is frozen.
  for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
  assert.equal(d.querySelector('#tableBody tr[data-row="9"] .seg-pill').textContent,'0','Ordinary table displays the same current rating as comparison');
  compare.click();await tick();
  const mark=d.querySelector('[data-plus-row="8"]');mark.checked=false;mark.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
- assert.deepEqual(rows(),[9,11,12]);
+ assert.deepEqual(rows(),[8,9,11,12]);
+ compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12],'Repeated comparison ignores edited live marks');
  d.querySelector('.tab-btn[data-tab="table"]').click();
  const restore=d.querySelector('[data-plus-row="8"]');restore.checked=true;restore.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
  for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click();
