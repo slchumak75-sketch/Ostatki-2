@@ -203,7 +203,7 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['x'],'new.xlsx')]});
  input.dispatchEvent(new w.Event('change'));await tick();
  const restored=[...table.querySelectorAll('colgroup col')].map(col=>parseFloat(col.style.width));
- assert.equal(restored.length,heads.length);
+ assert.equal(restored.length,heads.length-1,'Reload starts with relevance enabled and plus hidden');
  assert.ok(Math.abs(restored.reduce((a,b)=>a+b,0)-100)<0.001,'Restored widths fit viewport');
  assert.ok(Math.abs(restored[1]/restored[0]-2)<0.001);
  console.log('Excel filter interactions passed');w.close();

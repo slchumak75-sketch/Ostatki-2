@@ -42,7 +42,7 @@ async function run(count) {
   scroll.scrollTop=0;scroll.dispatchEvent(new w.Event('scroll'));await tick();
   assert.equal(rows()[0],target,'Explicit sort still uses updated order quantity');
   d.getElementById('btnRelevant').click();
-  assert.ok(rows().includes(target),'Relevance must not hide a newly marked row absent from the reference');
+  assert.ok(!rows().includes(target),'Relevance hides current marks irrespective of reference');
  } finally {w.close();}
 }
 (async()=>{await run(30);await run(600);console.log('Stable checkmark rows and virtual viewport tests passed');})().catch(err=>{console.error(err);process.exitCode=1;});

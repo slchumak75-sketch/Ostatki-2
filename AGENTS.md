@@ -155,7 +155,7 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - Excel-заказ GenerateSingleSupplierOrderXLSX: 7 столбцов A:G, продажи SumSalesLast12M в E, ClosingStock в F, FinalOrderQty в G.
 
 ## Эталон как источник фильтра «Актуально»
-- Фильтр unmarkedOnly использует отдельные etalonMarks, полученные в etalonProperties из API, НЕ текущие рабочие staryoRows. Учитывать это во всех выборках таблицы, радара и меню фильтров.
+- Фильтр unmarkedOnly использует текущие рабочие state.staryoRows, НЕ галочки эталона. Учитывать это во всех выборках таблицы, радара и меню фильтров. Сравнение продолжает использовать серверное row.matches из фиксированного эталона.
 - btnLoadEtalon находится слева от btnToggleAdvanced. btnUpload/btnLoadSavedDb disabled до etalonLoaded, включая bootstrap; все клиентские пути загрузки (включая drag/drop и файлы) проверяют этот флаг. Сохранённый эталон, восстановленный сервером, НЕ разблокирует кнопки: требуется явная загрузка в текущем запуске за текущую дату.
 - Кнопки свойств и btnSaveDb удалены; внутренние рабочие свойства и сохранение при выходе/очистке/автосохранении сохранены. propertiesStorageHint скрыт (используется внутренними операциями).
 - GET /api/etalon/backup — JSON сохранённого эталона, POST — его копия в Загрузки/Эталон; не брать текущие свойства. Восстановление через /api/etalon/import.
@@ -180,3 +180,8 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - /api/etalon/import: файл до 64 MiB, multipart body 65 MiB с накладными расходами, memory threshold 8 MiB и RemoveAll.
 - ParseNomenclatureXLSX: 128 MiB на ZIP entry и 256 MiB суммарно; проверка размера до сложения исключает overflow. Не возвращать лимит 32 MiB: обычный большой эталон в него не помещается.
 - Регрессия nomenclature_size_test.go проверяет старый порог >32 MiB и предельные/переполняющиеся значения.
+
+## Видимость «+» (актуальное правило)
+- state.staryoMode отражает видимость «+»: строго !state.unmarkedOnly. syncPropertyFilters синхронизирует show-plus-col и ширины.
+- Не включать show-plus-col независимо от кнопки «Актуально», в том числе при загрузке базы, восстановлении UI и фильтре по галочкам.
+- Количество colspan и видимые ширины зависят от staryoMode; applyTableColumnWidths адаптирует сохранённые 15/16 значений к наличию «+».
