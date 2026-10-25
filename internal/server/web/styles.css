@@ -2471,3 +2471,13 @@ body {
 #btnUpload.workbook-locked, #btnLoadSavedDb.workbook-locked {background:#f5b9b4;color:#7c1712;border-color:#bd3e35;opacity:1;cursor:not-allowed;}
 #btnUpload.workbook-ready, #btnLoadSavedDb.workbook-ready {background:#bde5c4;color:#164d25;border-color:#438955;opacity:1;}
 #btnUpload.workbook-ready:hover, #btnLoadSavedDb.workbook-ready:hover {background:#a8dcb2;}
+
+/* Keep dropdown actions above Windows taskbar; scroll the list, not off screen. */
+.excel-filter-popover, .supplier-dd-menu {
+  max-height:calc(100vh - 72px);
+  max-height:calc(100dvh - 72px);
+  overflow-y:auto;
+}
+.excel-filter-popover > :not(.ef-options-list) {flex-shrink:0;}
+.ef-options-list, .supplier-dd-list {min-height:0;flex:1 1 auto;overflow-y:auto;}
+.ef-footer {position:sticky;bottom:0;z-index:1;flex-shrink:0;}

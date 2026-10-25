@@ -185,3 +185,5 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - state.staryoMode отражает видимость «+»: строго !state.unmarkedOnly. syncPropertyFilters синхронизирует show-plus-col и ширины.
 - Не включать show-plus-col независимо от кнопки «Актуально», в том числе при загрузке базы, восстановлении UI и фильтре по галочкам.
 - Количество colspan и видимые ширины зависят от staryoMode; applyTableColumnWidths адаптирует сохранённые 15/16 значений к наличию «+».
+
+- fitFloatingMenu ограничивает выпадающие меню по visualViewport с запасом 64 CSS px снизу. Не возвращать фиксированную высоту без ограничения: при раскрытых Параметрах нижние кнопки уходят под taskbar. Регрессия tests/excel-filters.cjs эмулирует низкий якорь и resize.

@@ -20,6 +20,20 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
  const referenceInput=d.getElementById('etalonFileInput');Object.defineProperty(referenceInput,'files',{configurable:true,value:[new w.File(['ref'],'Эталон.xlsx')]});referenceInput.dispatchEvent(new w.Event('change'));await tick();
 for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Default excludes products without 12-month sales');
+ // Expanded Parameters can push anchors down; keep popup actions above taskbar.
+ const pop=d.getElementById('excelFilterPopover'),anchor=d.querySelector('[data-filter-col="supplier"]');
+ const oldAnchorRect=anchor.getBoundingClientRect,oldPopRect=pop.getBoundingClientRect,oldHeight=w.innerHeight;
+ Object.defineProperty(w,'innerHeight',{configurable:true,writable:true,value:640});
+ anchor.getBoundingClientRect=()=>({right:700,bottom:610});
+ pop.getBoundingClientRect=()=>({height:Math.min(480,parseFloat(pop.style.maxHeight)||480),width:350});
+ d.getElementById('paramsPanel').classList.remove('hidden');anchor.click();
+ assert.ok(parseFloat(pop.style.top)+pop.getBoundingClientRect().height<=576,'Popup bottom leaves 64px taskbar clearance');
+ w.innerHeight=480;w.dispatchEvent(new w.Event('resize'));
+ assert.ok(parseFloat(pop.style.top)+pop.getBoundingClientRect().height<=416,'Resize preserves taskbar clearance');
+ assert.equal(parseFloat(pop.style.maxHeight),408);
+ d.getElementById('efBtnCancel').click();
+ d.getElementById('paramsPanel').classList.add('hidden');anchor.getBoundingClientRect=oldAnchorRect;pop.getBoundingClientRect=oldPopRect;w.innerHeight=oldHeight;
+
  assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2']);
  assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
  assert.equal(d.getElementById('chkAllPlus'),null);
