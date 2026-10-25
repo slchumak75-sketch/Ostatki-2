@@ -283,6 +283,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/properties/export", s.handleExportProperties)
 	mux.HandleFunc("/api/properties/backup", s.handleBackupProperties)
 	mux.HandleFunc("/api/properties/import", s.handleImportProperties)
+	mux.HandleFunc("/api/etalon/backup", s.handleBackupEtalon)
 	mux.HandleFunc("/api/etalon/save", s.handleSaveEtalon)
 	mux.HandleFunc("/api/etalon/export", s.handleExportEtalon)
 	mux.HandleFunc("/api/etalon/compare", s.handleCompareEtalon)

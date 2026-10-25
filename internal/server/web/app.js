@@ -81,6 +81,14 @@
     ovColWidths: null,
   };
 
+  let etalonMarks = {}, etalonLoaded = false;
+  function updateEtalon(data) {
+    etalonMarks = data.etalonProperties || {};
+    etalonLoaded = Boolean(data.etalonLoaded);
+    for(const id of ['btnUpload','btnLoadSavedDb'])el(id).disabled=!etalonLoaded;
+    if(state.report){refreshExcelTable();renderOverstockView(state.report);}
+  }
+  function etalonMarked(it) {return Boolean(etalonMarks[propertyKey(it)]);}
   let nomenclatureProperties = {};
   let nomenclatureRecords = {};
   function captureNomenclatureRecords() {
@@ -92,12 +100,6 @@
       if (Object.hasOwn(nomenclatureProperties,key)) record.checked=Boolean(nomenclatureProperties[key]);
     }
     return nomenclatureRecords;
-  }
-  function nomenclatureBackup() {
-    const records=captureNomenclatureRecords();
-    const properties={...nomenclatureProperties};
-    for (const [key,r] of Object.entries(records)) properties[key]=r.checked;
-    return {version:2,properties,nomenclature:records};
   }
   async function downloadNomenclature(path,name) {
     if(state.desktopMode) {
@@ -1198,7 +1200,7 @@
     for (let i = 0; i < rep.items.length; i++) {
       const it = rep.items[i];
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
+      if (state.unmarkedOnly && etalonMarked(it)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
 
       if (it.finalOrderQty > 0) {
@@ -1444,7 +1446,7 @@
       const it = src[i];
       if(state.comparison) {const match=comparisonItem(it);if(match)list.push(match);continue;}
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
+      if (state.unmarkedOnly && etalonMarked(it)) continue;
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
       if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
       if (skuSet.size > 0 && !skuSet.has(String(it.sku || '').trim())) continue;
@@ -2001,7 +2003,7 @@
   function renderOverstockView(rep) {
     if (!rep) return;
     const allOver = rep.items
-      .filter((it) => it.isOverstock && (!state.sales12Only || Number(it.sumSalesLast12M) > 0) && (!state.unmarkedOnly || !state.staryoRows.has(it.excelRow)))
+      .filter((it) => it.isOverstock && (!state.sales12Only || Number(it.sumSalesLast12M) > 0) && (!state.unmarkedOnly || !etalonMarked(it)))
       .sort((a, b) => b.overstockValue - a.overstockValue);
 
     const setSelectOptions = (selectEl, items, defaultLabel, formatter) => {
@@ -2269,6 +2271,7 @@
   }
 
   async function openSavedDbModal() {
+    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     const modal = el('savedDbModal');
     const listEl = el('savedDbList');
     const hintEl = el('savedDbFolderHint');
@@ -2311,6 +2314,7 @@
   }
 
   async function loadSavedDatabaseByName(fileName) {
+    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     if (!fileName) return;
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
@@ -2328,6 +2332,7 @@
   }
 
   async function uploadSavedDatabaseFile(file) {
+    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     if (!file) return;
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
@@ -2398,6 +2403,7 @@
   }
 
   async function uploadExcelFile(file) {
+    if(!etalonLoaded){showToast('Сначала загрузите эталон');return;}
     if (!file) return;
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
@@ -2476,22 +2482,21 @@
       } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
       finally {button.disabled=false;}
     });
-    el('btnBackupProperties').addEventListener('click', async () => {
-      const snapshot=nomenclatureBackup();
-      if(state.desktopMode) {
-        try {
-          await apiPost('api/properties/backup',snapshot,{unabortable:true});
-          showToast('Резервная копия сохранена: Загрузки / Номенклатура');
-          return;
-        } catch(err) {
-          showToast(`Не удалось сохранить в папку Номенклатура: ${err.message}. JSON скачивается через браузер; выберите папку вручную.`);
+    el('btnBackupEtalon').addEventListener('click',async()=>{
+      try {
+        if(state.desktopMode) {
+          try {await apiPost('api/etalon/backup',{}, {unabortable:true});showToast('JSON-копия эталона сохранена: Загрузки / Эталон');return;}
+          catch(err){showToast(`Не удалось сохранить в папку Эталон: ${err.message}. Пробуем скачивание через браузер.`);}
         }
+        const res=await fetch('api/etalon/backup');
+        if(!res.ok){const data=await res.json();throw new Error(data.error||'Не удалось получить эталон');}
+        const url=URL.createObjectURL(await res.blob()),link=document.createElement('a');
+        link.href=url;link.download='Эталон, резервная копия.json';
+        isDownloadingFile=true;document.body.appendChild(link);link.click();link.remove();
+        setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
+        showToast('JSON-копия сохранённого эталона выгружена');
       }
-      const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}));
-      const link = document.createElement('a');link.href=url;link.download='Свойства Номенклатуры, резервная копия.json';
-      document.body.appendChild(link);link.click();link.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),1500);
-      if(!state.desktopMode)showToast('Резервная копия свойств выгружена из памяти. Сохраните скачанный JSON-файл.');
+      catch(err){showToast(`Ошибка резервной копии: ${err.message}`);}
     });
     el('btnSaveEtalon').addEventListener('click', async () => {
       const epoch=state.clientEpoch;
@@ -2500,6 +2505,7 @@
         await syncProperties();
         const result=await apiPost('api/etalon/save',{}, {unabortable:true});
         if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
+        updateEtalon(result);
         exitComparison(true);
         storageStatus('etalonStorageHint',result.fileName,result.savedAt);
         showToast(el('etalonStorageHint').textContent);
@@ -2525,6 +2531,7 @@
         const form=new FormData();form.append('file',file);
         const res=await fetch('api/etalon/import',{method:'POST',body:form});
         const data=await res.json();if(!res.ok)throw new Error(data.error||'Не удалось загрузить эталон');
+        updateEtalon(data);
         nomenclatureProperties=data.properties||{};
         nomenclatureRecords=data.nomenclature||{};
         acknowledgedProperties={...nomenclatureProperties};propertiesRevision+=1;propertiesDirty=false;
@@ -2535,35 +2542,6 @@
         showToast('Эталон загружен в программу. Рейтинг и остаток эталона сохранены; рабочие остатки 1С не изменены.');
       } catch(err) {showToast(`Ошибка загрузки эталона: ${err.message}`);}
       finally {e.target.value='';button.disabled=false;}
-    });
-    el('btnExportProperties').addEventListener('click', async () => {
-      try {
-        await syncProperties();
-        await downloadNomenclature('api/properties/export');
-        showToast(state.desktopMode ? 'Свойства сохранены: Загрузки / Номенклатура' : 'Свойства выгружены.');
-      } catch(err) { showToast(`Ошибка выгрузки свойств: ${err.message}. Для сохранения галочек без связи с сервером нажмите «Резервная копия свойств (JSON)».`); }
-    });
-    el('btnImportProperties').addEventListener('click', () => el('propertiesFileInput').click());
-    el('propertiesFileInput').addEventListener('change', async e => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        await propertiesQueue.catch(() => {});
-        const form = new FormData(); form.append('file',file);
-        const res = await fetch('api/properties/import', {method:'POST',body:form});
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Не удалось прочитать Excel');
-        nomenclatureProperties = data.properties || {};
-        nomenclatureRecords = data.nomenclature || {};
-        propertiesRevision += 1; propertiesDirty = true;
-        await syncProperties();
-        if (data.state?.report) applyEnvelope(data.state);
-        applyNomenclatureProperties();
-        recomputeReportSummaries(state.report);
-        refreshExcelTable();
-        showToast('Свойства номенклатуры загружены');
-      } catch(err) { showToast(`Ошибка загрузки свойств: ${err.message}`); }
-      finally { e.target.value = ''; }
     });
     el('btnExportRadar').addEventListener('click',async()=>{
       const button=el('btnExportRadar');button.disabled=true;
@@ -3463,8 +3441,6 @@
       }
     });
 
-    el('btnSaveProperties').addEventListener('click', () => saveProperties());
-    el('btnSaveDb').addEventListener('click', () => saveDatabase('manual'));
 
     // Обработка отметок галочкой в столбце «+»
     el('tableBody').addEventListener('change', (e) => {
@@ -3874,7 +3850,7 @@
     const counts = new Map();
     for (const it of state.report.items) {
       if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
+      if (state.unmarkedOnly && etalonMarked(it)) continue;
       if (!matchesExcelFilters(it, key)) continue;
       const value = excelValue(it, key);
       counts.set(value, (counts.get(value) || 0) + 1);
@@ -4008,6 +3984,7 @@
     bindEvents();
     try {
       const properties = await apiGet('api/properties');
+      updateEtalon(properties);
       nomenclatureProperties = properties.properties || {};
       nomenclatureRecords = properties.nomenclature || {};
       if (properties.etalonLoaded) storageStatus('etalonStorageHint',properties.etalonFileName,properties.etalonSavedAt);

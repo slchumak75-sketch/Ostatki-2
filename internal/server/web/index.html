@@ -45,14 +45,11 @@
         <form id="staryoExportForm" method="POST" action="api/export/staryo" class="hidden">
           <input type="hidden" name="rows" id="staryoExportRows" value="" />
         </form>
-        <button class="btn btn-beige" id="btnUpload" title="Открыть новый файл Ведомости (.xlsx)">
+        <button class="btn btn-beige" id="btnUpload" disabled title="Открыть новый файл Ведомости (.xlsx)">
           Загрузить новую ведомость
         </button>
-        <button class="btn btn-beige" id="btnLoadSavedDb" type="button" title="Загрузить ранее сохранённую ведомость со всем её текущим состоянием">
+        <button class="btn btn-beige" id="btnLoadSavedDb" disabled type="button" title="Загрузить ранее сохранённую ведомость со всем её текущим состоянием">
           Загрузить сохраненную ведомость
-        </button>
-        <button class="btn btn-beige" id="btnSaveDb" type="button" title="Сохранить текущую ведомость со всем её состоянием (автосохранение каждые 3 мин.)">
-          Сохранить ведомость
         </button>
         <button class="btn btn-beige" id="btnClearDatabase" type="button" title="Очистить загруженную ведомость ведомости">
           Очистить ведомость
@@ -62,6 +59,7 @@
         </button>
         <button class="btn btn-ghost property-filter-active" id="btnSales12" type="button" aria-pressed="true">Продажи 12 мес.</button>
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
+        <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
       </div>
     </header>
@@ -71,22 +69,15 @@
       <!-- Панель параметров сезонного алгоритма Вариант 5 -->
       <section class="params-panel hidden" id="paramsPanel">
         <div id="staryoActions" class="nomenclature-actions">
-          <div class="presets-bar" id="propertiesActions">
-            <button class="btn btn-beige" id="btnExportProperties" type="button">Выгрузить Свойства номенклатуры</button>
-            <button class="btn btn-beige" id="btnImportProperties" type="button">Загрузить свойства Номенклатуры</button>
-            <button type="button" class="btn btn-beige" id="btnSaveProperties">Сохранить свойства номенклатуры</button>
-            <button type="button" class="btn btn-beige" id="btnBackupProperties">Резервная копия свойств (JSON)</button>
-          </div>
-          <span class="field-hint" id="propertiesStorageHint">Свойства ещё не сохранены</span>
+          <span class="field-hint hidden" id="propertiesStorageHint">Свойства ещё не сохранены</span>
           <div class="presets-bar" id="etalonActions">
             <button type="button" class="btn btn-beige" id="btnSaveEtalon" title="Сохранить в программе: зафиксировать текущие рейтинг и остаток без скачивания файла">Сохранить эталон Номенклатуры</button>
-            <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон Номенклатуры</button>
             <button type="button" class="btn btn-beige" id="btnExportEtalon">Выгрузить эталон Номенклатуры (Excel)</button>
             <button type="button" class="btn btn-beige" id="btnCompareEtalon" aria-pressed="false">Сравнить с эталоном</button>
+            <button type="button" class="btn btn-beige" id="btnBackupEtalon">Резервная копия свойств (JSON) для эталона</button>
             <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
           </div>
           <span class="field-hint" id="etalonStorageHint">Эталон ещё не сохранён</span>
-          <input type="file" id="propertiesFileInput" accept=".xlsx,.json" hidden>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
         </div>
         <div class="presets-bar">

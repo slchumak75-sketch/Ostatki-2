@@ -327,8 +327,6 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`Загрузить новую ведомость`,
 		`id="btnLoadSavedDb"`,
 		`Загрузить сохраненную ведомость`,
-		`id="btnSaveDb"`,
-		`Сохранить ведомость`,
 		`id="savedDbModal"`,
 		`id="closeConfirmModal"`,
 		`Сохранить текущую ведомость?`,
@@ -386,9 +384,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 	// Загрузить новую ведомость -> Загрузить сохраненную ведомость -> Сохранить ведомость -> Очистить ведомость
 	uploadIdx := strings.Index(htmlBody, `id="btnUpload"`)
 	loadSavedIdx := strings.Index(htmlBody, `id="btnLoadSavedDb"`)
-	saveDbIdx := strings.Index(htmlBody, `id="btnSaveDb"`)
 	clearIdx := strings.Index(htmlBody, `id="btnClearDatabase"`)
-	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && saveDbIdx > loadSavedIdx && clearIdx > saveDbIdx) {
+	if !(uploadIdx > 0 && loadSavedIdx > uploadIdx && clearIdx > loadSavedIdx) {
 		t.Fatal("unexpected database button order")
 	}
 	for _, removed := range []string{`id="btnDownloadXlsx"`, `id="btnTheme"`, `id="btnPrintOrder"`, `id="btnActiveFilter"`, `id="btnHelp"`, `id="btnDownloadOrders"`, `id="btnCheckZeroRating"`} {
@@ -397,7 +394,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		}
 	}
 	panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
-	for _, id := range []string{"btnSaveProperties"} {
+	for _, id := range []string{"btnBackupEtalon"} {
 		if strings.Index(htmlBody, `id="`+id+`"`) < panelIdx {
 			t.Fatalf("button %s must be inside parameters", id)
 		}

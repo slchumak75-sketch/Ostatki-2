@@ -153,3 +153,9 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - Регрессия TestComparisonReferenceMarksSurviveCorrectionAndReload проверяет правки рабочих свойств, очистку, повторную загрузку отчёта, рестарт, неизменность etalon.json и результата.
 
 - Excel-заказ GenerateSingleSupplierOrderXLSX: 7 столбцов A:G, продажи SumSalesLast12M в E, ClosingStock в F, FinalOrderQty в G.
+
+## Эталон как источник фильтра «Актуально»
+- Фильтр unmarkedOnly использует отдельные etalonMarks, полученные в etalonProperties из API, НЕ текущие рабочие staryoRows. Учитывать это во всех выборках таблицы, радара и меню фильтров.
+- btnLoadEtalon находится слева от btnToggleAdvanced. btnUpload/btnLoadSavedDb disabled до etalonLoaded, включая bootstrap; все клиентские пути загрузки (включая drag/drop и файлы) проверяют этот флаг. Сохранённый эталон, восстановленный сервером, разблокирует кнопки.
+- Кнопки свойств и btnSaveDb удалены; внутренние рабочие свойства и сохранение при выходе/очистке/автосохранении сохранены. propertiesStorageHint скрыт (используется внутренними операциями).
+- GET /api/etalon/backup — JSON сохранённого эталона, POST — его копия в Загрузки/Эталон; не брать текущие свойства. Восстановление через /api/etalon/import.

@@ -107,7 +107,7 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Эталон не активирован: "+err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"fileName": name, "directory": dir, "savedInProgram": true, "savedAt": s.etalonStoredAt, "state": s.buildStateEnvelopeLocked()})
+	writeJSON(w, 200, map[string]any{"fileName": name, "directory": dir, "savedInProgram": true, "savedAt": s.etalonStoredAt, "state": s.buildStateEnvelopeLocked(), "etalonProperties": etalonProperties(s.etalon), "etalonLoaded": len(s.etalon) > 0})
 }
 
 // Only the two explicit reference actions call this function.
@@ -214,7 +214,7 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 		s.epoch.Add(1)
 		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
-	writeJSON(w, 200, map[string]any{"properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "state": s.buildStateEnvelopeLocked(), "imported": len(catalog.Nomenclature), "fileName": etalonFileName(s.etalonSavedAt), "savedAt": s.etalonStoredAt})
+	writeJSON(w, 200, map[string]any{"etalonProperties": etalonProperties(s.etalon), "etalonLoaded": len(s.etalon) > 0, "properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "state": s.buildStateEnvelopeLocked(), "imported": len(catalog.Nomenclature), "fileName": etalonFileName(s.etalonSavedAt), "savedAt": s.etalonStoredAt})
 }
 
 // Export is read-only: even a download must not refresh the saved reference.
@@ -264,4 +264,52 @@ func etalonFileName(savedAt string) string {
 		date = time.Now()
 	}
 	return "Эталон, " + date.Format("02.01.2006") + ".xlsx"
+}
+
+// Reference marks are distinct from mutable working properties.
+func etalonProperties(records map[string]model.NomenclatureRecord) map[string]bool {
+	result := map[string]bool{}
+	for key, record := range records {
+		result[key] = record.Checked
+	}
+	return result
+}
+
+// Download the exact frozen snapshot, never the current working catalog.
+func (s *AppServer) handleBackupEtalon(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeError(w, 405, "требуется GET или POST")
+		return
+	}
+	s.mu.Lock()
+	dir, err := s.propertiesDirLocked()
+	if err == nil {
+		err = s.loadPropertiesLocked(filepath.Join(dir, "properties.json"))
+	}
+	if err != nil {
+		s.mu.Unlock()
+		writeError(w, 500, err.Error())
+		return
+	}
+	if len(s.etalon) == 0 {
+		s.mu.Unlock()
+		writeError(w, 400, "Сначала загрузите эталон")
+		return
+	}
+	catalog := model.NomenclatureCatalog{Version: 2, SavedAt: s.etalonSavedAt, StoredAt: s.etalonStoredAt, Properties: etalonProperties(s.etalon), Nomenclature: s.etalon}
+	raw, err := json.MarshalIndent(catalog, "", "  ")
+	name := strings.TrimSuffix(etalonFileName(s.etalonSavedAt), ".xlsx") + ", резервная копия.json"
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, 500, err.Error())
+		return
+	}
+	if r.Method == http.MethodPost {
+		s.saveExport(w, "Эталон", name, raw)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Disposition", `attachment; filename="Etalon-backup.json"; filename*=UTF-8''`+url.PathEscape(name))
+	_, _ = w.Write(raw)
 }
