@@ -353,12 +353,17 @@
 
     function orderScope() {
       if (!state.report || state.activeTab!=='table' || state.comparison) throw new Error('Откройте обычную ведомость и выберите поставщика и склад');
-      const warehouses=activeWarehouseSet() || new Set(state.report.items.map(it=>it.warehouse||''));
       let suppliers=new Set(state.report.items.map(it=>normalizeSupName(it.supplier)));
       const supplier=el('fltSupplier')?.value;
       if(supplier) suppliers=new Set([...suppliers].filter(s=>s===supplier));
       if(Object.hasOwn(state.colFilters,'supplier'))suppliers=new Set([...suppliers].filter(s=>state.colFilters.supplier.includes(s)));
-      if(warehouses.size!==1 || !suppliers.size || (suppliers.size>1 && !Object.hasOwn(state.colFilters,'supplier') && !supplier))throw new Error('Выберите поставщиков и один склад в фильтрах ведомости');
+      if(!suppliers.size || (suppliers.size>1 && !Object.hasOwn(state.colFilters,'supplier') && !supplier))throw new Error('Выберите поставщиков и один склад в фильтрах ведомости');
+      // The warehouse follows the selection: an explicit single-warehouse filter wins, otherwise
+      // the selected suppliers' own warehouse is used automatically when it is unambiguous.
+      const selectedWarehouses=activeWarehouseSet();
+      if(selectedWarehouses && selectedWarehouses.size!==1)throw new Error('Выберите один склад в фильтрах ведомости');
+      const warehouses=new Set(state.report.items.filter(it=>suppliers.has(normalizeSupName(it.supplier)) && (!selectedWarehouses || selectedWarehouses.has(it.warehouse||''))).map(it=>it.warehouse||''));
+      if(warehouses.size!==1)throw new Error('Выберите поставщиков и один склад в фильтрах ведомости');
       const selected=[...suppliers].sort();
       return selected.length===1 ? {warehouse:[...warehouses][0],supplier:selected[0]} : {warehouse:[...warehouses][0],suppliers:selected};
     }
@@ -1696,7 +1701,7 @@
     el('paginationInfo').textContent =
       `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)} • К закупке: ${fmtInt(orderRows)} SKU / ${fmtInt(orderUnits)} шт. • Сумма закупки: ${fmtMoney(roundedOrderSum)} руб.`;
 
-    const leadColspan = state.staryoMode ? 11 : 10;
+    const leadColspan = state.staryoMode ? 10 : 9;
     if (tfoot) {
       tfoot.innerHTML = `<tr>
         <td colspan="${leadColspan}" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
@@ -1714,10 +1719,6 @@
     const hasAutoOrder = it.autoOrderQty > 0;
     const hasPlus = state.staryoRows.has(it.excelRow);
     const segNum = Number(it.salesSegment) || 0;
-    const surplusVal = Number(it.surplusStock) || 0;
-    const surplusTitle = surplusVal > 0 || it.closingStock > 0
-      ? ` title="Излишний запас: ${fmtInt(surplusVal)} шт. (остаток: ${fmtInt(it.closingStock)} шт., сезонная норма: ${fmtNum(it.targetStock, 2)} шт.)"`
-      : '';
     const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
 
     const rowCls = [
@@ -1738,8 +1739,7 @@
       <td class="sku-cell">${esc(it.sku)}</td>
       <td class="name-cell" data-stock-row="${it.excelRow}" tabindex="0" aria-describedby="warehouseStockPopover">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
       <td class="unit-cell">шт.</td>
-      <td class="num-col col-5digits"${surplusTitle}>${fmtInt(surplusVal)}</td>
-      <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
+            <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
       <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
       <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
       <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
