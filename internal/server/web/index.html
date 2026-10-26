@@ -207,7 +207,7 @@
           </button>
           <button class="tab-btn" data-tab="charts" role="tab">Графики</button>
           <label class="stock-match-control" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="number" min="0" max="100" step="1" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /></label>
-          <button type="button" class="btn btn-beige" id="btnStockSearchMode" aria-pressed="false" title="Показать совпадения на других складах">Другой склад</button>
+          <span class="stock-mode-switch" role="group" aria-label="Режим подсказок номенклатуры"><button type="button" class="btn btn-beige" id="btnStockSearchMode" aria-pressed="false" title="Показать совпадения на других складах">Другой склад</button><button type="button" class="stock-hints-close" id="btnStockHintsOff" title="Отключить подсказки" aria-label="Отключить подсказки" aria-pressed="false">×</button></span>
         </div>
         <div class="tabs-order-summary">
           <div class="current-supplier-card" id="currentSupplierCard"><span id="currentSupplierName">Поставщик не выбран</span><strong id="currentSupplierSum">0,00 руб.</strong></div>

@@ -2485,3 +2485,9 @@ body {
 
 /* Bold history arrows; preserve the existing button height and accessible labels. */
 #btnUndoAction, #btnRedoAction {font-weight:900;font-size:18px;line-height:1;-webkit-text-stroke:0.25px currentColor;}
+
+.stock-mode-switch {display:inline-flex;align-items:center;gap:0;}
+.stock-mode-switch > #btnStockSearchMode {border-radius:6px 0 0 6px;}
+.stock-hints-close {height:27px;width:27px;flex:0 0 27px;padding:0;border:1px solid var(--border-strong);border-radius:0 6px 6px 0;background:#c62828;color:#fff;font-size:19px;font-weight:700;cursor:pointer;}
+.stock-hints-disabled > #btnStockSearchMode {opacity:.6;}
+.stock-hints-disabled > .stock-hints-close {background:#2e7d32;color:#fff;}

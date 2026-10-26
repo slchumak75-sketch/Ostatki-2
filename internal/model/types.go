@@ -255,6 +255,7 @@ type CalculationReport struct {
 // SavedUIState хранит полное состояние пользовательского интерфейса сборки «Вариант 4»
 // для 100%-го восстановления при загрузке сохранённой базы.
 type SavedUIState struct {
+	StockHintsDisabled     bool                `json:"stockHintsDisabled,omitempty"`
 	StockSimilarityPercent *int                `json:"stockSimilarityPercent,omitempty"`
 	StockSearchMode        string              `json:"stockSearchMode,omitempty"`
 	FilledOrderScopes      []string            `json:"filledOrderScopes,omitempty"`
