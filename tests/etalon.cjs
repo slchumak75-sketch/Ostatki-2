@@ -33,7 +33,9 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  await tick();
  for(const id of ['btnSaveEtalon','btnExportEtalon','btnBackupEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
  assert.ok(d.getElementById('etalonFileInput').accept.includes('.json'));
- assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnToggleAdvanced');
+ assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnFillOrder');
+ assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnHighlightOrder');
+ assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
  assert.equal(d.getElementById('btnUpload').disabled,true);
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,true);
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Bootstrap must not save a reference');

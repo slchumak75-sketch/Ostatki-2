@@ -201,7 +201,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("expected 400 Bad Request for unchecked supplier xlsx, got code=%d", rec.Code)
 	}
 
-	// При этом в самой ведомости автозаполнение «Заказ» НЕ обнуляется (а позиции с рейтингом «0» изначально имеют AutoOrderQty=0)
+	// Выбор поставщиков не заполняет пустую по умолчанию ведомость.
 	req = httptest.NewRequest(http.MethodGet, "/api/state", nil)
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -214,8 +214,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &afterCheckState); err != nil || afterCheckState.Report == nil {
 		t.Fatalf("unmarshal state after selected-suppliers failed: %v", err)
 	}
-	if afterCheckState.Report.TotalOrderCost < 4000.0 {
-		t.Fatalf("expected positive table report order cost untouched by supplier check, got %.2f", afterCheckState.Report.TotalOrderCost)
+	if afterCheckState.Report.TotalOrderCost != 0 {
+		t.Fatalf("supplier selection must not fill orders, got %.2f", afterCheckState.Report.TotalOrderCost)
 	}
 	zeroSegRow := 0
 	for _, it := range afterCheckState.Report.Items {

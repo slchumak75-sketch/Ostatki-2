@@ -74,6 +74,16 @@ func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 
 // Calculate выполняет полный расчёт сборки «Вариант 4».
 func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int, excludedRows ...map[int]bool) *model.CalculationReport {
+	return calculate(wb, rawParams, manualOverrides, true, excludedRows...)
+}
+
+// CalculateExplicit retains algorithm recommendations but only writes quantities
+// supplied explicitly. New statements therefore start with an empty order column.
+func CalculateExplicit(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int, excludedRows ...map[int]bool) *model.CalculationReport {
+	return calculate(wb, rawParams, manualOverrides, false, excludedRows...)
+}
+
+func calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOverrides map[int]int, autoFill bool, excludedRows ...map[int]bool) *model.CalculationReport {
 	params := NormalizeParams(rawParams)
 	periods := make([]model.PeriodColumn, len(wb.Periods))
 	copy(periods, wb.Periods)
@@ -360,6 +370,9 @@ func Calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 				autoQty = 0
 			}
 			finalQty := autoQty
+			if !autoFill {
+				finalQty = 0
+			}
 			var overridePtr *int
 			if manualOverrides != nil {
 				if manualVal, ok := manualOverrides[item.ExcelRow]; ok {

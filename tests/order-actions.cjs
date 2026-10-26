@@ -1,0 +1,33 @@
+const {JSDOM}=require('jsdom');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window,d=w.document,calls=[];w.scrollTo=()=>{};w.setInterval=()=>1;
+const make=(excelRow,sku,warehouse,autoOrderQty,finalOrderQty=0,supplier='Поставщик')=>({excelRow,sku,name:'Товар <пример>',warehouse,supplier,group:'Группа',closingStock:3,sumSalesLast12M:10,salesSegment:3,monthlySales:[],autoOrderQty,finalOrderQty,purchasePrice:2,manualOverride:finalOrderQty});
+const items=[make(8,'001','Мир',5),make(9,'002','Мир',0),make(10,'001','Другой',7),make(11,'001','Мир',9,0,'Другой'),make(12,'001','Другой',2),make(13,'999','Другой',1)];
+items[2].closingStock=4;items[4].closingStock=2;items[5].closingStock=99;
+const report={fileName:'Тест.xlsx',items,params:{budgetCap:0},periods:[],warehouses:[],groups:[],suppliers:[]};
+w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if(it.warehouse===req.warehouse&&it.supplier===req.supplier){it.finalOrderQty=it.autoOrderQty;it.manualOverride=null;}}return {ok:true,json:async()=>({report})};};
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__actions={state,refreshExcelTable,collectUIState,applyEnvelope}; bootstrap();'));
+const tick=()=>new Promise(r=>setTimeout(r,70));
+(async()=>{try{
+ await tick();const {state,refreshExcelTable,collectUIState,applyEnvelope}=w.__actions;
+ const fill=d.getElementById('btnFillOrder'),highlight=d.getElementById('btnHighlightOrder');
+ assert.equal(fill.nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnToggleAdvanced');
+ const beforeInvalid=calls.length;fill.click();await tick();assert.equal(calls.length,beforeInvalid,'Ambiguous selection must not call fill endpoint');
+ state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
+ const before=JSON.stringify(items),beforeBudget=d.getElementById('kpiOrderCost').textContent,beforeCalls=calls.length;
+ highlight.click();assert.equal(JSON.stringify(items),before,'Highlight must never write quantities, even when all are blank');assert.equal(calls.length,beforeCalls);assert.equal(d.getElementById('kpiOrderCost').textContent,beforeBudget);
+ assert.equal(d.querySelector('[data-qty-row="8"]').value,'');assert.ok(d.querySelector('[data-qty-row="8"]').classList.contains('order-highlighted'));assert.ok(!d.querySelector('[data-qty-row="9"]').classList.contains('order-highlighted'));assert.deepEqual([...state.highlightedOrderRows],[8]);assert.equal(d.querySelector('#tableBody tr[data-row]').dataset.row,'8');
+ d.querySelector('[data-filter-col="finalOrderQty"]').click();assert.ok(d.querySelector('[data-excel-only="Рекомендовано"]'));d.querySelector('[data-excel-only="Рекомендовано"]').click();assert.deepEqual([...state.filteredItems].map(it=>it.excelRow),[8]);
+ delete state.colFilters.finalOrderQty;refreshExcelTable();
+ const name=d.querySelector('[data-stock-row="8"]');name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const pop=d.getElementById('warehouseStockPopover');assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/Другой/);assert.match(pop.textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('99'));assert.equal(pop.querySelector('пример'),null,'Product names are escaped');d.dispatchEvent(new w.Event('scroll'));assert.ok(pop.classList.contains('hidden'));
+ const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.ok(!qty.classList.contains('order-highlighted'));assert.ok(!qty.classList.contains('is-manual'));assert.ok(!state.highlightedOrderRows.has(8));
+ const star=d.querySelector('[data-qty-row="9"]');star.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));star.value='*';star.dispatchEvent(new w.Event('input',{bubbles:true}));star.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.equal(star.value,'пер');assert.equal(items[1].finalOrderQty,0);assert.ok(state.orderTransferRows.has(9));assert.deepEqual([...collectUIState().orderTransferRows],[9]);
+ highlight.click();const saved=collectUIState();assert.deepEqual([...saved.highlightedOrderRows],[8]);applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.ok(state.highlightedOrderRows.has(8));
+ // Restore explicit scope after the saved-state replay.
+ state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
+ const outside=items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty);
+ fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);const request=calls.find(c=>c.path==='api/orders/fill');assert.deepEqual(JSON.parse(request.options.body),{warehouse:'Мир',supplier:'Поставщик'});
+ const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(!css.includes('.qty-input.is-manual'));
+ console.log('Scoped order actions, blank recommendation highlighting, filters/sorting, manual edit styling, persistence and other-warehouse stock tooltip passed');
+}finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -60,6 +60,8 @@
         <button class="btn btn-ghost property-filter-active" id="btnSales12" type="button" aria-pressed="true">Продажи 12 мес.</button>
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
         <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон</button>
+        <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать заказ</button>
+        <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
       </div>
     </header>
@@ -683,6 +685,7 @@
     </div>
   </div>
 
+  <div id="warehouseStockPopover" class="warehouse-stock-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="ratingChartPopover" class="rating-chart-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="safetyDialog" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="safetyDialogTitle">
  <div class="v4-modal-card v4-modal-confirm">

@@ -79,8 +79,8 @@ func TestMarkedNomenclatureExcludesAutomaticOrders(t *testing.T) {
 		t.Fatal("reset must not autofill marked item")
 	}
 	call("/api/properties", map[string]any{"properties": map[string]bool{key: false}})
-	if it := find(); it.AutoOrderQty <= 0 || it.FinalOrderQty <= 0 {
-		t.Fatal("unmark did not restore calculation")
+	if it := find(); it.AutoOrderQty <= 0 || it.FinalOrderQty != 0 {
+		t.Fatal("unmark must restore recommendation without filling order")
 	}
 	// Previously saved properties apply even when loading before the browser connects.
 	app2 := server.New(false)

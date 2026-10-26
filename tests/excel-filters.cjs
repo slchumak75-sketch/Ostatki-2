@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const dom = new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'), {url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window, d=w.document;
-const item=(row,name,stock)=>({excelRow:row,name,closingStock:stock,sku:String(row),warehouse:'Склад',group:'Группа',supplier:row === 8 ? 'Первый' : 'Второй',sumSalesLast12M:row === 10 ? 0 : 5,salesSegment:row === 8 ? 0 : 5,autoOrderQty:row === 10 ? 0 : (row === 8 ? 2 : 3),finalOrderQty:row === 10 ? 0 : (row === 8 ? 2 : 3),purchasePrice:1,monthlySales:[]});
+const item=(row,name,stock)=>({excelRow:row,name,closingStock:stock,sku:String(row),warehouse:'Склад',group:'Группа',supplier:row === 8 ? 'Первый' : 'Второй',sumSalesLast12M:row === 10 ? 0 : 5,salesSegment:row === 8 ? 0 : 5,autoOrderQty:row === 10 ? 0 : (row === 8 ? 2 : 3),finalOrderQty:row === 10 ? 0 : (row === 8 ? 2 : 3),manualOverride:row === 10 ? 0 : (row === 8 ? 2 : 3),purchasePrice:1,monthlySales:[]});
 const requests=[];
 const heartbeatTimers=[];
 const realInterval=w.setInterval.bind(w);

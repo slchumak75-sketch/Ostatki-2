@@ -1214,11 +1214,11 @@ body.col-resize-active * {
 }
 
 .qty-input.has-order {
-  border-color: var(--primary);
-  color: var(--primary);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
-.qty-input.is-manual {
+.qty-input.order-highlighted {
   border-color: var(--warn);
   background: var(--warn-soft);
 }
@@ -2456,3 +2456,15 @@ body {
 #orderPreviewModal .v4-modal-card {max-width:1000px;width:calc(100vw - 40px);}
 .order-preview-scroll {overflow:auto;min-height:0;}
 .order-preview-scroll th {position:sticky;top:0;background:var(--surface);}
+
+/* Read-only stock hint: uses the full statement, not the filtered viewport. */
+.warehouse-stock-popover {
+  position:fixed;z-index:160;pointer-events:none;
+  width:320px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);
+  overflow:hidden;padding:10px 12px;border:1px solid var(--border-strong);
+  border-radius:8px;background:var(--surface);color:var(--text);
+  box-shadow:0 6px 24px #0002;font-size:12px;
+}
+.warehouse-stock-popover table {width:100%;margin-top:6px;}
+.warehouse-stock-popover td {padding:3px 0;overflow-wrap:anywhere;}
+.warehouse-stock-popover td:last-child {text-align:right;white-space:nowrap;padding-left:12px;}

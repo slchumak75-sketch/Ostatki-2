@@ -233,7 +233,7 @@ func (s *AppServer) handleImportEtalon(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.wb != nil {
 		s.epoch.Add(1)
-		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
+		s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	writeJSON(w, 200, map[string]any{"etalonProperties": etalonProperties(s.etalon), "etalonLoaded": len(s.etalon) > 0, "properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "state": s.buildStateEnvelopeLocked(), "imported": len(catalog.Nomenclature), "fileName": etalonFileName(s.etalonSavedAt), "savedAt": s.etalonStoredAt})
 }

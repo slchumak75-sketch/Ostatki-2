@@ -18,6 +18,7 @@
     clientEpoch: 0,
     report: null,
     rowMap: new Map(),
+    stockByProduct: new Map(),
     canSaveInPlace: false,
     desktopMode: false,
     sourceFileName: '',
@@ -36,6 +37,8 @@
     debounceTimer: null,
     searchDebounceTimer: null,
     pendingOverrides: new Map(),
+    highlightedOrderRows: new Set(),
+    orderTransferRows: new Set(),
     checkedSuppliers: new Set(),
     msFilters: {
       warehouse: new Set(),
@@ -198,7 +201,7 @@
         state.staryoRows.delete(it.excelRow);
         if (it._unmarkedAutoOrderQty !== undefined) {
           it.autoOrderQty = it._unmarkedAutoOrderQty;
-          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = it.autoOrderQty;
+          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = 0;
           delete it._unmarkedAutoOrderQty;
         }
       }
@@ -307,13 +310,23 @@
     activeControllers.clear();
   }
 
+  function stockProductKey(it) {
+    const sku=String(it.sku||'').trim();
+    return sku ? JSON.stringify(['sku',sku]) : JSON.stringify(['name',String(it.group||'').trim(),String(it.name||'').trim()]);
+  }
   function indexReportItems(rep) {
+    hideWarehouseStock();
+    state.stockByProduct.clear();
     state.rowMap.clear();
     if (!rep?.items) return;
     const items = rep.items;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       state.rowMap.set(it.excelRow, it);
+      const product=stockProductKey(it), warehouse=it.warehouse||'';
+      if(!state.stockByProduct.has(product))state.stockByProduct.set(product,new Map());
+      const stocks=state.stockByProduct.get(product);
+      stocks.set(warehouse,(stocks.get(warehouse)||0)+(Number(it.closingStock)||0));
       const rawSku = String(it.sku || '');
       it._skuLC = rawSku.toLowerCase();
       it._startsWithPlus = rawSku.trimStart().startsWith('+');
@@ -780,6 +793,8 @@
     const ratArr = [...state.msFilters.rating];
     const stArr = [...state.msFilters.status];
     return {
+      orderTransferRows: [...state.orderTransferRows],
+      highlightedOrderRows: [...state.highlightedOrderRows],
       colFilters: state.colFilters,
       staryoMode: Boolean(state.staryoMode),
       staryoRows: [...state.staryoRows].sort((a, b) => a - b),
@@ -823,6 +838,8 @@
     exitComparison();
     hideRatingChartPopover();
     captureNomenclatureRecords();
+    hideWarehouseStock();
+    state.stockByProduct.clear();
     state.report = null;
     state.overstockExportRows = [];
     window.LiquidityAnalysis?.update(null);
@@ -844,6 +861,8 @@
     state.ovSortDir = 'desc';
     state.ovColWidths = null;
     state.pendingOverrides.clear();
+    state.highlightedOrderRows.clear();
+    state.orderTransferRows.clear();
     state.checkedSuppliers.clear();
     clearAllMultiSelectFilters();
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
@@ -932,6 +951,8 @@
     const shouldRestoreSaved = Boolean(opts.restoreSaved || (opts.initialBoot && env.savedFileName));
 
     if (opts.freshNewDb) {
+      state.highlightedOrderRows.clear();
+      state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
       state.overstockLimit = 500;
       state.ovSortKey = 'overstockValue';
@@ -961,11 +982,15 @@
       switchTabUI('table');
       syncSelectedSuppliersToServer();
     } else if (shouldRestoreSaved) {
+      state.highlightedOrderRows.clear();
+      state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
       state.pendingOverrides.clear();
       state.checkedSuppliers = new Set((env.selectedSuppliers || []).map(normalizeSupName));
       state.hasUnsavedChanges = false;
     } else if (state.lastLoadedFile !== state.report.fileName) {
+      state.highlightedOrderRows.clear();
+      state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
       state.overstockLimit = 500;
       state.checkedSuppliers.clear();
@@ -988,6 +1013,8 @@
 
     if (shouldRestoreSaved) {
       const ui = env.uiState || {};
+      state.orderTransferRows = new Set((ui.orderTransferRows || []).map(Number).filter(n=>state.rowMap.has(n)));
+      state.highlightedOrderRows = new Set((ui.highlightedOrderRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.staryoMode = !state.unmarkedOnly;
       state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
       state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
@@ -1543,7 +1570,7 @@
 
       if (stSet.size > 0) {
         const matchStatus =
-          (stSet.has('order') && it.finalOrderQty > 0) ||
+          (stSet.has('order') && (it.finalOrderQty > 0 || state.highlightedOrderRows.has(it.excelRow))) ||
           (stSet.has('outliers') && it.outlierMonths > 0) ||
           (stSet.has('overstock') && it.isOverstock) ||
           (stSet.has('zero') && it.closingStock <= 0) ||
@@ -1568,6 +1595,11 @@
         const cb = state.staryoRows.has(b.excelRow) ? 1 : 0;
         if (ca !== cb) return (ca - cb) * mult;
         return a.excelRow - b.excelRow;
+      }
+      if(key==='finalOrderQty' && state.highlightedOrderRows.size){
+        const aOrder=Number(a.finalOrderQty)>0 || state.highlightedOrderRows.has(a.excelRow);
+        const bOrder=Number(b.finalOrderQty)>0 || state.highlightedOrderRows.has(b.excelRow);
+        if(aOrder!==bOrder)return aOrder?-1:1;
       }
       const va = a[key];
       const vb = b[key];
@@ -1647,7 +1679,7 @@
     const qtyCls = [
       'qty-input',
       it.finalOrderQty > 0 ? 'has-order' : '',
-      isManual ? 'is-manual' : '',
+      state.highlightedOrderRows.has(it.excelRow) ? 'order-highlighted' : '',
     ].filter(Boolean).join(' ');
 
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
@@ -1655,7 +1687,7 @@
       <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
       <td class="sku-cell">${esc(it.sku)}</td>
-      <td class="name-cell">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
+      <td class="name-cell" data-stock-row="${it.excelRow}" tabindex="0" aria-describedby="warehouseStockPopover">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
       <td class="unit-cell">шт.</td>
       <td class="num-col col-5digits"${surplusTitle}>${fmtInt(surplusVal)}</td>
       <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
@@ -1664,8 +1696,8 @@
       <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
       <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
         <div class="qty-editor">
-          ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
-          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${Number(it.finalOrderQty)===0?'':fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
+          ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Очистить заказ; рекомендация (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
+          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${state.orderTransferRows.has(it.excelRow)?'пер':Number(it.finalOrderQty)===0?'':fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
         </div>
       </td>
       <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
@@ -1923,6 +1955,24 @@
         ${emptyNotice}
       </svg>
     `;
+  }
+
+  function hideWarehouseStock(){
+    const pop=el('warehouseStockPopover');
+    if(pop){pop.classList.add('hidden');pop.setAttribute('aria-hidden','true');}
+  }
+  function showWarehouseStock(anchor){
+    const it=state.rowMap.get(Number(anchor.dataset.stockRow));
+    if(!it)return;
+    const stocks=state.stockByProduct.get(stockProductKey(it)) || new Map();
+    const others=[...stocks].filter(([warehouse])=>warehouse!==(it.warehouse||''));
+    const pop=el('warehouseStockPopover');
+    pop.innerHTML=`<strong>Остатки на других складах</strong><div>${esc(it.name)}</div>`+
+      (others.length ? `<table>${others.map(([warehouse,qty])=>`<tr><td>${esc(warehouse||'(Склад не указан)')}</td><td>${fmtNum(qty,2)} шт.</td></tr>`).join('')}</table>` : '<p>На других складах номенклатура не найдена</p>');
+    pop.classList.remove('hidden');pop.setAttribute('aria-hidden','false');
+    const rect=anchor.getBoundingClientRect(), width=pop.offsetWidth||320, height=pop.offsetHeight||100;
+    pop.style.left=`${Math.max(8,Math.min(rect.left,window.innerWidth-width-8))}px`;
+    pop.style.top=`${Math.max(8,Math.min(rect.bottom+6,window.innerHeight-height-8))}px`;
   }
 
   function showRatingChartPopover(anchorEl, excelRow) {
@@ -2209,7 +2259,7 @@
               <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
               <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
               <td class="sku-cell">${esc(it.sku)}</td>
-              <td class="name-cell">${esc(it.name)}</td>
+              <td class="name-cell" data-stock-row="${it.excelRow}" tabindex="0" aria-describedby="warehouseStockPopover">${esc(it.name)}</td>
               <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
               <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
               <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
@@ -2805,6 +2855,20 @@
       if (state.report) renderOverstockView(state.report);
     });
 
+    document.addEventListener('mouseover',e=>{
+      const anchor=e.target.closest('[data-stock-row]');
+      if(anchor && !anchor.contains(e.relatedTarget))showWarehouseStock(anchor);
+    });
+    document.addEventListener('mouseout',e=>{
+      const anchor=e.target.closest('[data-stock-row]');
+      if(anchor && !anchor.contains(e.relatedTarget))hideWarehouseStock();
+    });
+    document.addEventListener('focusin',e=>{const anchor=e.target.closest('[data-stock-row]');if(anchor)showWarehouseStock(anchor);});
+    document.addEventListener('focusout',e=>{if(e.target.closest('[data-stock-row]'))hideWarehouseStock();});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')hideWarehouseStock();});
+    document.addEventListener('scroll',hideWarehouseStock,true);
+    window.addEventListener('resize',hideWarehouseStock);
+
     // Всплывающий справа график продаж за 3 года и сортировка по столбцам во вкладке «Радар неликвидов»
     el('overstockContainer').addEventListener('mouseover', (e) => {
       const target = e.target.closest('[data-rating-row]');
@@ -2867,6 +2931,43 @@
           }
         });
       }
+    });
+
+    function orderScope() {
+      if (!state.report || state.activeTab!=='table' || state.comparison) throw new Error('Откройте обычную ведомость и выберите поставщика и склад');
+      const warehouses=activeWarehouseSet() || new Set(state.report.items.map(it=>it.warehouse||''));
+      let suppliers=new Set(state.report.items.map(it=>normalizeSupName(it.supplier)));
+      const supplier=el('fltSupplier')?.value;
+      if(supplier) suppliers=new Set([...suppliers].filter(s=>s===supplier));
+      if(Object.hasOwn(state.colFilters,'supplier'))suppliers=new Set([...suppliers].filter(s=>state.colFilters.supplier.includes(s)));
+      if(warehouses.size!==1 || suppliers.size!==1)throw new Error('Выберите одного поставщика и один склад в фильтрах ведомости');
+      return {warehouse:[...warehouses][0],supplier:[...suppliers][0]};
+    }
+    function highlightOrder(scope) {
+      for(const it of state.report.items){
+        if((it.warehouse||'')!==scope.warehouse || normalizeSupName(it.supplier)!==scope.supplier)continue;
+        if(Number(it.autoOrderQty)>0 && !state.staryoRows.has(it.excelRow) && !state.orderTransferRows.has(it.excelRow))state.highlightedOrderRows.add(it.excelRow);else state.highlightedOrderRows.delete(it.excelRow);
+      }
+      state.sortKey='finalOrderQty';state.sortDir='desc';
+      refreshExcelTable();
+    }
+    el('btnHighlightOrder').addEventListener('click',()=>{
+      try {highlightOrder(orderScope());showToast('Ячейки заказа подсвечены');}catch(err){showToast(err.message);}
+    });
+    el('btnFillOrder').addEventListener('click',async()=>{
+      const button=el('btnFillOrder');
+      try {
+        const scope=orderScope();
+        // A just-blurred quantity may still be in flight. Do not overwrite it.
+        if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
+        button.disabled=true;
+        const epoch=state.clientEpoch;
+        const env=await apiPost('api/orders/fill',scope);
+        if(epoch!==state.clientEpoch)return;
+        for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && normalizeSupName(it.supplier)===scope.supplier && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
+        applyEnvelope(env);highlightOrder(scope);
+        showToast('Заказ рассчитан для выбранного поставщика и склада');
+      }catch(err){showToast(err.message);}finally{button.disabled=false;}
     });
 
     el('btnResetParams').addEventListener('click', async () => {
@@ -3223,7 +3324,7 @@
         const rowNum = Number(resetBtn.dataset.reset);
         const env = await apiPost('api/override', { excelRow: rowNum, clear: true });
         applyEnvelope(env);
-        showToast('Возвращён авторасчёт заказа');
+        showToast('Количество заказа очищено');
         return;
       }
       const tr = e.target.closest('tr[data-row]');
@@ -3305,6 +3406,7 @@
       const it = state.rowMap.get(rowNum) || state.report.items.find((x) => x.excelRow === rowNum);
       if (!it) return;
       const lineSum = calcLineSum(qty, it.purchasePrice);
+      state.highlightedOrderRows.delete(rowNum);
       it.finalOrderQty = qty;
       it.orderCost = lineSum;
 
@@ -3316,6 +3418,7 @@
       }
       const inp = tbody?.querySelector(`input[data-qty-row="${rowNum}"]`);
       if (inp) {
+        inp.classList.remove('order-highlighted');
         inp.classList.toggle('has-order', qty > 0);
       }
 
@@ -3332,17 +3435,18 @@
       inp.dataset.dirty = '0';
       const rowNum = Number(inp.dataset.qtyRow);
       const val = parseQtyInput(inp.value);
-      inp.value = val===0?'':fmtInt(val);
+      inp.value = state.orderTransferRows.has(rowNum)?'пер':val===0?'':fmtInt(val);
       state.selectedExcelRow = rowNum;
       renderCurrentSupplier();
       const useFastSilent = (Number(state.report?.params?.budgetCap) || 0) <= 0;
       if (useFastSilent) {
-        inp.classList.add('is-manual');
+        state.highlightedOrderRows.delete(rowNum);
+        inp.classList.remove('order-highlighted');
         const editor = inp.closest('.qty-editor');
         if (editor && !editor.querySelector('[data-reset]')) {
           const it = state.rowMap.get(rowNum);
           const autoQty = it ? it.autoOrderQty : 0;
-          editor.insertAdjacentHTML('afterbegin', `<button class="reset-cell-btn" data-reset="${rowNum}" title="Вернуть авторасчёт (${fmtInt(autoQty)})">↺</button>`);
+          editor.insertAdjacentHTML('afterbegin', `<button class="reset-cell-btn" data-reset="${rowNum}" title="Очистить заказ; рекомендация (${fmtInt(autoQty)})">↺</button>`);
         }
         await pushOverrideToServer(rowNum, val, true);
         showToast(`Заказ обновлён: ${fmtInt(val)}`);
@@ -3400,6 +3504,7 @@
         inp.value = inp.dataset.origVal ?? (prevQty===0?'':fmtInt(prevQty));
         inp.dataset.freshEdit = '1';
         inp.dataset.dirty = '0';
+        if(inp.value==='пер')state.orderTransferRows.add(rowNum);else state.orderTransferRows.delete(rowNum);
         updateRowSumLive(rowNum, prevQty);
         inp.blur();
         return;
@@ -3415,6 +3520,7 @@
           inp.dataset.freshEdit = '0';
           inp.dataset.dirty = '1';
           const rowNum = Number(inp.dataset.qtyRow);
+          state.orderTransferRows.delete(rowNum);
           state.pendingOverrides.set(rowNum, 0);
           updateRowSumLive(rowNum, 0);
           clearTimeout(liveOverrideTimer);
@@ -3431,7 +3537,10 @@
       inp.dataset.freshEdit = '0';
       inp.dataset.dirty = '1';
       const digits = inp.value.replace(/[^\d]/g, '');
-      const formatted = digits === '' || Number(digits)===0 ? '' : Number(digits).toLocaleString('ru-RU');
+      const transfer=inp.value.includes('*') || inp.value.trim().toLowerCase()==='пер';
+      const row=Number(inp.dataset.qtyRow);
+      if(transfer)state.orderTransferRows.add(row);else state.orderTransferRows.delete(row);
+      const formatted = transfer?'пер':digits === '' || Number(digits)===0 ? '' : Number(digits).toLocaleString('ru-RU');
       if (inp.value !== formatted) inp.value = formatted;
       const rowNum = Number(inp.dataset.qtyRow);
       const val = parseQtyInput(formatted);
@@ -3914,6 +4023,8 @@
   const filterIcon = '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h14L10 8v5l-4 2V8z"/></svg>';
   const caretIcon = '<svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6h10l-5 5z"/></svg>';
   function excelValue(it, key) {
+    if(key==='finalOrderQty' && state.orderTransferRows.has(it.excelRow))return 'пер';
+    if(key==='finalOrderQty' && !Number(it.finalOrderQty) && state.highlightedOrderRows.has(it.excelRow))return 'Рекомендовано';
     if (key === 'plus') return state.staryoRows.has(it.excelRow) ? '✓' : '';
     if (key === 'unit') return 'шт.';
     if (key === 'supplier') return normalizeSupName(it.supplier);
