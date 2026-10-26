@@ -206,7 +206,7 @@
             Радар неликвидов <span class="tab-counter" id="cntTabOverstock">0</span>
           </button>
           <button class="tab-btn" data-tab="charts" role="tab">Графики</button>
-          <label class="stock-match-control" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="number" min="0" max="100" step="1" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /></label>
+          <label class="stock-match-control btn-beige" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="number" min="0" max="100" step="1" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /></label>
           <span class="stock-mode-switch" role="group" aria-label="Режим подсказок номенклатуры"><button type="button" class="btn btn-beige" id="btnStockSearchMode" aria-pressed="false" title="Показать совпадения на других складах">Другой склад</button><button type="button" class="stock-hints-close" id="btnStockHintsOff" title="Отключить подсказки" aria-label="Отключить подсказки" aria-pressed="false">×</button></span>
         </div>
         <div class="tabs-order-summary">
@@ -226,7 +226,7 @@
   <main class="workspace">
     <!-- ВКЛАДКА 1: ОСНОВНАЯ ТАБЛИЦА ВЕДОМОСТИ (заголовки столбцов в режиме Excel «Фильтр») -->
     <section class="tab-view active" id="view-table">
-      <div class="table-container" id="tableScrollContainer">
+      <div class="table-container statement-surface" id="tableScrollContainer">
         <table class="data-table" id="itemsTable">
           <thead>
             <tr>
@@ -326,7 +326,7 @@
 
     <!-- ВКЛАДКА 4: РАДАР НЕЛИКВИДОВ И ЗАМОРОЖЕННОГО КАПИТАЛА -->
     <section class="tab-view" id="view-overstock">
-      <div class="toolbar" id="overstockToolbar">
+      <div class="toolbar analysis-controls" id="overstockToolbar">
         <select id="ovFltWarehouse" aria-label="Выбор склада в радаре неликвидов">
           <option value="">Все склады</option>
         </select>
@@ -356,10 +356,10 @@
 
         <button class="btn btn-ghost btn-sm hidden" id="btnResetOverstockFilters" type="button">Сбросить фильтр</button>
       </div>
-      <div class="card-block" id="overstockContainer"></div>
+      <div class="card-block statement-surface" id="overstockContainer"></div>
     </section>
     <section class="tab-view" id="view-charts">
-      <div class="charts-controls">
+      <div class="charts-controls analysis-controls">
         <label>Вид графика<select id="chartKind">
           <option value="groups">Продажи по товарным группам</option>
           <option value="suppliers">Продажи по поставщикам</option>
@@ -372,7 +372,7 @@
         <label>по<select id="chartTo"></select></label>
       </div>
       <p class="charts-note">Продажи в текущих закупочных ценах: количество × «Цена», не фактическая выручка. Только положительные продажи; возвраты не включены. Все позиции ведомости, независимо от фильтров и бюджета.</p>
-      <div id="chartsContent" class="charts-content" aria-live="polite"></div>
+      <div id="chartsContent" class="charts-content statement-surface" aria-live="polite"></div>
     </section>
   </main>
 

@@ -2,6 +2,9 @@ const {JSDOM}=require('jsdom');
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window,d=w.document;
+for(const id of ['tableScrollContainer','overstockContainer','chartsContent']) assert.ok(d.getElementById(id).classList.contains('statement-surface'),'Statement and analysis tabs share a surface style');
+for(const selector of ['#overstockToolbar','.charts-controls']) assert.ok(d.querySelector(selector).classList.contains('analysis-controls'));
+
 w.eval(fs.readFileSync('internal/server/web/charts.js','utf8'));
 const periods=[1,2,3].map(month=>({year:2026,month,label:`Месяц ${month}`}));
 const item=(row,wh,group,sup,price,sales)=>({excelRow:row,warehouse:wh,group,supplier:sup,purchasePrice:price,monthlySales:sales,sku:String(row),name:'Товар',salesSegment:0,sumSalesLast12M:0,closingStock:1,finalOrderQty:0});
@@ -20,7 +23,7 @@ change('chartWarehouse','B');assert.match(d.getElementById('chartsContent').text
 change('chartFrom','1');change('chartTo','1');assert.match(d.getElementById('chartsContent').textContent,/нет положительных продаж/);
 change('chartWarehouse','');change('chartFrom','0');change('chartTo','2');
 for(const kind of ['groups','suppliers','supplierShares','groupShares','monthly']){
- change('chartKind',kind);assert.ok(d.querySelector('#chartsContent svg'));
+ change('chartKind',kind);assert.ok(d.querySelector('#chartsContent svg'));assert.ok(d.querySelector('#chartsContent .chart-values.data-table'),'Exact chart values use statement table styling');
  assert.match(d.getElementById('chartsContent').textContent,/130,00/);
  if(kind.endsWith('Shares'))assert.match(d.getElementById('chartsContent').textContent,/%/);
 }
