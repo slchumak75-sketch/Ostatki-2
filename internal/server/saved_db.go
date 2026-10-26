@@ -456,6 +456,7 @@ func (s *AppServer) restoreSavedDatabaseBytes(raw []byte, displayName string, di
 	if s.epoch.Load() != startEpoch {
 		return nil
 	}
+	s.historyWorkbookID.Add(1)
 	s.wb = wb
 	s.rawXLSX = raw
 	s.params = params

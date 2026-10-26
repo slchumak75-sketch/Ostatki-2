@@ -137,6 +137,7 @@
   function approveReferenceLoad(){referenceApprovedDay=localCalendarDay();syncWorkbookGate();}
   let etalonLoaded = false;
   function updateEtalon(data) {
+    resetActionHistory();
     etalonLoaded = Boolean(data.etalonLoaded);
     referenceDate=etalonLoaded?(data.etalonSavedAt || data.savedAt || referenceDate):'';referenceName=etalonLoaded?(data.etalonFileName || data.fileName || referenceName):'';renderSafetyStatus();
     syncWorkbookGate();
@@ -690,6 +691,7 @@
   }
 
   async function apiPost(path, body, opts = {}) {
+    historyRequests++;updateActionHistoryButtons();
     const ctrl = new AbortController();
     if (!opts.unabortable) activeControllers.add(ctrl);
     try {
@@ -705,6 +707,7 @@
       return data;
     } finally {
       activeControllers.delete(ctrl);
+      historyRequests--;scheduleActionHistory();
     }
   }
 
@@ -961,6 +964,7 @@
   }
 
   function applyEnvelope(env, opts = {}) {
+    if(env.historyWorkbookId!==undefined && state.historyWorkbookId!==env.historyWorkbookId){state.historyWorkbookId=env.historyWorkbookId;resetActionHistory();}
  captureNomenclatureRecords();
     if (!env) return;
     if(opts.freshNewDb || opts.restoreSaved || !env.report || (state.report && state.report.fileName!==env.report.fileName))exitComparison();
@@ -2682,9 +2686,10 @@
       el(id).addEventListener('click', () => {
         if(state[field] && ++filterClicks[field]<4)return;
         filterClicks[field]=0;
+        const anchor=id==='btnRelevant'?captureTableAnchor():null;
         state[field] = !state[field];
         syncPropertyFilters();
-        refreshExcelTable();
+        refreshExcelTable(anchor);
         if (state.report) renderOverstockView(state.report);
       });
     }
@@ -4127,12 +4132,18 @@
     syncExcelHeaders();
     anchor?.focus({preventScroll:true});
   }
-  function refreshExcelTable() {
+  function captureTableAnchor(){
+    const scroll=el('tableScrollContainer').scrollTop,index=Math.min(state.filteredItems.length-1,Math.floor(scroll/VIRTUAL_ROW_HEIGHT));
+    return {row:state.filteredItems[index]?.excelRow,index:Math.max(0,index),offset:scroll%VIRTUAL_ROW_HEIGHT};
+  }
+  function refreshExcelTable(anchor=null) {
     state.hasUnsavedChanges = true;
     recomputeFilteredList();
     if (state.report) { renderKPIs(state.report); populateFilterDropdowns(state.report); }
     renderTable();
-    el('tableScrollContainer').scrollTop = 0;
+    const index=anchor?state.filteredItems.findIndex(it=>it.excelRow===anchor.row):-1;
+    el('tableScrollContainer').scrollTop=anchor?(Math.max(0,index<0?Math.min(anchor.index,state.filteredItems.length-1):index)*VIRTUAL_ROW_HEIGHT+anchor.offset):0;
+    if(anchor && state.filteredItems.length>VIRTUAL_THRESHOLD)renderTableBodyWindow(true);
   }
   function excelMatches() {
     const q = el('efSearchInput').value.trim().toLocaleLowerCase('ru');
@@ -4298,10 +4309,90 @@
     syncExcelHeaders();
   }
 
+  let historyEntries=[],historyIndex=-1,historyApplying=false,historyTimer=null,historyRequests=0,historyStarted=false,historyRecording=false,historyRevision=0;
+  function updateActionHistoryButtons(){
+    const busy=historyApplying||historyRecording||historyRequests>0||Boolean(historyTimer)||state.pendingOverrides.size>0||propertiesDirty;
+    if(el('btnUndoAction'))el('btnUndoAction').disabled=busy||historyIndex<=0;
+    if(el('btnRedoAction'))el('btnRedoAction').disabled=busy||historyIndex>=historyEntries.length-1;
+  }
+  function resetActionHistory(){historyEntries=[];historyIndex=-1;if(historyStarted)scheduleActionHistory();}
+  function historyView(){
+    return {ui:collectUIState(),sales12Only:state.sales12Only,unmarkedOnly:state.unmarkedOnly,comparison:state.comparison?[...state.comparison]:null,
+      charts:Object.fromEntries([...document.querySelectorAll('#view-charts select,#view-charts input')].filter(input=>input.id).map(input=>[input.id,input.value]))};
+  }
+  function historyKey(entry){const view=JSON.parse(JSON.stringify(entry.view));delete view.ui.scrollY;delete view.ui.selectedExcelRow;delete view.ui.tableColWidths;delete view.ui.suppliersColWidths;delete view.ui.ovColWidths;return JSON.stringify({data:entry.data,view});}
+  function scheduleActionHistory(){
+    if(!historyStarted||historyApplying)return;historyRevision++;clearTimeout(historyTimer);historyTimer=setTimeout(recordActionHistory,400);updateActionHistoryButtons();
+  }
+  async function recordActionHistory(){
+    historyTimer=null;
+    if(historyApplying||historyRecording)return;
+    if(historyRequests||state.pendingOverrides.size||propertiesDirty){scheduleActionHistory();return;}
+    if(!state.report){historyEntries=[];historyIndex=-1;updateActionHistoryButtons();return;}
+    historyRecording=true;updateActionHistoryButtons();const revision=historyRevision,epoch=state.clientEpoch;
+    try{
+      const data=await apiGet('api/action-history');
+      if(revision!==historyRevision||epoch!==state.clientEpoch){scheduleActionHistory();return;}
+      const entry={data,view:historyView()},key=historyKey(entry);entry.key=key;
+      if(historyEntries[historyIndex]?.key===key)return;
+      if(historyEntries.length && historyEntries[historyIndex].data.workbookId!==data.workbookId){historyEntries=[];historyIndex=-1;}
+      historyEntries=historyEntries.slice(0,historyIndex+1);historyEntries.push(entry);historyIndex++;
+      while(historyEntries.length>30 || (historyEntries.length>1 && historyEntries.reduce((sum,item)=>sum+item.key.length,0)>12*1024*1024)){historyEntries.shift();historyIndex--;}
+    }catch(err){/* A failed history read must never prevent ordinary work. */}
+    finally{historyRecording=false;updateActionHistoryButtons();}
+  }
+  function applyHistoryView(view){
+    const ui=view.ui;
+    state.sales12Only=view.sales12Only;state.unmarkedOnly=view.unmarkedOnly;
+    state.sortKey=ui.sortKey;state.sortDir=ui.sortDir;state.selectedExcelRow=ui.selectedExcelRow;
+    state.colFilters=JSON.parse(JSON.stringify(ui.colFilters||{}));
+    for(const [field,key] of [['warehouse','fltWarehouses'],['group','fltGroups'],['sku','fltSkus'],['nomenclature','fltNomenclatures'],['plus','fltPlus'],['rating','fltRatings'],['status','fltStatuses']])state.msFilters[field]=new Set(ui[key]||[]);
+    for(const [id,key] of [['fltSupplier','fltSupplier'],['inpSearch','searchName'],['inpSupplierFilter','fltSupplierSearch'],['ovFltWarehouse','ovFltWarehouse'],['ovFltName','ovFltName'],['ovFltRating','ovFltRating'],['ovFltSupplier','ovFltSupplier'],['ovInpSearch','ovSearch']])if(el(id))el(id).value=ui[key]||'';
+    state.ovSortKey=ui.ovSortKey;state.ovSortDir=ui.ovSortDir;state.overstockLimit=ui.overstockLimit;
+    state.filledOrderScopes=new Set(ui.filledOrderScopes||[]);state.orderTransferRows=new Set(ui.orderTransferRows||[]);state.highlightedOrderRows=new Set(ui.highlightedOrderRows||[]);
+    state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';
+    state.comparison=view.comparison?new Map(view.comparison):null;
+    syncPropertyFilters();switchTabUI(ui.activeTab||'table');
+    el('paramsBody').classList.toggle('hidden',!ui.paramsExpanded);el('paramsPanel').classList.toggle('hidden',!ui.paramsExpanded);el('btnToggleAdvanced').textContent=ui.paramsExpanded?'Параметры ▾':'Параметры ▸';el('btnToggleAdvanced').setAttribute('aria-expanded',String(ui.paramsExpanded));
+    document.querySelectorAll('.preset-chip').forEach(button=>button.classList.toggle('active',button.dataset.preset===ui.activePreset));
+    populateFilterDropdowns(state.report);el('fltSupplier').value=ui.fltSupplier||'';recomputeFilteredList();renderKPIs(state.report);renderTable();renderSuppliersView(state.report);renderOverstockView(state.report);
+    for(const [id,key] of [['ovFltWarehouse','ovFltWarehouse'],['ovFltName','ovFltName'],['ovFltRating','ovFltRating'],['ovFltSupplier','ovFltSupplier'],['ovInpSearch','ovSearch']])el(id).value=ui[key]||'';
+    renderOverstockView(state.report);
+    for(const [id,value] of Object.entries(view.charts||{}))if(el(id))el(id).value=value;
+    window.SalesCharts?.update(state.report);
+    el('tableScrollContainer').scrollTop=ui.scrollY||0;if(state.filteredItems.length>VIRTUAL_THRESHOLD)renderTableBodyWindow(true);
+    state.hasUnsavedChanges=true;
+  }
+  async function replayActionHistory(direction){
+    if(historyApplying||historyRequests||historyRecording||historyTimer||state.pendingOverrides.size||propertiesDirty)return;
+    const targetIndex=historyIndex+direction,target=historyEntries[targetIndex];if(!target)return;
+    historyApplying=true;updateActionHistoryButtons();
+    try{
+      if(JSON.stringify(target.data)!==JSON.stringify(historyEntries[historyIndex].data)){
+        const result=await apiPost('api/action-history',target.data);
+        nomenclatureProperties=result.properties||{};acknowledgedProperties={...nomenclatureProperties};nomenclatureRecords=result.nomenclature||{};propertiesRevision++;propertiesDirty=false;retiredGlobalPropertyKeys.clear();
+        state.checkedSuppliers=new Set(target.data.suppliers||[]);applyEnvelope(result.state);
+      }
+      applyHistoryView(target.view);historyIndex=targetIndex;showToast(direction<0?'Действие отменено':'Действие повторено');
+    }catch(err){showToast(err.message);}
+    finally{historyApplying=false;updateActionHistoryButtons();}
+  }
+  function initActionHistory(){
+    historyStarted=true;
+    el('btnUndoAction').addEventListener('click',()=>replayActionHistory(-1));el('btnRedoAction').addEventListener('click',()=>replayActionHistory(1));
+    for(const type of ['click','input','change'])document.addEventListener(type,event=>{
+      if(event.target.closest('#btnUndoAction,#btnRedoAction,.toolbar-layout-menu,.toolbar-edit-layer'))return;
+      scheduleActionHistory();
+    },true);
+    document.addEventListener('scroll',event=>{if(event.target===el('tableScrollContainer')&&!historyApplying&&!historyTimer&&historyEntries[historyIndex])historyEntries[historyIndex].view.ui.scrollY=event.target.scrollTop;},true);
+    scheduleActionHistory();
+  }
+
   async function bootstrap() {
     el('itemsTable').style.setProperty('--item-row-height', `${VIRTUAL_ROW_HEIGHT}px`);
     initColumnResizers();
     bindEvents();
+    initActionHistory();
     window.addEventListener('resize',repositionFloatingMenus,{passive:true});
     window.visualViewport?.addEventListener('resize',repositionFloatingMenus,{passive:true});
     window.visualViewport?.addEventListener('scroll',repositionFloatingMenus,{passive:true});
@@ -4321,7 +4412,7 @@
       savedColumnWidths = fields.widths || {};
       const env = await apiGet('api/state');
       applyEnvelope(env, { initialBoot: true });
-      if (state.report) syncProperties().catch(err => showToast(err.message));
+      if (state.report) {await syncProperties().catch(err=>showToast(err.message));clearTimeout(historyTimer);await recordActionHistory();}
     } catch (err) {
       el('fileMetaLine').textContent = 'Откройте или перетащите файл Ведомости (.xlsx) для начала работы';
       showToast(err.message);

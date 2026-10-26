@@ -144,6 +144,7 @@ func (s *AppServer) commitEtalonLocked(dir string, catalog model.NomenclatureCat
 	if err = writeVerifiedProperties(path, raw); err != nil {
 		return err
 	}
+	s.historyWorkbookID.Add(1)
 	s.etalon = catalog.Nomenclature
 	s.etalonSource = catalog.FileName
 	trimReferenceHistory(dir)
