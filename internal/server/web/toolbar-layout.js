@@ -2,13 +2,17 @@
   const panel=document.querySelector('.topbar-actions');
   if(!panel)return;
   const params=document.getElementById('paramsPanel');
-  const allButtons=[...panel.querySelectorAll(':scope > button'),...(params?.querySelectorAll('button')||[])];
+  const tabs=document.querySelector('.tabs-bar-left');
+  const tabUnits=[...(tabs?.children||[])];
+  for(const unit of tabUnits)if(!unit.id)unit.id=unit.dataset.tab?`btnTab_${unit.dataset.tab}`:unit.classList.contains('stock-mode-switch')?'btnStockModeControl':'btnStockMatchControl';
+  const allButtons=[...panel.querySelectorAll(':scope > button'),...(params?.querySelectorAll('button')||[]),...tabUnits];
   for(const button of allButtons)if(!button.id)button.id=`btnPreset_${button.dataset.preset}`;
   const groups=new Map([['topbar',panel]]);
-  for(const button of allButtons)if(button.parentElement!==panel && ![...groups.values()].includes(button.parentElement))groups.set(`params-${groups.size}`,button.parentElement);
+  for(const button of allButtons)if(button.parentElement!==panel && button.parentElement!==tabs && ![...groups.values()].includes(button.parentElement))groups.set(`params-${groups.size}`,button.parentElement);
+  if(tabs)groups.set('statement',tabs);
   const initialParent=new Map(allButtons.map(button=>[button.id,button.parentElement]));
   const buttons=()=>[...groups.values()].flatMap(group=>[...group.children].filter(node=>allButtons.includes(node)));
-  const hosts=[panel,...(params?[params]:[])];
+  const hosts=[panel,...(params?[params]:[]),...(tabs?[tabs]:[])];
   const menu=document.createElement('div');menu.className='toolbar-layout-menu hidden';menu.setAttribute('role','menu');
   const toggle=document.createElement('button');toggle.type='button';toggle.className='btn btn-beige';toggle.setAttribute('role','menuitem');menu.append(toggle);document.body.append(menu);
   const layer=document.createElement('div');layer.className='toolbar-edit-layer hidden';document.body.append(layer);
@@ -46,7 +50,7 @@
     if(!gesture)return;e.preventDefault();
     if(gesture.resize){gesture.button.style.width=`${clampWidth(gesture.width+e.clientX-gesture.x)}px`;gesture.button.classList.add('toolbar-custom-width');}
     else{
-      const target=buttons().find(b=>{if(b===gesture.button || (panel.contains(b)!==panel.contains(gesture.button)))return false;const r=b.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;});
+      const target=buttons().find(b=>{if(b===gesture.button || (tabs?.contains(b)!==tabs?.contains(gesture.button)) || (panel.contains(b)!==panel.contains(gesture.button)))return false;const r=b.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;});
       if(target){const rect=target.getBoundingClientRect();target.parentElement.insertBefore(gesture.button,e.clientX<rect.left+rect.width/2?target:target.nextSibling);}
     }
     overlays();

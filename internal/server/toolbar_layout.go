@@ -39,7 +39,7 @@ func (s *AppServer) handleToolbarLayout(w http.ResponseWriter, r *http.Request) 
 		}
 		grouped := map[string]bool{}
 		for key, ids := range req.Groups {
-			if (key != "topbar" && !strings.HasPrefix(key, "params-")) || len(key) > 50 || len(ids) > 128 {
+			if (key != "topbar" && key != "statement" && !strings.HasPrefix(key, "params-")) || len(key) > 50 || len(ids) > 128 {
 				writeError(w, 400, "неверная группа кнопок")
 				return
 			}

@@ -1515,7 +1515,7 @@
       const isChecked = isSupplierChecked(s.supplier);
       const isActive = activeSup === s.supplier;
       return `<div class="supplier-dd-row ${isActive ? 'active-filter' : ''}">
-        <input type="checkbox" class="supplier-dd-check" data-sup-check="${esc(s.supplier)}" ${isChecked ? 'checked' : ''} title="Включить заказы поставщика в Бюджет закупки, статус «Готов к отправке» и выгрузку Excel" />
+        <input type="checkbox" class="supplier-dd-check" data-sup-check="${esc(s.supplier)}" ${isChecked ? 'checked' : ''} title="Включить заказы поставщика в статус «Готов к отправке» и выгрузку Excel" />
         <button type="button" class="supplier-dd-item-btn" data-sup-select="${esc(s.supplier)}" title="Фильтр таблицы по поставщику: ${esc(s.supplier)}">
           ${esc(s.supplier)}
         </button>
@@ -1537,12 +1537,12 @@
     el('fileMetaLine').textContent =
       `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)${savedSuffix}`;
 
-    // Бюджет зависит от активного склада и галочек поставщиков, не от прочих фильтров.
+    // Бюджет — заказы всех поставщиков выбранного склада, независимо от галочек и прочих фильтров.
     const sourceItems = rep.items || [];
 
     let checkedBudget = 0;
     for (const it of sourceItems) {
-      if (!warehouseIsActive(it.warehouse) || !isSupplierChecked(it.supplier)) continue;
+      if (!warehouseIsActive(it.warehouse)) continue;
       checkedBudget += calcLineSum(it.finalOrderQty, it.purchasePrice);
     }
     checkedBudget = Math.round(checkedBudget * 100) / 100;
@@ -2426,14 +2426,17 @@
     };
   }
 
+  let paramsInFlight=Promise.resolve(),paramsRevision=0;
   function scheduleRecalculate() {
     if (isClearingDatabase || !state.report) return;
     clearTimeout(state.debounceTimer);
-    const reqEpoch = state.clientEpoch;
+    state.filledOrderScopes.clear();renderOrderActionButtons();
+    const reqEpoch = state.clientEpoch,revision=++paramsRevision,requestedParams=collectParamsFromUI();
     state.debounceTimer = setTimeout(async () => {
       try {
-        const env = await apiPost('api/params', collectParamsFromUI());
-        if (reqEpoch !== state.clientEpoch) return;
+        paramsInFlight=paramsInFlight.catch(()=>{}).then(()=>apiPost('api/params', requestedParams));
+        const env = await paramsInFlight.catch(()=>{});
+        if (reqEpoch !== state.clientEpoch || revision!==paramsRevision) return;
         applyEnvelope(env);
       } catch (err) {
         if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
@@ -3079,7 +3082,11 @@
         button.disabled=true;
         const epoch=state.clientEpoch;
         const keys=orderScopeKeys(scope),cancel=keys.every(key=>state.filledOrderScopes.has(key));
-        const env=await apiPost('api/orders/fill',{...scope,cancel});
+        clearTimeout(state.debounceTimer);paramsRevision++;
+        const params=collectParamsFromUI();
+        await paramsInFlight.catch(()=>{});
+        if(epoch!==state.clientEpoch)return;
+        const env=await apiPost('api/orders/fill',{...scope,cancel,params});
         if(epoch!==state.clientEpoch)return;
         for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier)) && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
         for(const key of keys){if(cancel)state.filledOrderScopes.delete(key);else state.filledOrderScopes.add(key);}
@@ -4194,7 +4201,7 @@
     el('efSelectAllChk').indeterminate = selected > 0 && selected < matches.length;
     el('efSelectAllLabel').textContent = el('efSearchInput').value ? '(Выделить найденные)' : '(Выделить все)';
     const rows = matches.slice(0, excelMenu.limit);
-    el('efOptionsList').innerHTML = supplierMode ? rows.map(o => `<div class="ef-opt-row"><input type="checkbox" class="supplier-dd-check" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''} aria-label="Показать в таблице: ${esc(o.label)}" title="Показать поставщика в таблице"><button type="button" class="ef-supplier-name" data-supplier-current="${esc(o.value)}" title="Показать только этого поставщика">${esc(o.label)}</button><span class="ef-supplier-sum">${fmtMoney(supplierOrderSum(o.value))} р.</span><input type="checkbox" class="supplier-dd-check" data-supplier-budget="${esc(o.value)}" ${isSupplierChecked(o.value) ? 'checked' : ''} aria-label="Включить в бюджет закупки: ${esc(o.label)}" title="Включить в бюджет закупки, готовность и выгрузку Excel"></div>`).join('') : rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
+    el('efOptionsList').innerHTML = supplierMode ? rows.map(o => `<div class="ef-opt-row"><input type="checkbox" class="supplier-dd-check" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''} aria-label="Показать в таблице: ${esc(o.label)}" title="Показать поставщика в таблице"><button type="button" class="ef-supplier-name" data-supplier-current="${esc(o.value)}" title="Показать только этого поставщика">${esc(o.label)}</button><span class="ef-supplier-sum">${fmtMoney(supplierOrderSum(o.value))} р.</span><button type="button" class="btn btn-beige btn-sm ef-supplier-clear" data-supplier-clear="${esc(o.value)}" aria-label="Очистить заказ: ${esc(o.label)}">Очистить</button></div>`).join('') : rows.map(o => `<div class="ef-opt-row"><label class="ms-dd-option-label" title="${esc(o.label)}"><input class="supplier-dd-check" type="checkbox" data-excel-value="${esc(o.value)}" ${excelMenu.draft.has(o.value) ? 'checked' : ''}><span class="ms-dd-option-text">${esc(o.label)}</span></label><span class="ef-opt-count">${o.count}</span><button type="button" class="ef-opt-only-btn" data-excel-only="${esc(o.value)}">Только</button></div>`).join('') || '<p class="muted" style="padding:12px">Ничего не найдено</p>';
     if (matches.length > rows.length) el('efOptionsList').insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary btn-sm" id="efMore">Показать ещё</button>');
     el('efCountInfo').textContent = `Выбрано: ${selected} из ${matches.length}`;
   }
@@ -4228,7 +4235,7 @@
     const context = el('efContextBar');
     context.classList.toggle('hidden', key !== 'supplier' && key !== 'plus');
     context.innerHTML = key === 'supplier'
-      ? '<span class="ef-supplier-help">Слева — показ в таблице · Справа — бюджет закупки</span><button type="button" class="ef-quick-chip" data-supplier-sum-sort="desc" aria-pressed="false">Сумма заказа ↓</button><button type="button" class="ef-quick-chip" data-supplier-sum-sort="asc" aria-pressed="false">Сумма заказа ↑</button>'
+      ? '<span class="ef-supplier-help">Слева — показ в таблице · Справа — очистка заказа поставщика</span><button type="button" class="ef-quick-chip" data-supplier-sum-sort="desc" aria-pressed="false">Сумма заказа ↓</button><button type="button" class="ef-quick-chip" data-supplier-sum-sort="asc" aria-pressed="false">Сумма заказа ↑</button>'
       : key === 'plus' ? '<button type="button" class="ef-menu-cmd" id="efFillAllPlus">Заполнить всё</button><button type="button" class="ef-menu-cmd" id="efClearAllPlus">Отменить</button>' : '';
     const pop = el('excelFilterPopover');
     pop.classList.toggle('ef-wide', key === 'name' || key === 'supplier');
@@ -4281,16 +4288,30 @@
       renderExcelOptions();
     });
     el('efOptionsList').addEventListener('change', e => {
-      if (e.target.matches('[data-supplier-budget]')) {
-        const sup = e.target.dataset.supplierBudget;
-        if(e.target.checked) state.checkedSuppliers.add(sup); else state.checkedSuppliers.delete(sup);
-        refreshSupplierSelection(); renderExcelOptions(); return;
-      }
       if (!e.target.matches('[data-excel-value]')) return;
       if(e.target.checked) excelMenu.draft.add(e.target.dataset.excelValue); else excelMenu.draft.delete(e.target.dataset.excelValue);
       renderExcelOptions();
     });
-    el('efOptionsList').addEventListener('click', e => {
+    el('efOptionsList').addEventListener('click', async e => {
+      const clear=e.target.closest('[data-supplier-clear]');
+      if(clear){
+        const supplier=clear.dataset.supplierClear,epoch=state.clientEpoch;
+        try{
+          if(!await safetyDialog('Очистить заказ поставщика?',`Поставщик: ${supplier}\nБудет очищен весь заказ этого поставщика на всех складах, включая ручные количества и «пер». Заказы других поставщиков, галочки и эталон не изменятся. Продолжить?`))return;
+          if(epoch!==state.clientEpoch)return;
+          if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
+          clear.disabled=true;
+          await paramsInFlight.catch(()=>{});
+          if(epoch!==state.clientEpoch)return;
+          const env=await apiPost('api/orders/fill',{supplier,clear:true});
+          if(epoch!==state.clientEpoch)return;
+          for(const it of state.report.items)if(normalizeSupName(it.supplier)===supplier){state.orderTransferRows.delete(it.excelRow);state.highlightedOrderRows.delete(it.excelRow);}
+          for(const key of state.filledOrderScopes){try{if(JSON.parse(key)[0]===supplier)state.filledOrderScopes.delete(key);}catch(_){}}
+          applyEnvelope(env);refreshExcelTable();renderExcelOptions();showToast('Заказ поставщика очищен');
+        }catch(err){showToast(err.message);}finally{clear.disabled=false;}
+        return;
+      }
+
       if(e.target.hasAttribute('data-supplier-current')) {
         state.colFilters.supplier = [e.target.dataset.supplierCurrent];
         el('fltSupplier').value = '';

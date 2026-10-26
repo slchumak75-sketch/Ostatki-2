@@ -16,7 +16,7 @@ func TestToolbarLayoutPersistence(t *testing.T) {
 		app.handleToolbarLayout(r, httptest.NewRequest(method, "/api/toolbar-layout", strings.NewReader(body)))
 		return r
 	}
-	r := call(app, http.MethodPost, `{"order":["btnFillOrder","btnHighlightOrder","btnSaveFields"],"widths":{"btnFillOrder":180,"btnSaveFields":200},"groups":{"topbar":["btnFillOrder","btnHighlightOrder"],"params-1":["btnSaveFields"]}}`)
+	r := call(app, http.MethodPost, `{"order":["btnFillOrder","btnHighlightOrder","btnSaveFields","btnTab_table"],"widths":{"btnFillOrder":180,"btnSaveFields":200},"groups":{"topbar":["btnFillOrder","btnHighlightOrder"],"params-1":["btnSaveFields"],"statement":["btnTab_table"]}}`)
 	if r.Code != 200 {
 		t.Fatalf("save: %d %s", r.Code, r.Body.String())
 	}

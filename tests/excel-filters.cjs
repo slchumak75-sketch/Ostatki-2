@@ -13,7 +13,7 @@ w.fetch=async(path,options={})=>{if(path==='api/etalon/import')return {ok:true,j
 w.scrollTo=()=>{};
 const alerts=[];w.alert=message=>alerts.push(message);
 new w.MutationObserver(()=>{const box=d.getElementById('safetyDialog');if(box&&!box.classList.contains('hidden'))d.getElementById('safetyDialogYes').click();}).observe(d.body,{subtree:true,attributes:true,attributeFilter:['class']});
-w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__budget={state,renderKPIs};bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
  await tick();
@@ -131,20 +131,17 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  assert.ok(d.getElementById('budgetInlineCard').closest('.tabs-bar'));
  d.querySelector('[data-filter-col="supplier"]').click();
  assert.equal(d.querySelector('#efBudgetSuppliers'),null);
- assert.equal(d.querySelectorAll('[data-supplier-budget]').length,2);
+ assert.equal(d.querySelectorAll('[data-supplier-budget]').length,0);assert.equal(d.querySelectorAll('[data-supplier-clear]').length,2);
  d.querySelector('[data-supplier-sum-sort="desc"]').click();
  assert.deepEqual([...d.querySelectorAll('[data-supplier-current]')].map(btn=>btn.dataset.supplierCurrent),['Второй','Первый']);
  assert.equal(d.getElementById('excelFilterPopover').classList.contains('hidden'),false);
  d.querySelector('[data-supplier-sum-sort="asc"]').click();
  assert.deepEqual([...d.querySelectorAll('[data-supplier-current]')].map(btn=>btn.dataset.supplierCurrent),['Первый','Второй']);
- const checkbox=d.querySelector('[data-supplier-budget="Первый"]');
- checkbox.checked=true;checkbox.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.match(d.getElementById('kpiOrderCost').textContent,/2,00/);
- assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Budget selection must not filter table or zero quantities');
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/,'All supplier orders contribute without budget checkmarks');
+ assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
  assert.match(d.querySelector('[data-supplier-current="Первый"]').parentElement.textContent,/2,00/);
- // Two independent checkbox columns: visibility on the left, budget after sum.
- const supplierRow=d.querySelector('[data-supplier-budget="Первый"]').parentElement;
- assert.deepEqual([...supplierRow.children].map(x=>x.tagName),['INPUT','BUTTON','SPAN','INPUT']);
+ const supplierRow=d.querySelector('[data-supplier-clear="Первый"]').parentElement;
+ assert.deepEqual([...supplierRow.children].map(x=>x.tagName),['INPUT','BUTTON','SPAN','BUTTON']);
  assert.equal(supplierRow.firstElementChild.dataset.excelValue,'Первый');
  const setVisible=(supplier,checked)=>{
   const input=d.querySelector(`#efOptionsList [data-excel-value="${supplier}"]`);
@@ -155,7 +152,7 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  d.getElementById('efBtnOk').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,1);
  assert.match(d.querySelector('#tableBody tr[data-row]').textContent,/Второй/);
- assert.match(d.getElementById('kpiOrderCost').textContent,/2,00/,'Visibility must not change budget');
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/,'Visibility must not change budget');
  d.querySelector('[data-filter-col="supplier"]').click();
  assert.equal(d.querySelector('[data-excel-value="Первый"]').checked,false);
  setVisible('Первый',true);
@@ -165,14 +162,14 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  setVisible('Первый',true);
  d.getElementById('efBtnOk').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Multiple suppliers can be displayed together');
- assert.match(d.getElementById('kpiOrderCost').textContent,/2,00/);
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
  d.querySelector('[data-filter-col="supplier"]').click();
  const selectAll=d.getElementById('efSelectAllChk');selectAll.checked=false;
  selectAll.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.equal(d.querySelector('[data-supplier-budget="Первый"]').checked,true,'Select-all controls visibility, not budget');
+ assert.ok(d.querySelector('[data-supplier-clear="Первый"]'),'Select-all controls only visibility');
  d.getElementById('efBtnOk').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,0,'No visibility selections yields an empty table');
- assert.match(d.getElementById('kpiOrderCost').textContent,/2,00/);
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
  d.querySelector('[data-filter-col="supplier"]').click();
  d.getElementById('efClearCol').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
@@ -185,24 +182,19 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  d.querySelector('[data-filter-col="supplier"]').click();
  d.querySelector('[data-supplier-current="Второй"]').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,1);
- assert.match(d.getElementById('kpiOrderCost').textContent,/2,00/);
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
  assert.equal(d.getElementById('currentSupplierName').textContent,'Второй');
  assert.match(d.getElementById('currentSupplierSum').textContent,/3,00/);
  // Даже пустая выборка строк не влияет на бюджет.
  search.value='нет совпадений'; search.dispatchEvent(new w.Event('input'));
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,0);
- assert.match(d.getElementById('kpiOrderCost').textContent,/2,00/);
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
  search.value=''; search.dispatchEvent(new w.Event('input'));
  d.querySelector('[data-filter-col="supplier"]').click();
- const second=d.querySelector('[data-supplier-budget="Второй"]');
- second.checked=true;second.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
- const first=d.querySelector('[data-supplier-budget="Первый"]');
- first.checked=false;first.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.match(d.getElementById('kpiOrderCost').textContent,/3,00/);
- const last=d.querySelector('[data-supplier-budget="Второй"]');
- last.checked=false;last.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.match(d.getElementById('kpiOrderCost').textContent,/0,00/);
+ w.__budget.state.checkedSuppliers.clear();w.__budget.renderKPIs(w.__budget.state.report);
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/,'No supplier checkmarks must not zero budget');
+ w.__budget.state.checkedSuppliers.add('Первый');w.__budget.renderKPIs(w.__budget.state.report);
+ assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/,'Partial supplier checkmarks must not reduce budget');
  // Save relative widths, then load another base: saved fields override default columns.
  const table=d.getElementById('itemsTable');
  table.querySelector('colgroup')?.remove();
