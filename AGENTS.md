@@ -189,3 +189,10 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - fitFloatingMenu ограничивает выпадающие меню по visualViewport с запасом 64 CSS px снизу. Не возвращать фиксированную высоту без ограничения: при раскрытых Параметрах нижние кнопки уходят под taskbar. Регрессия tests/excel-filters.cjs эмулирует низкий якорь и resize.
 
 - Новая строка сравнения: isNew=true, matches=true, причина «новый товар»; StockIncreased/RatingDropped=false. Не выдавать отсутствие истории за рост из 0. В XLSX D/F пустые для IsNew. Сравнение read-only, эталон не дополняет.
+
+## Вариант 6 (актуальная сборка)
+- Основной cmd/ostatki и web UI — Вариант 6. Активная job build-variant-6 публикует variant-6, не удалять/обновлять релиз variant-5. Варианты 1–4 без изменений.
+- PE-resource пересобирать после winres.json (version 6.0.0.0). Сохранять подпись SHA256, иконку и манифест.
+- properties-v5 оставлен намеренно для совместимости данных 5→6. Одновременный запуск версий с общим каталогом не рекомендуется.
+- Нули скрываются только в редакторе Заказ: в данных и API остаются 0. Учитывать render/commit/input/Escape и фоновые перерисовки.
+- data-filter-sup/filter-wh теперь открывает read-only preview-modal, не переходит в ведомость. Выборка из полного report.items: точные supplier+warehouse и FinalOrderQty>0. Регрессия tests/order-preview.cjs в CI.

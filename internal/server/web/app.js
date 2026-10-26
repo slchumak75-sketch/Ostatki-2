@@ -334,6 +334,20 @@
     return state.checkedSuppliers.has(normalizeSupName(rawSup));
   }
 
+  function activeWarehouseSet() {
+    if(state.activeTab==='overstock') {
+      const warehouse=el('ovFltWarehouse')?.value || '';
+      return warehouse ? new Set([warehouse]) : null;
+    }
+    let selected=state.msFilters.warehouse.size ? new Set(state.msFilters.warehouse) : null;
+    if(Object.hasOwn(state.colFilters,'warehouse')){
+      const excel=new Set(state.colFilters.warehouse);
+      selected=selected ? new Set([...selected].filter(w=>excel.has(w))) : excel;
+    }
+    return selected;
+  }
+  function warehouseIsActive(warehouse){const selected=activeWarehouseSet();return selected===null || selected.has(warehouse||'');}
+
   function syncSelectedSuppliersToServer() {
     return apiPost('api/selected-suppliers', {
       suppliers: [...state.checkedSuppliers],
@@ -1450,12 +1464,12 @@
     el('fileMetaLine').textContent =
       `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)${savedSuffix}`;
 
-    // Бюджет зависит только от галочек поставщиков, не от видимости строк.
+    // Бюджет зависит от активного склада и галочек поставщиков, не от прочих фильтров.
     const sourceItems = rep.items || [];
 
     let checkedBudget = 0;
     for (const it of sourceItems) {
-      if (!isSupplierChecked(it.supplier)) continue;
+      if (!warehouseIsActive(it.warehouse) || !isSupplierChecked(it.supplier)) continue;
       checkedBudget += calcLineSum(it.finalOrderQty, it.purchasePrice);
     }
     checkedBudget = Math.round(checkedBudget * 100) / 100;
@@ -1463,9 +1477,10 @@
     el('kpiOrderCost').textContent = `${fmtMoney(checkedBudget)} руб.`;
     renderCurrentSupplier();
 
-    const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && isSupplierChecked(s.supplier));
+    const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && warehouseIsActive(s.warehouse) && isSupplierChecked(s.supplier));
     el('cntTabSuppliers').textContent = readyRows.length;
     el('cntTabOverstock').textContent = rep.overstockItemsCount;
+    renderSuppliersView(rep);
   }
 
   function recomputeFilteredList() {
@@ -1650,7 +1665,7 @@
       <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
         <div class="qty-editor">
           ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Вернуть авторасчёт (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
-          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
+          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${Number(it.finalOrderQty)===0?'':fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
         </div>
       </td>
       <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
@@ -1967,7 +1982,7 @@
       }
     }
 
-    el('warehousesContainer').innerHTML = rep.warehouses.map((w) => {
+    el('warehousesContainer').innerHTML = rep.warehouses.filter(w=>warehouseIsActive(w.warehouse)).map((w) => {
       const ws = whCheckedStats.get(w.warehouse) || { orderItems: 0, totalOrderQty: 0, totalOrderCost: 0, totalRetailVal: 0 };
       return `
       <div class="card-block">
@@ -1990,11 +2005,11 @@
     `;
     }).join('');
 
-    el('suppliersBody').innerHTML = rep.suppliers.map((s) => {
+    el('suppliersBody').innerHTML = rep.suppliers.filter(s=>warehouseIsActive(s.warehouse)).map((s) => {
       const isChecked = isSupplierChecked(s.supplier);
       const isReadyToSend = isChecked && s.orderItems > 0;
       const orderQs = new URLSearchParams();
-      if (s.warehouse) orderQs.set('warehouse', s.warehouse);
+      orderQs.set('warehouse', s.warehouse||'');
       if (s.supplier) orderQs.set('supplier', s.supplier);
       const orderHref = `api/export/supplier-order?${orderQs.toString()}`;
       const orderFileName = formatOrderFileName(s.warehouse, s.supplier);
@@ -2020,7 +2035,7 @@
         <td class="num-col">${fmtMoney(s.totalRetailVal)} руб.</td>
         <td class="center-col">${statusBadge}</td>
         <td class="right-col" style="white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}" data-filter-wh="${esc(s.warehouse || '')}">В таблице</button>
+          <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}" data-filter-wh="${esc(s.warehouse || '')}">Предварительный просмотр</button>
           ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ .xlsx</a>` : ''}
         </td>
       </tr>`;
@@ -2032,6 +2047,7 @@
     let sumSupOrderCost = 0;
     let sumSupRetailVal = 0;
     for (const s of rep.suppliers) {
+      if(!warehouseIsActive(s.warehouse))continue;
       sumSupTotalSKU += Number(s.totalItems) || 0;
       if (!isSupplierChecked(s.supplier)) continue;
       sumSupOrderSKU += Number(s.orderItems) || 0;
@@ -2665,6 +2681,7 @@
       btn.addEventListener('click', () => {
         exitComparison(true);
         state.activeTab = btn.dataset.tab;
+        if(state.report)renderKPIs(state.report);
         if(state.activeTab === 'charts') window.SalesCharts?.update(state.report);
         if(state.activeTab === 'liquidity') window.LiquidityAnalysis?.update(state.report);
         document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
@@ -2773,7 +2790,7 @@
 
     ['ovFltWarehouse', 'ovFltName', 'ovFltRating', 'ovFltSupplier'].forEach((id) => {
       el(id).addEventListener('change', () => {
-        if (state.report) renderOverstockView(state.report);
+        if (state.report) {renderOverstockView(state.report);renderKPIs(state.report);}
       });
     });
     el('ovInpSearch').addEventListener('input', () => {
@@ -3315,7 +3332,7 @@
       inp.dataset.dirty = '0';
       const rowNum = Number(inp.dataset.qtyRow);
       const val = parseQtyInput(inp.value);
-      inp.value = fmtInt(val);
+      inp.value = val===0?'':fmtInt(val);
       state.selectedExcelRow = rowNum;
       renderCurrentSupplier();
       const useFastSilent = (Number(state.report?.params?.budgetCap) || 0) <= 0;
@@ -3380,7 +3397,7 @@
         const rowNum = Number(inp.dataset.qtyRow);
         const prevQty = Number(inp.dataset.origQty ?? 0);
         state.pendingOverrides.delete(rowNum);
-        inp.value = inp.dataset.origVal ?? fmtInt(prevQty);
+        inp.value = inp.dataset.origVal ?? (prevQty===0?'':fmtInt(prevQty));
         inp.dataset.freshEdit = '1';
         inp.dataset.dirty = '0';
         updateRowSumLive(rowNum, prevQty);
@@ -3414,7 +3431,7 @@
       inp.dataset.freshEdit = '0';
       inp.dataset.dirty = '1';
       const digits = inp.value.replace(/[^\d]/g, '');
-      const formatted = digits === '' ? '' : Number(digits).toLocaleString('ru-RU');
+      const formatted = digits === '' || Number(digits)===0 ? '' : Number(digits).toLocaleString('ru-RU');
       if (inp.value !== formatted) inp.value = formatted;
       const rowNum = Number(inp.dataset.qtyRow);
       const val = parseQtyInput(formatted);
@@ -3495,15 +3512,18 @@
     el('suppliersBody').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
-      state.msFilters.warehouse.clear();
-      if (btn.dataset.filterWh) state.msFilters.warehouse.add(btn.dataset.filterWh);
-      if (state.report) populateFilterDropdowns(state.report);
-      el('fltSupplier').value = btn.dataset.filterSup;
-      recomputeFilteredList();
-      if (state.report) renderKPIs(state.report);
-      renderTable();
-      document.querySelector('.tab-btn[data-tab="table"]').click();
+      const supplier=btn.dataset.filterSup,warehouse=btn.dataset.filterWh||'';
+      const items=(state.report?.items||[]).filter(it=>normalizeSupName(it.supplier)===normalizeSupName(supplier) && (it.warehouse||'')===warehouse && Number(it.finalOrderQty)>0);
+      el('orderPreviewTitle').textContent=`Предварительный просмотр: ${supplier} • ${warehouse||'Склад не указан'}`;
+      el('orderPreviewBody').innerHTML=items.map(it=>`<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>шт.</td><td>${fmtInt(it.sumSalesLast12M)}</td><td>${fmtInt(it.closingStock)}</td><td>${fmtInt(it.finalOrderQty)}</td></tr>`).join('') || '<tr><td colspan="6">В заказе нет позиций</td></tr>';
+      el('orderPreviewTotal').textContent=`Позиций: ${items.length} • Заказ: ${fmtInt(items.reduce((sum,it)=>sum+Number(it.finalOrderQty),0))} шт. • Сумма: ${fmtMoney(items.reduce((sum,it)=>sum+calcLineSum(it.finalOrderQty,it.purchasePrice),0))} руб.`;
+      const modal=el('orderPreviewModal');modal.classList.remove('hidden');modal._returnFocus=btn;el('btnCloseOrderPreview').focus();
     });
+
+    const closeOrderPreview=()=>{const modal=el('orderPreviewModal');modal.classList.add('hidden');modal._returnFocus?.focus();};
+    el('btnCloseOrderPreview').addEventListener('click',closeOrderPreview);
+    el('orderPreviewModal').addEventListener('click',e=>{if(e.target===el('orderPreviewModal'))closeOrderPreview();});
+    el('orderPreviewModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeOrderPreview();}if(e.key==='Tab'){e.preventDefault();el('btnCloseOrderPreview').focus();}});
 
     el('btnUpload').addEventListener('click', () => el('fileInput').click());
     el('fileInput').addEventListener('change', (e) => {
@@ -3850,7 +3870,7 @@
   function supplierOrderSum(supplier) {
     let sum = 0;
     for (const it of state.report?.items || []) {
-      if (normalizeSupName(it.supplier) === supplier) sum += calcLineSum(it.finalOrderQty, it.purchasePrice);
+      if (warehouseIsActive(it.warehouse) && normalizeSupName(it.supplier) === supplier) sum += calcLineSum(it.finalOrderQty, it.purchasePrice);
     }
     return Math.round(sum * 100) / 100;
   }

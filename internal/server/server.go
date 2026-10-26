@@ -693,6 +693,19 @@ func (s *AppServer) handleExportSingleSupplierOrderXLSX(w http.ResponseWriter, r
 		return
 	}
 
+	// An explicit warehouse parameter is exact, including the unnamed warehouse.
+	// Never interpret warehouse= as permission to include every warehouse.
+	if r.URL.Query().Has("warehouse") {
+		scoped := *rep
+		scoped.Items = make([]model.CalculatedItem, 0)
+		for _, it := range rep.Items {
+			if it.Warehouse == filterWarehouse {
+				scoped.Items = append(scoped.Items, it)
+			}
+		}
+		rep = &scoped
+	}
+
 	whForName := filterWarehouse
 	if whForName == "" {
 		var whList []string

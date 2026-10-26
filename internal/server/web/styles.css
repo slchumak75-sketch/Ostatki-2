@@ -18,9 +18,6 @@
   --danger: #dc2626;
   --danger-soft: #fee2e2;
   --order-col-bg: #eff6ff;
-  --auto-order-bg: #e2f9df;
-  --auto-order-cell: #d3f5cf;
-  --auto-order-hover: #cef2ca;
   --beige-bg: #f5ead6;
   --beige-hover: #ebd9b9;
   --beige-active: #e3cca4;
@@ -52,9 +49,6 @@
   --danger: #ef4444;
   --danger-soft: rgba(239, 68, 68, 0.18);
   --order-col-bg: rgba(59, 130, 246, 0.11);
-  --auto-order-bg: rgba(74, 222, 128, 0.14);
-  --auto-order-cell: rgba(74, 222, 128, 0.22);
-  --auto-order-hover: rgba(74, 222, 128, 0.26);
   --beige-bg: #efe0c6;
   --beige-hover: #e5cfa9;
   --beige-active: #dcc092;
@@ -1128,29 +1122,6 @@ body.col-resize-active * {
 
 .data-table tbody tr.selected-row {
   background: var(--primary-soft);
-}
-
-.data-table tbody tr.auto-order-row {
-  background: var(--auto-order-bg);
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-}
-
-.data-table tbody tr.auto-order-row .order-cell {
-  background: var(--auto-order-cell);
-}
-
-.data-table tbody tr.auto-order-row:hover {
-  background: var(--auto-order-hover);
-}
-
-.data-table tbody tr.auto-order-row:hover .order-cell {
-  background: var(--auto-order-hover);
-}
-
-.data-table tbody tr.auto-order-row.selected-row {
-  background: var(--auto-order-hover);
-  box-shadow: inset 3px 0 0 var(--success);
 }
 
 .data-table td {
@@ -2481,3 +2452,7 @@ body {
 .excel-filter-popover > :not(.ef-options-list) {flex-shrink:0;}
 .ef-options-list, .supplier-dd-list {min-height:0;flex:1 1 auto;overflow-y:auto;}
 .ef-footer {position:sticky;bottom:0;z-index:1;flex-shrink:0;}
+
+#orderPreviewModal .v4-modal-card {max-width:1000px;width:calc(100vw - 40px);}
+.order-preview-scroll {overflow:auto;min-height:0;}
+.order-preview-scroll th {position:sticky;top:0;background:var(--surface);}

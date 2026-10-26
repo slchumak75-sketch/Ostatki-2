@@ -446,7 +446,6 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".param-field.param-paired",
 		"minmax(0, 1fr) minmax(0, 1fr)",
 		".auto-order-row",
-		"--auto-order-bg",
 		".seg-pill",
 		"border-radius: 50%",
 		"color: #000000 !important",
@@ -477,6 +476,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		if !strings.Contains(cssBody, mustHaveCSS) {
 			t.Fatalf("styles.css missing required styling rule: %q", mustHaveCSS)
 		}
+	}
+
+	if strings.Contains(cssBody, "--auto-order-bg") || strings.Contains(cssBody, "--auto-order-cell") {
+		t.Fatal("orders must not add green row/cell highlighting")
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/app.js", nil)

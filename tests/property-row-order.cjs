@@ -36,7 +36,7 @@ async function run(count) {
   originalRows.forEach((node,i)=>assert.strictEqual(d.querySelectorAll('#tableBody tr[data-row]')[i],node,'Keep row DOM nodes after server acknowledgement'));
   assert.strictEqual(d.activeElement,checkbox);
   if(spacer) {assert.ok(spacer.isConnected);assert.equal(spacer.outerHTML,originalSpacerHTML,'Virtual spacers must not be resized on checkmarks');}
-  assert.equal(d.querySelector(`[data-qty-row="${target}"]`).value,'0','Order must still be recalculated');
+  assert.equal(d.querySelector(`[data-qty-row="${target}"]`).value,'','Zero order is blank after recalculation');
   // Explicit sorting must work on the newly calculated quantities.
   d.querySelector('th[data-sort="finalOrderQty"]').click();await tick();
   scroll.scrollTop=0;scroll.dispatchEvent(new w.Event('scroll'));await tick();

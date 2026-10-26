@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Остатки 2 (Вариант 5 PRO) — Управление закупками • Рейтинг • SBA</title>
+  <title>Остатки 2 (Вариант 6 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=1" />
   <link rel="stylesheet" href="styles.css?v=4.16" />
 </head>
@@ -32,7 +32,7 @@
         <div>
           <div class="brand-title-row">
             <h1>Остатки 2</h1>
-            <span class="badge badge-v2">Сборка: Вариант 5 • PRO SCM</span>
+            <span class="badge badge-v2">Сборка: Вариант 6 • PRO SCM</span>
             <span class="badge badge-accent">Рейтинг 5..0 • SBA</span>
           </div>
           <div class="file-meta" id="fileMetaLine">Загрузка ведомости…</div>
@@ -67,7 +67,7 @@
     <div class="header-controls-strip">
       <div id="safetyStatus" class="field-hint" role="status" aria-live="polite"></div>
       <div id="comparisonHint" class="comparison-hint hidden" role="status"></div>
-      <!-- Панель параметров сезонного алгоритма Вариант 5 -->
+      <!-- Панель параметров сезонного алгоритма Вариант 6 -->
       <section class="params-panel hidden" id="paramsPanel">
         <div id="staryoActions" class="nomenclature-actions">
           <span class="field-hint hidden" id="propertiesStorageHint">Свойства ещё не сохранены</span>
@@ -690,6 +690,14 @@
  <div id="safetyDialogFields"></div>
  <div class="v4-modal-actions"><button type="button" class="btn btn-modal-yes" id="safetyDialogYes">Подтвердить</button><button type="button" class="btn btn-ghost" id="safetyDialogNo">Отмена</button></div>
  </div></div>
+  <div id="orderPreviewModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="orderPreviewTitle">
+    <div class="v4-modal-card v4-modal-wide">
+      <h3 id="orderPreviewTitle">Предварительный просмотр заказа</h3>
+      <div class="order-preview-scroll"><table class="data-table"><thead><tr><th>Артикул</th><th>Номенклатура</th><th>Ед.</th><th>Продажи</th><th>Остаток</th><th>Заказ</th></tr></thead><tbody id="orderPreviewBody"></tbody></table></div>
+      <p id="orderPreviewTotal"></p>
+      <div class="v4-modal-actions"><button type="button" class="btn btn-beige" id="btnCloseOrderPreview">Закрыть</button></div>
+    </div>
+  </div>
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=1"></script>
   <script src="liquidity.js?v=2"></script>
