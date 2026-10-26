@@ -41,5 +41,24 @@ const tick=()=>new Promise(r=>setTimeout(r,50));
  const disabledSaved=collectUIState();assert.equal(disabledSaved.stockHintsDisabled,true);applyEnvelope({report,uiState:disabledSaved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(state.stockHintsDisabled,true);hover();assert.ok(pop.classList.contains('hidden'));
  assert.equal(toggle.disabled,true);toggle.click();assert.equal(state.stockHintsDisabled,true);assert.equal(state.stockSearchMode,mode);hover();assert.ok(pop.classList.contains('hidden'));
  off.click();assert.equal(toggle.disabled,false);assert.equal(state.stockHintsDisabled,false);assert.equal(state.stockSearchMode,mode);hover();assert.ok(!pop.classList.contains('hidden'));
+ for(const tab of ['table','suppliers','overstock','charts'])assert.ok(d.querySelector(`[data-tab="${tab}"]`).classList.contains('tab-beige'));
+ const liveAnchor=d.querySelector('[data-stock-row="8"]');
+ liveAnchor.click();
+ liveAnchor.dispatchEvent(new w.MouseEvent('mouseout',{bubbles:true,relatedTarget:d.body}));
+ liveAnchor.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true,relatedTarget:d.body}));
+ await new Promise(r=>setTimeout(r,350));assert.ok(!pop.classList.contains('hidden'),'Pinned popover survives pointer crossing the gap and focus loss');
+ pop.dispatchEvent(new w.MouseEvent('mouseenter'));pop.dispatchEvent(new w.Event('scroll'));pop.querySelector('td')?.click();assert.ok(!pop.classList.contains('hidden'),'Scrolling and clicking inside preserve pinned popover');
+ d.querySelector('[data-stock-row="11"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));assert.ok(!pop.classList.contains('hidden'));
+ liveAnchor.click();assert.ok(pop.classList.contains('hidden'),'Second anchor click unpins and closes');
+ hover();liveAnchor.dispatchEvent(new w.MouseEvent('mouseout',{bubbles:true,relatedTarget:d.body}));pop.dispatchEvent(new w.MouseEvent('mouseenter'));await new Promise(r=>setTimeout(r,350));assert.ok(!pop.classList.contains('hidden'),'Hover popover stays open after crossing the gap');
+ liveAnchor.click();d.body.click();assert.ok(pop.classList.contains('hidden'),'Outside click closes');
+ liveAnchor.click();d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.ok(pop.classList.contains('hidden'),'Escape closes');
+ for(const destination of [d.body,liveAnchor]){
+   liveAnchor.click();pop.dispatchEvent(new w.MouseEvent('mouseenter'));
+   pop.dispatchEvent(new w.Event('scroll'));assert.ok(!pop.classList.contains('hidden'),'Pinned window stays visible during internal scrolling');
+   pop.dispatchEvent(new w.MouseEvent('mouseleave',{relatedTarget:destination}));assert.ok(pop.classList.contains('hidden'),'Leaving pinned window closes it automatically, including toward nomenclature');
+ }
+ hover();pop.dispatchEvent(new w.MouseEvent('mouseenter'));pop.dispatchEvent(new w.MouseEvent('mouseleave',{relatedTarget:d.body}));assert.ok(pop.classList.contains('hidden'),'Unpinned window also closes on pointer exit');
+ liveAnchor.click();off.click();assert.ok(pop.classList.contains('hidden'));hover();assert.ok(pop.classList.contains('hidden'),'Disable closes pinned popover and suppresses new ones');
  console.log('Similarity threshold, warehouse modes, aggregation, escaping, empty orders and saved settings passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
