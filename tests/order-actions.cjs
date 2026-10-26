@@ -6,7 +6,7 @@ const make=(excelRow,sku,warehouse,autoOrderQty,finalOrderQty=0,supplier='Пос
 const items=[make(8,'001','Мир',5),make(9,'002','Мир',0),make(10,'001','Другой',7),make(11,'001','Мир',9,0,'Другой'),make(12,'001','Другой',2),make(13,'999','Другой',1)];
 items[2].closingStock=4;items[4].closingStock=2;items[5].closingStock=99;
 const report={fileName:'Тест.xlsx',items,params:{budgetCap:0},periods:[],warehouses:[],groups:[],suppliers:[]};
-w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if(it.warehouse===req.warehouse&&it.supplier===req.supplier){it.finalOrderQty=it.autoOrderQty;it.manualOverride=null;}}return {ok:true,json:async()=>({report})};};
+w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if(it.warehouse===req.warehouse&&it.supplier===req.supplier){it.finalOrderQty=req.cancel?0:it.autoOrderQty;it.manualOverride=req.cancel?null:it.finalOrderQty;}}return {ok:true,json:async()=>({report})};};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__actions={state,refreshExcelTable,collectUIState,applyEnvelope}; bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
@@ -27,7 +27,19 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  // Restore explicit scope after the saved-state replay.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const outside=items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty);
- fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);const request=calls.find(c=>c.path==='api/orders/fill');assert.deepEqual(JSON.parse(request.options.body),{warehouse:'Мир',supplier:'Поставщик'});
+ fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);const request=calls.find(c=>c.path==='api/orders/fill');assert.deepEqual(JSON.parse(request.options.body),{warehouse:'Мир',supplier:'Поставщик',cancel:false});
+ assert.equal(fill.getAttribute('aria-pressed'),'true');
+ const recommendations=[...state.highlightedOrderRows];
+ fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(fill.getAttribute('aria-pressed'),'false');assert.deepEqual([...state.highlightedOrderRows],recommendations,'Cancel order must not cancel recommendations');assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);
+ const beforeToggle=JSON.stringify(items);highlight.click();assert.equal(state.highlightedOrderRows.size,0);assert.equal(JSON.stringify(items),beforeToggle);assert.equal(highlight.getAttribute('aria-pressed'),'false');highlight.click();assert.ok(state.highlightedOrderRows.has(8));
+ fill.click();await tick();const toggledSaved=collectUIState();assert.equal(toggledSaved.filledOrderScopes.length,1);applyEnvelope({report,uiState:toggledSaved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(state.filledOrderScopes.size,1,'Filled scope survives saved-state restoration');
+ state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
+ const rating=d.querySelector('[data-rating-row="8"]'),pill=rating.querySelector('.seg-pill')||rating,chart=d.getElementById('ratingChartPopover');
+ pill.getBoundingClientRect=()=>({left:300,right:320,top:400,bottom:420,width:20,height:20});Object.defineProperty(chart,'offsetHeight',{configurable:true,value:220});
+ rating.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.ok(!chart.classList.contains('hidden'));assert.equal(chart.style.top,'170px','Chart is positioned above the rating');assert.equal(chart.classList.contains('rcp-below'),false);assert.equal(chart.style.width,'548px');assert.equal(chart.getAttribute('aria-hidden'),'false');
+ pill.getBoundingClientRect=()=>({left:300,right:320,top:10,bottom:30,width:20,height:20});rating.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.ok(chart.classList.contains('rcp-below'),'Use below only when above would leave the viewport');
+ d.dispatchEvent(new w.Event('scroll'));assert.ok(chart.classList.contains('hidden'));
+ assert.equal(d.querySelectorAll('[data-reset], .reset-cell-btn').length,0,'Order cells never show reset arrows after fills, cancellations or manual edits');
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(!css.includes('.qty-input.is-manual'));
  console.log('Scoped order actions, blank recommendation highlighting, filters/sorting, manual edit styling, persistence and other-warehouse stock tooltip passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

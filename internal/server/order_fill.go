@@ -18,6 +18,7 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Supplier  string  `json:"supplier"`
 		Warehouse *string `json:"warehouse"`
+		Cancel    bool    `json:"cancel"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req); err != nil || strings.TrimSpace(req.Supplier) == "" || req.Warehouse == nil {
 		writeError(w, http.StatusBadRequest, "выберите одного поставщика и один склад")
@@ -52,21 +53,23 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "в выбранной паре поставщик/склад нет товаров")
 		return
 	}
-	// Pin existing orders outside the scope while calculating recommendations.
-	// Temporary pins are never saved as manual overrides on unrelated rows.
-	calculationOverrides := make(map[int]int, len(overrides)+len(s.report.Items))
-	for row, qty := range overrides {
-		calculationOverrides[row] = qty
-	}
-	for _, it := range s.report.Items {
-		if !rows[it.ExcelRow] {
-			calculationOverrides[it.ExcelRow] = it.FinalOrderQty
+	if !req.Cancel {
+		// Pin existing orders outside the scope while calculating recommendations.
+		// Temporary pins are never saved as manual overrides on unrelated rows.
+		calculationOverrides := make(map[int]int, len(overrides)+len(s.report.Items))
+		for row, qty := range overrides {
+			calculationOverrides[row] = qty
 		}
-	}
-	calculated := forecast.Calculate(s.wb, s.params, calculationOverrides, excluded)
-	for _, it := range calculated.Items {
-		if rows[it.ExcelRow] && !excluded[it.ExcelRow] {
-			overrides[it.ExcelRow] = it.FinalOrderQty
+		for _, it := range s.report.Items {
+			if !rows[it.ExcelRow] {
+				calculationOverrides[it.ExcelRow] = it.FinalOrderQty
+			}
+		}
+		calculated := forecast.Calculate(s.wb, s.params, calculationOverrides, excluded)
+		for _, it := range calculated.Items {
+			if rows[it.ExcelRow] && !excluded[it.ExcelRow] {
+				overrides[it.ExcelRow] = it.FinalOrderQty
+			}
 		}
 	}
 	rep := forecast.CalculateExplicit(s.wb, s.params, overrides, excluded)

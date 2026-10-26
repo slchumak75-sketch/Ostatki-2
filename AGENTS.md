@@ -205,3 +205,10 @@ go run ./cmd/ostatki -server -addr 0.0.0.0:8080 -input "Ведомость с п
 - Регрессия: tests/order-actions.cjs; серверные проверки order_fill_test.go.
 
 - Все обычные серверные пересчёты используют forecast.CalculateExplicit: autoOrderQty остаётся рекомендацией, finalOrderQty по умолчанию 0. Только /api/orders/fill выполняет Calculate для явного заполнения выбранной пары. Снятие отметки не должно подставлять autoOrderQty в finalOrderQty на клиенте.
+
+## Настройка панели и отмена заказов
+
+- `toolbar-layout.js` изолирует режим изменения порядка и ширины кнопок `.topbar-actions`. Высоту не изменять, сброс не добавлять. Персистентность — `/api/toolbar-layout`, `toolbar-layout.json` в общем каталоге свойств, не только localStorage (порт desktop меняется).
+- `FilledOrderScopes` в SavedUIState хранит пары поставщик/склад для повторного нажатия. Отмена `/api/orders/fill` с `cancel:true` не меняет чужие количества и сохраняет ручные значения отмеченных товаров. Подсветка независима от заполнения/отмены.
+- График рейтинга размещается сверху; только при нехватке места — снизу. Шапка компактнее, SVG сохраняется. Стрелочки reset-cell-btn в заказе не возвращать.
+- Регрессии: tests/toolbar-layout.cjs, tests/order-actions.cjs, toolbar_layout_test.go, order_fill_test.go.

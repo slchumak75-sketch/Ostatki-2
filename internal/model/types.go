@@ -255,6 +255,7 @@ type CalculationReport struct {
 // SavedUIState хранит полное состояние пользовательского интерфейса сборки «Вариант 4»
 // для 100%-го восстановления при загрузке сохранённой базы.
 type SavedUIState struct {
+	FilledOrderScopes    []string            `json:"filledOrderScopes,omitempty"`
 	OrderTransferRows    []int               `json:"orderTransferRows,omitempty"`
 	HighlightedOrderRows []int               `json:"highlightedOrderRows,omitempty"`
 	ShowAllItems         bool                `json:"showAllItems"`
