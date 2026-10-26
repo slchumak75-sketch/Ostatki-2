@@ -83,6 +83,24 @@ func TestFillOrderOnlySelectedPair(t *testing.T) {
 			t.Fatalf("scope quantity %d not saved", row)
 		}
 	}
+	// A second action cancels only the chosen pair and remains empty on recalculation.
+	cancelBody, _ := json.Marshal(map[string]any{"supplier": item.Supplier, "warehouse": item.Warehouse, "cancel": true})
+	rec = httptest.NewRecorder()
+	app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(cancelBody)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cancel: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, it := range app.report.Items {
+		if scope[it.ExcelRow] && it.FinalOrderQty != 0 {
+			t.Fatalf("cancellation left row %d filled", it.ExcelRow)
+		}
+		if !scope[it.ExcelRow] && it.FinalOrderQty != previous[it.ExcelRow] {
+			t.Fatal("cancellation modified another scope")
+		}
+	}
+	if app.overrides[outside] != 17 {
+		t.Fatal("cancellation modified outside override")
+	}
 	// A checked item must retain its explicit quantity, not be auto-filled.
 	app.properties = map[string]bool{xlsx.NomenclaturePropertyKey(item.SKU, item.Group, item.Name, item.Warehouse): true}
 	app.overrides[item.ExcelRow] = 6

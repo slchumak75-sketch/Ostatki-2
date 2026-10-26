@@ -282,6 +282,7 @@ func (s *AppServer) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 	})
 	mux.HandleFunc("/api/column-widths", s.handleColumnWidths)
+	mux.HandleFunc("/api/toolbar-layout", s.handleToolbarLayout)
 	mux.HandleFunc("/api/properties", s.handleProperties)
 	mux.HandleFunc("/api/properties/export", s.handleExportProperties)
 	mux.HandleFunc("/api/properties/backup", s.handleBackupProperties)

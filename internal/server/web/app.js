@@ -37,6 +37,7 @@
     debounceTimer: null,
     searchDebounceTimer: null,
     pendingOverrides: new Map(),
+    filledOrderScopes: new Set(),
     highlightedOrderRows: new Set(),
     orderTransferRows: new Set(),
     checkedSuppliers: new Set(),
@@ -336,6 +337,24 @@
         it._ovSearchLC = `${it.name || ''} ${rawSku} ${it.group || ''} ${it.supplier || ''} ${it.warehouse || ''}`.toLowerCase();
       }
     }
+  }
+
+    function orderScope() {
+      if (!state.report || state.activeTab!=='table' || state.comparison) throw new Error('Откройте обычную ведомость и выберите поставщика и склад');
+      const warehouses=activeWarehouseSet() || new Set(state.report.items.map(it=>it.warehouse||''));
+      let suppliers=new Set(state.report.items.map(it=>normalizeSupName(it.supplier)));
+      const supplier=el('fltSupplier')?.value;
+      if(supplier) suppliers=new Set([...suppliers].filter(s=>s===supplier));
+      if(Object.hasOwn(state.colFilters,'supplier'))suppliers=new Set([...suppliers].filter(s=>state.colFilters.supplier.includes(s)));
+      if(warehouses.size!==1 || suppliers.size!==1)throw new Error('Выберите одного поставщика и один склад в фильтрах ведомости');
+      return {warehouse:[...warehouses][0],supplier:[...suppliers][0]};
+    }
+  function orderScopeKey(scope){return JSON.stringify([scope.supplier,scope.warehouse]);}
+  function scopeItems(scope){return (state.report?.items||[]).filter(it=>(it.warehouse||'')===scope.warehouse && normalizeSupName(it.supplier)===scope.supplier);}
+  function renderOrderActionButtons(){
+    let filled=false,highlighted=false;
+    try{const scope=orderScope();filled=state.filledOrderScopes.has(orderScopeKey(scope));highlighted=scopeItems(scope).some(it=>state.highlightedOrderRows.has(it.excelRow));}catch(_){}
+    for(const [id,active] of [['btnFillOrder',filled],['btnHighlightOrder',highlighted]]){const button=el(id);button.setAttribute('aria-pressed',String(active));button.classList.toggle('btn-active-toggle',active);}
   }
 
   function normalizeSupName(raw) {
@@ -793,6 +812,7 @@
     const ratArr = [...state.msFilters.rating];
     const stArr = [...state.msFilters.status];
     return {
+      filledOrderScopes: [...state.filledOrderScopes],
       orderTransferRows: [...state.orderTransferRows],
       highlightedOrderRows: [...state.highlightedOrderRows],
       colFilters: state.colFilters,
@@ -861,6 +881,7 @@
     state.ovSortDir = 'desc';
     state.ovColWidths = null;
     state.pendingOverrides.clear();
+    state.filledOrderScopes.clear();
     state.highlightedOrderRows.clear();
     state.orderTransferRows.clear();
     state.checkedSuppliers.clear();
@@ -951,6 +972,7 @@
     const shouldRestoreSaved = Boolean(opts.restoreSaved || (opts.initialBoot && env.savedFileName));
 
     if (opts.freshNewDb) {
+      state.filledOrderScopes.clear();
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
@@ -982,6 +1004,7 @@
       switchTabUI('table');
       syncSelectedSuppliersToServer();
     } else if (shouldRestoreSaved) {
+      state.filledOrderScopes.clear();
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
@@ -989,6 +1012,7 @@
       state.checkedSuppliers = new Set((env.selectedSuppliers || []).map(normalizeSupName));
       state.hasUnsavedChanges = false;
     } else if (state.lastLoadedFile !== state.report.fileName) {
+      state.filledOrderScopes.clear();
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
@@ -1013,6 +1037,7 @@
 
     if (shouldRestoreSaved) {
       const ui = env.uiState || {};
+      state.filledOrderScopes = new Set((ui.filledOrderScopes || []).filter(s=>typeof s==='string'));
       state.orderTransferRows = new Set((ui.orderTransferRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.highlightedOrderRows = new Set((ui.highlightedOrderRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.staryoMode = !state.unmarkedOnly;
@@ -1503,6 +1528,7 @@
 
     el('kpiOrderCost').textContent = `${fmtMoney(checkedBudget)} руб.`;
     renderCurrentSupplier();
+    renderOrderActionButtons();
 
     const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && warehouseIsActive(s.warehouse) && isSupplierChecked(s.supplier));
     el('cntTabSuppliers').textContent = readyRows.length;
@@ -1661,7 +1687,6 @@
 
   function buildTableRowHTML(it, index) {
     const isSelected = it.excelRow === state.selectedExcelRow;
-    const isManual = it.manualOverride != null;
     const hasAutoOrder = it.autoOrderQty > 0;
     const hasPlus = state.staryoRows.has(it.excelRow);
     const segNum = Number(it.salesSegment) || 0;
@@ -1696,7 +1721,6 @@
       <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
       <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
         <div class="qty-editor">
-          ${isManual ? `<button class="reset-cell-btn" data-reset="${it.excelRow}" title="Очистить заказ; рекомендация (${fmtInt(it.autoOrderQty)})">↺</button>` : ''}
           <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${state.orderTransferRows.has(it.excelRow)?'пер':Number(it.finalOrderQty)===0?'':fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
         </div>
       </td>
@@ -1822,11 +1846,6 @@
           const replacement = next.querySelector('[data-qty-row]');
           if (document.activeElement !== input || input.dataset.dirty !== '1') input.value = replacement.value;
           input.className = replacement.className;
-          const reset = cell.querySelector('[data-reset]');
-          const nextReset = next.querySelector('[data-reset]');
-          if (reset && !nextReset) reset.remove();
-          else if (!reset && nextReset) input.before(nextReset.cloneNode(true));
-          else if (reset && nextReset) reset.title = nextReset.title;
         } else if (cell.innerHTML !== next.innerHTML) {
           cell.innerHTML = next.innerHTML;
         }
@@ -1939,14 +1958,14 @@
           <span class="seg-pill seg-${segNum}">${segNum}</span>
           <span class="rcp-item-name">${esc(it.name)}${skuPart}</span>
         </div>
-        <span class="rcp-period-tag">График продаж за 3 года (${esc(firstLbl)} — ${esc(lastLbl)})</span>
+        <span class="rcp-period-tag" title="График продаж за 3 года (${esc(firstLbl)} — ${esc(lastLbl)})">3 года: ${esc(String(slicePeriods[0]?.month||'').padStart(2,'0'))}.${esc(slicePeriods[0]?.year||'')}–${esc(String(slicePeriods[n-1]?.month||'').padStart(2,'0'))}.${esc(slicePeriods[n-1]?.year||'')}</span>
       </div>
       <div class="rcp-summary">
-        <span>Всего за 3 года: <strong>${fmtInt(total3Y)} шт.</strong></span>
-        <span><i class="rcp-dot" style="background:#93c5fd"></i>1-й год: <strong>${fmtInt(y1Sum)} шт.</strong></span>
-        <span><i class="rcp-dot" style="background:#3b82f6"></i>2-й год: <strong>${fmtInt(y2Sum)} шт.</strong></span>
-        <span><i class="rcp-dot" style="background:#10b981"></i>Посл. 12 мес.: <strong>${fmtInt(y3Sum)} шт.</strong></span>
-        <span>Остаток: <strong>${fmtInt(it.closingStock)} шт.</strong></span>
+        <span>Всего: <strong>${fmtInt(total3Y)} шт.</strong></span>
+        <span><i class="rcp-dot" style="background:#93c5fd"></i>1-й: <strong>${fmtInt(y1Sum)} шт.</strong></span>
+        <span><i class="rcp-dot" style="background:#3b82f6"></i>2-й: <strong>${fmtInt(y2Sum)} шт.</strong></span>
+        <span><i class="rcp-dot" style="background:#10b981"></i>12 мес.: <strong>${fmtInt(y3Sum)} шт.</strong></span>
+        <span>Ост.: <strong>${fmtInt(it.closingStock)} шт.</strong></span>
       </div>
       <svg class="rcp-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
         ${gridSVG}
@@ -1992,26 +2011,27 @@
       : (anchorEl.querySelector('.seg-pill') || anchorEl);
     const rect = pillEl.getBoundingClientRect();
 
-    // Размещаем всплывающее окно строго справа от кружочка с цифрой рейтинга
-    const left = Math.round(rect.right + 12);
-    const availRight = window.innerWidth - left - 10;
-    const width = Math.max(300, Math.min(548, availRight));
-    pop.style.width = `${width}px`;
-    pop.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
-
-    const popH = pop.offsetHeight || 248;
-    const centerY = rect.top + rect.height / 2;
-    const top = Math.max(8, Math.min(Math.round(centerY - popH / 2), window.innerHeight - popH - 8));
-    pop.style.top = `${top}px`;
-
-    const arrowTop = Math.max(16, Math.min(Math.round(centerY - top), popH - 16));
-    pop.style.setProperty('--arrow-top', `${arrowTop}px`);
+    // Prefer above the rating, centred horizontally; clamp to the viewport.
+    const width=Math.min(548,Math.max(1,window.innerWidth-16));
+    pop.style.width=`${width}px`;
+    const centerX=rect.left+rect.width/2;
+    const left=Math.max(8,Math.min(centerX-width/2,window.innerWidth-width-8));
+    pop.style.left=`${left}px`;
+    const popH=pop.offsetHeight||220;
+    const above=rect.top-popH-10;
+    const below=above<8;
+    const top=below ? Math.max(8,Math.min(rect.bottom+10,window.innerHeight-popH-8)) : above;
+    pop.style.top=`${top}px`;
+    pop.classList.toggle('rcp-below',below);
+    pop.style.setProperty('--arrow-left',`${Math.max(12,Math.min(centerX-left,width-12))}px`);
+    pop.setAttribute('aria-hidden','false');
   }
 
   function hideRatingChartPopover() {
     const pop = el('ratingChartPopover');
     if (!pop) return;
     pop.classList.add('hidden');
+    pop.setAttribute('aria-hidden','true');
     activePopoverRow = null;
   }
 
@@ -2869,7 +2889,10 @@
     document.addEventListener('scroll',hideWarehouseStock,true);
     window.addEventListener('resize',hideWarehouseStock);
 
-    // Всплывающий справа график продаж за 3 года и сортировка по столбцам во вкладке «Радар неликвидов»
+    document.addEventListener('click',e=>{const anchor=e.target.closest('[data-rating-row]');if(anchor)showRatingChartPopover(anchor,Number(anchor.dataset.ratingRow));});
+    document.addEventListener('scroll',hideRatingChartPopover,true);
+    window.addEventListener('resize',hideRatingChartPopover);
+    // Всплывающий над рейтингом график продаж за 3 года и сортировка по столбцам во вкладке «Радар неликвидов»
     el('overstockContainer').addEventListener('mouseover', (e) => {
       const target = e.target.closest('[data-rating-row]');
       if (!target) {
@@ -2933,16 +2956,6 @@
       }
     });
 
-    function orderScope() {
-      if (!state.report || state.activeTab!=='table' || state.comparison) throw new Error('Откройте обычную ведомость и выберите поставщика и склад');
-      const warehouses=activeWarehouseSet() || new Set(state.report.items.map(it=>it.warehouse||''));
-      let suppliers=new Set(state.report.items.map(it=>normalizeSupName(it.supplier)));
-      const supplier=el('fltSupplier')?.value;
-      if(supplier) suppliers=new Set([...suppliers].filter(s=>s===supplier));
-      if(Object.hasOwn(state.colFilters,'supplier'))suppliers=new Set([...suppliers].filter(s=>state.colFilters.supplier.includes(s)));
-      if(warehouses.size!==1 || suppliers.size!==1)throw new Error('Выберите одного поставщика и один склад в фильтрах ведомости');
-      return {warehouse:[...warehouses][0],supplier:[...suppliers][0]};
-    }
     function highlightOrder(scope) {
       for(const it of state.report.items){
         if((it.warehouse||'')!==scope.warehouse || normalizeSupName(it.supplier)!==scope.supplier)continue;
@@ -2952,7 +2965,7 @@
       refreshExcelTable();
     }
     el('btnHighlightOrder').addEventListener('click',()=>{
-      try {highlightOrder(orderScope());showToast('Ячейки заказа подсвечены');}catch(err){showToast(err.message);}
+      try {const scope=orderScope();const rows=scopeItems(scope);if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
     el('btnFillOrder').addEventListener('click',async()=>{
       const button=el('btnFillOrder');
@@ -2962,11 +2975,13 @@
         if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
         button.disabled=true;
         const epoch=state.clientEpoch;
-        const env=await apiPost('api/orders/fill',scope);
+        const key=orderScopeKey(scope),cancel=state.filledOrderScopes.has(key);
+        const env=await apiPost('api/orders/fill',{...scope,cancel});
         if(epoch!==state.clientEpoch)return;
         for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && normalizeSupName(it.supplier)===scope.supplier && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
-        applyEnvelope(env);highlightOrder(scope);
-        showToast('Заказ рассчитан для выбранного поставщика и склада');
+        if(cancel)state.filledOrderScopes.delete(key);else state.filledOrderScopes.add(key);
+        applyEnvelope(env);refreshExcelTable();
+        showToast(cancel?'Заказ выбранного поставщика и склада отменён':'Заказ рассчитан для выбранного поставщика и склада');
       }catch(err){showToast(err.message);}finally{button.disabled=false;}
     });
 
@@ -3319,14 +3334,6 @@
         }
         return;
       }
-      const resetBtn = e.target.closest('[data-reset]');
-      if (resetBtn) {
-        const rowNum = Number(resetBtn.dataset.reset);
-        const env = await apiPost('api/override', { excelRow: rowNum, clear: true });
-        applyEnvelope(env);
-        showToast('Количество заказа очищено');
-        return;
-      }
       const tr = e.target.closest('tr[data-row]');
       if (tr) {
         state.selectedExcelRow = Number(tr.dataset.row);
@@ -3336,7 +3343,7 @@
       }
     });
 
-    // Всплывающий справа график продаж за последние 3 года при наведении курсора на цифру рейтинга
+    // Всплывающий над рейтингом график продаж за последние 3 года при наведении курсора на цифру рейтинга
     el('tableBody').addEventListener('mouseover', (e) => {
       const target = e.target.closest('[data-rating-row]');
       if (!target) {
@@ -3442,12 +3449,6 @@
       if (useFastSilent) {
         state.highlightedOrderRows.delete(rowNum);
         inp.classList.remove('order-highlighted');
-        const editor = inp.closest('.qty-editor');
-        if (editor && !editor.querySelector('[data-reset]')) {
-          const it = state.rowMap.get(rowNum);
-          const autoQty = it ? it.autoOrderQty : 0;
-          editor.insertAdjacentHTML('afterbegin', `<button class="reset-cell-btn" data-reset="${rowNum}" title="Очистить заказ; рекомендация (${fmtInt(autoQty)})">↺</button>`);
-        }
         await pushOverrideToServer(rowNum, val, true);
         showToast(`Заказ обновлён: ${fmtInt(val)}`);
       } else {
@@ -3822,7 +3823,7 @@
         setTimeout(() => { isDownloadingFile = false; }, 1500);
         return;
       }
-      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnSales12, #btnRelevant, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll, [data-reset]')) {
+      if (state.report && e.target.closest('.tab-btn, .preset-chip, #btnSales12, #btnRelevant, #btnCheckAllSuppliers, #btnUncheckAllSuppliers, [data-ms-all], [data-ms-none], #btnSearchCheckAll, #btnSearchUncheckAll')) {
         state.hasUnsavedChanges = true;
       }
     });
