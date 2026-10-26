@@ -18,5 +18,6 @@ const tick=(ms=600)=>new Promise(r=>setTimeout(r,ms));
  // Current top row survives removal of relevance filtering even when earlier rows reappear.
  for(let i=0;i<500;i+=2)state.staryoRows.add(i+8);state.unmarkedOnly=true;refreshExcelTable();const scroll=d.getElementById('tableScrollContainer');scroll.scrollTop=2400+5;scroll.dispatchEvent(new w.Event('scroll'));await tick(30);const before=state.filteredItems[100].excelRow;
  for(let i=0;i<4;i++)d.getElementById('btnRelevant').click();assert.equal(state.unmarkedOnly,false);const index=state.filteredItems.findIndex(it=>it.excelRow===before);assert.equal(scroll.scrollTop,index*24+5);assert.ok(d.querySelector(`[data-row="${before}"]`),'Anchored row must be rendered after virtual scrolling');
+ assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/#btnUndoAction, #btnRedoAction\s*\{[^}]*font-weight:900/,'History arrows have a dedicated bold style');
  console.log('Arrow undo/redo for view and quantities, redo branching and relevance viewport anchoring passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

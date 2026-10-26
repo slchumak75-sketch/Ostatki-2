@@ -2038,6 +2038,9 @@
     for(const candidate of state.stockSearchProducts){
       const other=candidate.item,otherWarehouse=other.warehouse||'',sameProduct=stockProductKey(other)===key;
       if(same ? otherWarehouse!==warehouse || sameProduct : otherWarehouse===warehouse)continue;
+      // Similar alternatives must be current working items, not reference marks.
+      // Read live flags here so a changed checkbox takes effect without reindexing.
+      if(same && (state.staryoRows.has(other.excelRow) || nomenclatureProperties[propertyKey(other)]===true))continue;
       const score=sameProduct?100:stockNameScore(signature,candidate.signature);
       if(score>=state.stockSimilarityPercent)matches.push({...candidate,score});
     }

@@ -3,7 +3,7 @@ const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{ur
 const item=(excelRow,sku,warehouse,name,closingStock)=>({excelRow,sku,warehouse,name,closingStock,supplier:'Поставщик',group:'Кабели',sumSalesLast12M:5,salesSegment:3,monthlySales:[],autoOrderQty:0,finalOrderQty:0,purchasePrice:10});
 const items=[item(8,'001','A','Кабель медный силовой 3х2,5',1),item(9,'001','B','Кабель медный силовой 3х2,5',4),item(10,'001','B','Кабель медный силовой 3х2,5',2),item(11,'002','A','Кабель медный силовой 3х1,5',8),item(12,'003','B','Кабель медный силовой 3х1,5',7),item(13,'004','A','Отвёртка крестовая <опасно>',99),item(14,'005','A','Кабель медный силовой 3х2,5',3)];
 const report={fileName:'Тест.xlsx',items,periods:[],params:{},warehouses:[],groups:[],suppliers:[]};w.fetch=async(path,options)=>{calls.push({path,options});return {ok:true,json:async()=>path==='api/properties'?{properties:{}}:{report}};};
-w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__similar={state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore};bootstrap();'));
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__similar={state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore,setWorkingMark:(row,value)=>{const it=state.rowMap.get(row);nomenclatureProperties[propertyKey(it)]=value;}};bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,50));
 (async()=>{try{
  await tick();assert.equal(d.querySelector('[data-tab="liquidity"]'),null);assert.equal(d.querySelector('#view-liquidity'),null);assert.equal(d.querySelector('[data-tab="charts"]').nextElementSibling.querySelector('input').id,'stockSimilarityPercent');
@@ -13,6 +13,12 @@ const tick=()=>new Promise(r=>setTimeout(r,50));
  setPercent(100);hover();assert.equal(toggle.textContent,'Другой склад');assert.equal(rows().length,1,'Same SKU split into lines must aggregate');assert.match(rows()[0].textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('%'));assert.ok(!pop.textContent.includes('Товар / склад'));assert.ok(!rows()[0].textContent.includes('B'));
  const score=stockNameScore(stockNameSignature(items[0].name),stockNameSignature(items[4].name));assert.ok(score>0&&score<100);setPercent(score);hover();assert.equal(rows().length,2);setPercent(score+1);hover();assert.equal(rows().length,1,'Threshold excludes lower matches');
  toggle.click();assert.equal(toggle.textContent,'Похожий товар');setPercent(100);hover();assert.equal(rows().length,1);assert.match(rows()[0].textContent,/005/);assert.ok(!rows()[0].textContent.includes('001'),'Current product itself is excluded');setPercent(score);hover();assert.equal(rows().length,2);assert.ok(!pop.textContent.includes('Отвёртка'));
+ // Working marks exclude similar products even when the general relevance filter is off.
+ state.unmarkedOnly=false;state.staryoRows.add(14);hover();assert.equal(rows().length,1);assert.ok(!pop.textContent.includes('005'));
+ state.staryoRows.delete(14);hover();assert.equal(rows().length,2,'Unchecking must restore candidates without rebuilding the stock index');
+ w.__similar.setWorkingMark(14,true);hover();assert.equal(rows().length,1,'Live persisted working flags must also be respected');
+ w.__similar.setWorkingMark(14,false);hover();assert.equal(rows().length,2,'Explicit false is current, not excluded');
+ toggle.click();state.staryoRows.add(9);setPercent(100);hover();assert.equal(rows().length,1,'Other-warehouse availability remains unchanged');state.staryoRows.delete(9);toggle.click();setPercent(score);
  setPercent(0);hover();assert.equal(rows().length,3);assert.ok(pop.textContent.includes('Отвёртка крестовая <опасно>'));assert.equal(pop.querySelector('опасно'),null,'Names are escaped');
  setPercent(150);assert.equal(percent.value,'100');setPercent(-2);assert.equal(percent.value,'0');
  const saved=collectUIState();assert.equal(saved.stockSimilarityPercent,0);assert.equal(saved.stockSearchMode,'similar');applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(percent.value,'0');assert.equal(toggle.textContent,'Похожий товар');
