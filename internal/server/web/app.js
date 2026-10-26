@@ -2004,7 +2004,8 @@
   const stockIgnoredWords=new Set(['и','в','на','с','из','по','от','для','без','мл','л','мм','см','м','г','кг','шт']);
   function stockNameSignature(value){
     const normalized=String(value||'').normalize('NFKC').toLowerCase().replace(/ё/g,'е').replace(/[×х]/g,'x').replace(/(\d),(?=\d)/g,'$1.');
-    const parts=(normalized.match(/[\p{L}\p{N}]+(?:[.]\d+)?/gu)||[]).map(word=>stockWordAliases.get(word)||word).filter(word=>!stockIgnoredWords.has(word));
+    // Ignore alphabetic Latin words (brands, etc.), not mixed model codes or dimensions.
+    const parts=(normalized.match(/[\p{L}\p{N}]+(?:[.]\d+)?/gu)||[]).filter(word=>!/^[a-z]+$/.test(word)).map(word=>stockWordAliases.get(word)||word).filter(word=>!stockIgnoredWords.has(word));
     return {name:[...new Set(parts)].sort().join(' '),tokens:new Set(parts.filter(word=>!/^\d/.test(word)))};
   }
   function stockNameScore(a,b){
