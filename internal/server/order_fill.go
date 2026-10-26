@@ -17,14 +17,15 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Supplier  string                `json:"supplier"`
-		Suppliers []string              `json:"suppliers"`
-		Warehouse *string               `json:"warehouse"`
-		Cancel    bool                  `json:"cancel"`
-		Clear     bool                  `json:"clear"`
-		Params    *model.ForecastParams `json:"params,omitempty"`
+		Supplier    string                `json:"supplier"`
+		Suppliers   []string              `json:"suppliers"`
+		Warehouse   *string               `json:"warehouse"`
+		Cancel      bool                  `json:"cancel"`
+		Clear       bool                  `json:"clear"`
+		RefreshRows map[int]int           `json:"refreshRows,omitempty"`
+		Params      *model.ForecastParams `json:"params,omitempty"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil || (strings.TrimSpace(req.Supplier) == "" && len(req.Suppliers) == 0) || (req.Warehouse == nil && !req.Clear) {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil || (strings.TrimSpace(req.Supplier) == "" && len(req.Suppliers) == 0) || req.Warehouse == nil {
 		writeError(w, http.StatusBadRequest, "выберите поставщиков и один склад")
 		return
 	}
@@ -57,19 +58,28 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	excluded := s.orderExclusionsLocked(s.wb)
 	rows := make(map[int]bool)
+	scopeFound := false
 	for _, it := range s.wb.Items {
 		supplier := strings.TrimSpace(it.Supplier)
 		if supplier == "" {
 			supplier = "(Поставщик не указан)"
 		}
-		if selected[supplier] && (req.Clear || it.Warehouse == *req.Warehouse) {
+		if selected[supplier] && it.Warehouse == *req.Warehouse {
+			scopeFound = true
+			if req.RefreshRows != nil && !req.Clear && !req.Cancel {
+				previous, wanted := req.RefreshRows[it.ExcelRow]
+				current, exists := overrides[it.ExcelRow]
+				if !wanted || !exists || current != previous || excluded[it.ExcelRow] {
+					continue
+				}
+			}
 			rows[it.ExcelRow] = true
 			if req.Clear || !excluded[it.ExcelRow] {
 				delete(overrides, it.ExcelRow)
 			}
 		}
 	}
-	if len(rows) == 0 {
+	if !scopeFound {
 		writeError(w, http.StatusBadRequest, "в выбранной паре поставщик/склад нет товаров")
 		return
 	}

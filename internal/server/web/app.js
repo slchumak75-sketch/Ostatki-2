@@ -42,6 +42,7 @@
     searchDebounceTimer: null,
     pendingOverrides: new Map(),
     filledOrderScopes: new Set(),
+    autoFilledQuantities: {},
     highlightedOrderRows: new Set(),
     orderTransferRows: new Set(),
     checkedSuppliers: new Set(),
@@ -95,13 +96,13 @@
     const stamp=state.lastSavedAt ? (/^\d{2}\.\d{2}\.\d{4}/.test(state.lastSavedAt)?state.lastSavedAt:new Date(state.lastSavedAt).toLocaleString('ru-RU')) : 'ещё не сохранено';
     target.textContent=`Эталон: ${referenceName || 'не загружен'}${referenceDate?' • '+new Date(referenceDate).toLocaleString('ru-RU'):''} | Ведомость: ${state.report?.fileName || 'не загружена'} | Сохранение: ${state.isSavingDb?'запись…':stamp}${state.report && state.hasUnsavedChanges?' • Есть несохранённые изменения':''}`;
   }
-  function safetyDialog(title,lines,fields='') {
+  function safetyDialog(title,lines,fields='',validate=null) {
     if(dialogBusy)return Promise.resolve(false);
     dialogBusy=true;const box=el('safetyDialog'),before=document.activeElement;
     el('safetyDialogTitle').textContent=title;el('safetyDialogText').textContent=lines;
     el('safetyDialogFields').innerHTML=fields;box.classList.remove('hidden');el('safetyDialogNo').focus();
     return new Promise(resolve=>{
-      const finish=value=>{box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;box.removeEventListener('keydown',key);before?.focus();resolve(value);};
+      const finish=value=>{if(value && validate && !validate())return;box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;box.removeEventListener('keydown',key);before?.focus();resolve(value);};
       const key=e=>{if(e.key==='Escape'){e.stopPropagation();finish(false);}if(e.key==='Tab'){const controls=[...box.querySelectorAll('button,input,select')].filter(x=>!x.disabled);if(e.shiftKey&&document.activeElement===controls[0]){e.preventDefault();controls.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===controls.at(-1)){e.preventDefault();controls[0].focus();}}};
       box.addEventListener('keydown',key);el('safetyDialogYes').onclick=()=>finish(true);el('safetyDialogNo').onclick=()=>finish(false);
     });
@@ -830,6 +831,7 @@
       stockSearchMode: state.stockSearchMode,
       stockHintsDisabled: state.stockHintsDisabled,
       filledOrderScopes: [...state.filledOrderScopes],
+      autoFilledQuantities: {...state.autoFilledQuantities},
       orderTransferRows: [...state.orderTransferRows],
       highlightedOrderRows: [...state.highlightedOrderRows],
       colFilters: state.colFilters,
@@ -898,7 +900,7 @@
     state.ovSortDir = 'desc';
     state.ovColWidths = null;
     state.pendingOverrides.clear();
-    state.filledOrderScopes.clear();
+    state.filledOrderScopes.clear();state.autoFilledQuantities={};
     state.highlightedOrderRows.clear();
     state.orderTransferRows.clear();
     state.checkedSuppliers.clear();
@@ -989,7 +991,7 @@
     const shouldRestoreSaved = Boolean(opts.restoreSaved || (opts.initialBoot && env.savedFileName));
 
     if (opts.freshNewDb) {
-      state.filledOrderScopes.clear();
+      state.filledOrderScopes.clear();state.autoFilledQuantities={};
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
@@ -1021,7 +1023,7 @@
       switchTabUI('table');
       syncSelectedSuppliersToServer();
     } else if (shouldRestoreSaved) {
-      state.filledOrderScopes.clear();
+      state.filledOrderScopes.clear();state.autoFilledQuantities={};
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
@@ -1029,7 +1031,7 @@
       state.checkedSuppliers = new Set((env.selectedSuppliers || []).map(normalizeSupName));
       state.hasUnsavedChanges = false;
     } else if (state.lastLoadedFile !== state.report.fileName) {
-      state.filledOrderScopes.clear();
+      state.filledOrderScopes.clear();state.autoFilledQuantities={};
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
       state.lastLoadedFile = state.report.fileName;
@@ -1058,6 +1060,7 @@
       state.stockSearchMode = ui.stockSearchMode==='similar'?'similar':'other';
       state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);
       state.filledOrderScopes = new Set((ui.filledOrderScopes || []).filter(s=>typeof s==='string'));
+      state.autoFilledQuantities={...(ui.autoFilledQuantities||{})};
       state.orderTransferRows = new Set((ui.orderTransferRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.highlightedOrderRows = new Set((ui.highlightedOrderRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.staryoMode = !state.unmarkedOnly;
@@ -2055,6 +2058,7 @@
       if(same ? otherWarehouse!==warehouse || sameProduct : otherWarehouse===warehouse)continue;
       // Similar alternatives must be current working items, not reference marks.
       // Read live flags here so a changed checkbox takes effect without reindexing.
+      if(same && !(candidate.stock>0))continue;
       if(same && (state.staryoRows.has(other.excelRow) || nomenclatureProperties[propertyKey(other)]===true))continue;
       const score=sameProduct?100:stockNameScore(signature,candidate.signature);
       if(score>=state.stockSimilarityPercent)matches.push({...candidate,score});
@@ -2430,12 +2434,26 @@
   function scheduleRecalculate() {
     if (isClearingDatabase || !state.report) return;
     clearTimeout(state.debounceTimer);
-    state.filledOrderScopes.clear();renderOrderActionButtons();
+    renderOrderActionButtons();
     const reqEpoch = state.clientEpoch,revision=++paramsRevision,requestedParams=collectParamsFromUI();
     state.debounceTimer = setTimeout(async () => {
       try {
-        paramsInFlight=paramsInFlight.catch(()=>{}).then(()=>apiPost('api/params', requestedParams));
-        const env = await paramsInFlight.catch(()=>{});
+        if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]')){state.debounceTimer=setTimeout(scheduleRecalculate,150);return;}
+        paramsInFlight=paramsInFlight.catch(()=>{}).then(async()=>{
+          if(reqEpoch!==state.clientEpoch)return null;
+          let env=await apiPost('api/params', requestedParams);
+          for(const key of [...state.filledOrderScopes]){
+            if(reqEpoch!==state.clientEpoch)return null;
+            const [supplier,warehouse]=JSON.parse(key),refreshRows={};
+            for(const it of state.report.items)if(normalizeSupName(it.supplier)===supplier && (it.warehouse||'')===warehouse && Object.hasOwn(state.autoFilledQuantities,it.excelRow) && !state.pendingOverrides.has(it.excelRow) && !state.orderTransferRows.has(it.excelRow))refreshRows[it.excelRow]=state.autoFilledQuantities[it.excelRow];
+            if(!Object.keys(refreshRows).length)continue;
+            env=await apiPost('api/orders/fill',{supplier,warehouse,params:requestedParams,refreshRows});
+            if(reqEpoch!==state.clientEpoch)return null;
+            for(const it of env.report?.items||[])if(Object.hasOwn(refreshRows,it.excelRow) && state.autoFilledQuantities[it.excelRow]===refreshRows[it.excelRow] && !state.pendingOverrides.has(it.excelRow))state.autoFilledQuantities[it.excelRow]=it.finalOrderQty;
+          }
+          return env;
+        });
+        const env = await paramsInFlight;
         if (reqEpoch !== state.clientEpoch || revision!==paramsRevision) return;
         applyEnvelope(env);
       } catch (err) {
@@ -3089,6 +3107,7 @@
         const env=await apiPost('api/orders/fill',{...scope,cancel,params});
         if(epoch!==state.clientEpoch)return;
         for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier)) && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
+        for(const it of env.report?.items||[])if((it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier))){if(cancel || state.staryoRows.has(it.excelRow))delete state.autoFilledQuantities[it.excelRow];else state.autoFilledQuantities[it.excelRow]=it.finalOrderQty;}
         for(const key of keys){if(cancel)state.filledOrderScopes.delete(key);else state.filledOrderScopes.add(key);}
         applyEnvelope(env);refreshExcelTable();
         showToast(cancel?'Автозаказ выбранных поставщиков на складе отменён':'Автозаказ рассчитан для выбранных поставщиков на складе');
@@ -3519,6 +3538,7 @@
     }
 
     function updateRowSumLive(rowNum, qty) {
+      delete state.autoFilledQuantities[rowNum];
       if (!state.report?.items) return;
       const it = state.rowMap.get(rowNum) || state.report.items.find((x) => x.excelRow === rowNum);
       if (!it) return;
@@ -4297,16 +4317,23 @@
       if(clear){
         const supplier=clear.dataset.supplierClear,epoch=state.clientEpoch;
         try{
-          if(!await safetyDialog('Очистить заказ поставщика?',`Поставщик: ${supplier}\nБудет очищен весь заказ этого поставщика на всех складах, включая ручные количества и «пер». Заказы других поставщиков, галочки и эталон не изменятся. Продолжить?`))return;
+          const warehouses=[...new Set((state.report?.items||[]).filter(it=>normalizeSupName(it.supplier)===supplier).map(it=>it.warehouse||''))].sort();
+          let warehouse;
+          const fields=`<label for="supplierClearWarehouse">С какого склада очистить заказ?</label><select id="supplierClearWarehouse" required><option value="">Выберите склад</option>${warehouses.map((wh,index)=>`<option value="${index}">${esc(wh||'(Склад не указан)')}</option>`).join('')}</select>`;
+          if(!await safetyDialog('Очистить заказ поставщика?',`Поставщик: ${supplier}\nВыберите склад. Будет очищен заказ только на выбранном складе, включая ручные количества и «пер». Другие склады, поставщики, галочки и эталон не изменятся.`,fields,()=>{
+            const select=el('supplierClearWarehouse');
+            if(select.value===''){showToast('Выберите склад для очистки');select.focus();return false;}
+            warehouse=warehouses[Number(select.value)];return warehouse!==undefined;
+          }))return;
           if(epoch!==state.clientEpoch)return;
           if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
           clear.disabled=true;
           await paramsInFlight.catch(()=>{});
           if(epoch!==state.clientEpoch)return;
-          const env=await apiPost('api/orders/fill',{supplier,clear:true});
+          const env=await apiPost('api/orders/fill',{supplier,warehouse,clear:true});
           if(epoch!==state.clientEpoch)return;
-          for(const it of state.report.items)if(normalizeSupName(it.supplier)===supplier){state.orderTransferRows.delete(it.excelRow);state.highlightedOrderRows.delete(it.excelRow);}
-          for(const key of state.filledOrderScopes){try{if(JSON.parse(key)[0]===supplier)state.filledOrderScopes.delete(key);}catch(_){}}
+          for(const it of state.report.items)if(normalizeSupName(it.supplier)===supplier && (it.warehouse||'')===warehouse){delete state.autoFilledQuantities[it.excelRow];state.orderTransferRows.delete(it.excelRow);state.highlightedOrderRows.delete(it.excelRow);}
+          for(const key of state.filledOrderScopes){try{const pair=JSON.parse(key);if(pair[0]===supplier && pair[1]===warehouse)state.filledOrderScopes.delete(key);}catch(_){}}
           applyEnvelope(env);refreshExcelTable();renderExcelOptions();showToast('Заказ поставщика очищен');
         }catch(err){showToast(err.message);}finally{clear.disabled=false;}
         return;
@@ -4395,7 +4422,7 @@
     for(const [field,key] of [['warehouse','fltWarehouses'],['group','fltGroups'],['sku','fltSkus'],['nomenclature','fltNomenclatures'],['plus','fltPlus'],['rating','fltRatings'],['status','fltStatuses']])state.msFilters[field]=new Set(ui[key]||[]);
     for(const [id,key] of [['fltSupplier','fltSupplier'],['inpSearch','searchName'],['inpSupplierFilter','fltSupplierSearch'],['ovFltWarehouse','ovFltWarehouse'],['ovFltName','ovFltName'],['ovFltRating','ovFltRating'],['ovFltSupplier','ovFltSupplier'],['ovInpSearch','ovSearch']])if(el(id))el(id).value=ui[key]||'';
     state.ovSortKey=ui.ovSortKey;state.ovSortDir=ui.ovSortDir;state.overstockLimit=ui.overstockLimit;
-    state.filledOrderScopes=new Set(ui.filledOrderScopes||[]);state.orderTransferRows=new Set(ui.orderTransferRows||[]);state.highlightedOrderRows=new Set(ui.highlightedOrderRows||[]);
+    state.filledOrderScopes=new Set(ui.filledOrderScopes||[]);state.autoFilledQuantities={...(ui.autoFilledQuantities||{})};state.orderTransferRows=new Set(ui.orderTransferRows||[]);state.highlightedOrderRows=new Set(ui.highlightedOrderRows||[]);
     state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);
     state.comparison=view.comparison?new Map(view.comparison):null;
     syncPropertyFilters();switchTabUI(ui.activeTab||'table');

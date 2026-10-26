@@ -4,9 +4,9 @@ const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{ur
 const w=dom.window,d=w.document,calls=[];w.scrollTo=()=>{};w.setInterval=()=>1;
 const make=(excelRow,sku,warehouse,autoOrderQty,finalOrderQty=0,supplier='Поставщик')=>({excelRow,sku,name:'Товар <пример>',warehouse,supplier,group:'Группа',closingStock:3,sumSalesLast12M:10,salesSegment:3,monthlySales:[],autoOrderQty,finalOrderQty,purchasePrice:2,manualOverride:finalOrderQty});
 const items=[make(8,'001','Мир',5),make(9,'002','Мир',0),make(10,'001','Другой',7),make(11,'001','Мир',9,0,'Другой'),make(12,'001','Другой',2),make(13,'999','Другой',1)];
-items[2].closingStock=4;items[4].closingStock=2;items[5].closingStock=99;items[5].name='Совершенно другая номенклатура';
+items[2].closingStock=4;items[4].closingStock=2;items[5].closingStock=99;items[5].name='Совершенно другая номенклатура';items.push(make(14,'005','Мир',0),make(15,'006','Другой',0));items[6].closingStock=0;items[7].closingStock=0;
 const report={fileName:'Тест.xlsx',items,params:{budgetCap:0},periods:[],warehouses:[],groups:[],suppliers:[]};
-w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if((req.clear||it.warehouse===req.warehouse)&&(req.suppliers||[req.supplier]).includes(it.supplier)){it.finalOrderQty=(req.clear||req.cancel)?0:it.autoOrderQty;it.manualOverride=(req.clear||req.cancel)?null:it.finalOrderQty;}}return {ok:true,json:async()=>({report})};};
+w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if((it.warehouse===req.warehouse)&&(req.suppliers||[req.supplier]).includes(it.supplier)){it.finalOrderQty=(req.clear||req.cancel)?0:it.autoOrderQty;it.manualOverride=(req.clear||req.cancel)?null:it.finalOrderQty;}}return {ok:true,json:async()=>({report})};};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__actions={state,refreshExcelTable,collectUIState,applyEnvelope}; bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
@@ -20,7 +20,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.equal(d.querySelector('[data-qty-row="8"]').value,'');assert.ok(d.querySelector('[data-qty-row="8"]').classList.contains('order-highlighted'));assert.ok(!d.querySelector('[data-qty-row="9"]').classList.contains('order-highlighted'));assert.deepEqual([...state.highlightedOrderRows],[8]);assert.equal(d.querySelector('#tableBody tr[data-row]').dataset.row,'8');
  d.querySelector('[data-filter-col="finalOrderQty"]').click();assert.ok(d.querySelector('[data-excel-only="Рекомендовано"]'));d.querySelector('[data-excel-only="Рекомендовано"]').click();assert.deepEqual([...state.filteredItems].map(it=>it.excelRow),[8]);
  delete state.colFilters.finalOrderQty;refreshExcelTable();
- const name=d.querySelector('[data-stock-row="8"]');name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const pop=d.getElementById('warehouseStockPopover');assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('99'));assert.equal(pop.querySelector('пример'),null,'Product names are escaped');d.dispatchEvent(new w.Event('scroll'));assert.ok(pop.classList.contains('hidden'));
+ const name=d.querySelector('[data-stock-row="8"]');name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const pop=d.getElementById('warehouseStockPopover');assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('99'));assert.equal(pop.querySelector('пример'),null,'Product names are escaped');assert.ok(pop.textContent.includes('0,00 шт'),'Other-warehouse hints keep zero-stock rows');d.getElementById('btnStockSearchMode').click();name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/3,00 шт/);assert.ok(!pop.textContent.includes('0,00 шт'),'Similar mode must hide zero-stock rows');d.getElementById('btnStockSearchMode').click();d.dispatchEvent(new w.Event('scroll'));assert.ok(pop.classList.contains('hidden'));
  const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.ok(!qty.classList.contains('order-highlighted'));assert.ok(!qty.classList.contains('is-manual'));assert.ok(!state.highlightedOrderRows.has(8));
  const star=d.querySelector('[data-qty-row="9"]');star.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));star.value='*';star.dispatchEvent(new w.Event('input',{bubbles:true}));star.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.equal(star.value,'пер');assert.equal(items[1].finalOrderQty,0);assert.ok(state.orderTransferRows.has(9));assert.deepEqual([...collectUIState().orderTransferRows],[9]);
  highlight.click();const saved=collectUIState();assert.deepEqual([...saved.highlightedOrderRows],[8]);applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.ok(state.highlightedOrderRows.has(8));
@@ -51,12 +51,33 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  state.filledOrderScopes.add(JSON.stringify(['Поставщик','Мир']));
  for(const [id,value] of [['inpHorizon','90'],['inpLeadTime','22'],['inpSafety','35']]){d.getElementById(id).value=value;d.getElementById(id).dispatchEvent(new w.Event('change'));}
  fill.click();await tick();const fresh=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(fresh.cancel,false);assert.equal(fresh.params.horizonDays,90);assert.equal(fresh.params.leadTimeDays,22);assert.equal(fresh.params.safetyStockPct,35);
- // Clear requires explicit confirmation and applies only to the named supplier, across warehouses.
+ // Clear requires both explicit warehouse selection and confirmation.
  items[0].finalOrderQty=6;items[2].finalOrderQty=7;items[3].finalOrderQty=9;state.orderTransferRows.add(9);refreshExcelTable();
  d.querySelector('[data-filter-col="supplier"]').click();
  const clearCalls=()=>calls.filter(c=>c.path==='api/orders/fill'&&JSON.parse(c.options.body).clear);
  d.querySelector('[data-supplier-clear="Поставщик"]').click();assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'));assert.equal(clearCalls().length,0);d.getElementById('safetyDialogNo').click();await tick();assert.equal(clearCalls().length,0);assert.equal(items[0].finalOrderQty,6);
- d.querySelector('[data-supplier-clear="Поставщик"]').click();d.getElementById('safetyDialogYes').click();await tick();assert.equal(clearCalls().length,1);assert.equal(items[0].finalOrderQty,0);assert.equal(items[2].finalOrderQty,0);assert.equal(items[3].finalOrderQty,9);assert.ok(!state.orderTransferRows.has(9));assert.ok([...state.filledOrderScopes].every(k=>JSON.parse(k)[0]!=='Поставщик'));
+ d.querySelector('[data-supplier-clear="Поставщик"]').click();d.getElementById('safetyDialogYes').click();await tick();assert.equal(clearCalls().length,0);assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'),'No warehouse: keep dialog open');const clearWarehouse=d.getElementById('supplierClearWarehouse');clearWarehouse.value=[...clearWarehouse.options].find(o=>o.textContent==='Мир').value;d.getElementById('safetyDialogYes').click();await tick();assert.equal(clearCalls().length,1);assert.equal(JSON.parse(clearCalls()[0].options.body).warehouse,'Мир');assert.equal(items[0].finalOrderQty,0);assert.equal(items[2].finalOrderQty,7,'Same supplier on another warehouse must remain unchanged');assert.equal(items[3].finalOrderQty,9);assert.ok(!state.orderTransferRows.has(9));assert.ok(!state.filledOrderScopes.has(JSON.stringify(['Поставщик','Мир'])));
+ // Parameter changes interactively refresh already filled scopes; manual edits opt out.
+ state.filledOrderScopes.clear();state.autoFilledQuantities={};state.highlightedOrderRows.clear();state.orderTransferRows.clear();state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
+ fill.click();await tick();assert.ok(state.filledOrderScopes.has(JSON.stringify(['Поставщик','Мир'])));assert.equal(state.autoFilledQuantities[8],5);
+ let base=calls.length;
+ d.getElementById('inpHorizon').value='90';d.getElementById('inpHorizon').dispatchEvent(new w.Event('change'));
+ await new Promise(r=>setTimeout(r,300));
+ const paramCalls=calls.slice(base);
+ assert.equal(paramCalls.filter(c=>c.path==='api/params').length,1,'Debounced parameter change still posts params once');
+ const refreshes=paramCalls.filter(c=>c.path==='api/orders/fill');
+ assert.equal(refreshes.length,1,'Filled scope must refresh exactly once per parameter change');
+ const refreshReq=JSON.parse(refreshes[0].options.body);
+ assert.equal(refreshReq.supplier,'Поставщик');assert.equal(refreshReq.warehouse,'Мир');assert.ok(!refreshReq.cancel,'Refresh must not cancel the order');assert.equal(refreshReq.clear,undefined);assert.equal(refreshReq.params.horizonDays,90);
+ assert.deepEqual(refreshReq.refreshRows,{8:5,9:0,14:0});
+ const manual=d.querySelector('[data-qty-row="8"]');manual.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));manual.value='2';manual.dispatchEvent(new w.Event('input',{bubbles:true}));manual.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
+ assert.equal(state.autoFilledQuantities[8],undefined,'Manual edit must opt the row out of interactive refresh');
+ base=calls.length;
+ d.getElementById('inpSafety').value='35';d.getElementById('inpSafety').dispatchEvent(new w.Event('change'));
+ await new Promise(r=>setTimeout(r,300));
+ const optOut=calls.slice(base).filter(c=>c.path==='api/orders/fill');
+ assert.equal(optOut.length,1);assert.deepEqual(JSON.parse(optOut[0].options.body).refreshRows,{9:0,14:0});
+ fill.click();await tick();assert.equal(state.filledOrderScopes.size,0);assert.equal(state.autoFilledQuantities[8],undefined);assert.equal(state.autoFilledQuantities[9],undefined);
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(!css.includes('.qty-input.is-manual'));
  console.log('Scoped order actions, blank recommendation highlighting, filters/sorting, manual edit styling, persistence and other-warehouse stock tooltip passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

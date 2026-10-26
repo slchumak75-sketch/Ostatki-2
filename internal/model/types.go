@@ -258,6 +258,7 @@ type SavedUIState struct {
 	StockHintsDisabled     bool                `json:"stockHintsDisabled,omitempty"`
 	StockSimilarityPercent *int                `json:"stockSimilarityPercent,omitempty"`
 	StockSearchMode        string              `json:"stockSearchMode,omitempty"`
+	AutoFilledQuantities   map[int]int         `json:"autoFilledQuantities,omitempty"`
 	FilledOrderScopes      []string            `json:"filledOrderScopes,omitempty"`
 	OrderTransferRows      []int               `json:"orderTransferRows,omitempty"`
 	HighlightedOrderRows   []int               `json:"highlightedOrderRows,omitempty"`
