@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
+	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 	"github.com/slchumak75-sketch/Ostatki-2/internal/xlsx"
 )
 
@@ -120,6 +121,70 @@ func TestFillOrderOnlySelectedPair(t *testing.T) {
 		app.handleFillOrder(rec, httptest.NewRequest(tc.method, "/api/orders/fill", bytes.NewBufferString(tc.body)))
 		if rec.Code != tc.status || app.report != previousReport {
 			t.Fatalf("invalid request changed state: %d", rec.Code)
+		}
+	}
+}
+
+func TestFillMultipleSuppliers(t *testing.T) {
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	app := New(false)
+	if err := app.LoadWorkbookFromPath(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx")); err != nil {
+		t.Fatal(err)
+	}
+	var sample model.RawItem
+	for _, calculated := range app.report.Items {
+		if calculated.AutoOrderQty > 0 {
+			for _, raw := range app.wb.Items {
+				if raw.ExcelRow == calculated.ExcelRow {
+					sample = raw
+					break
+				}
+			}
+			break
+		}
+	}
+	if sample.ExcelRow == 0 {
+		t.Fatal("fixture lacks recommendations")
+	}
+	app.wb.Items = nil
+	for i, supplier := range []string{"A", "B", "C", "A"} {
+		raw := sample
+		raw.ExcelRow = 8 + i
+		raw.Supplier = supplier
+		raw.Warehouse = "Первый"
+		if i == 3 {
+			raw.Warehouse = "Другой"
+		}
+		app.wb.Items = append(app.wb.Items, raw)
+	}
+	app.overrides = map[int]int{10: 4, 11: 5}
+	app.report = forecast.CalculateExplicit(app.wb, app.params, app.overrides)
+	for _, cancel := range []bool{false, true} {
+		body, _ := json.Marshal(map[string]any{"suppliers": []string{"A", "B"}, "warehouse": "Первый", "cancel": cancel})
+		rec := httptest.NewRecorder()
+		app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
+		if rec.Code != 200 {
+			t.Fatalf("multi: %d %s", rec.Code, rec.Body.String())
+		}
+		for _, it := range app.report.Items {
+			switch it.ExcelRow {
+			case 8, 9:
+				if cancel && it.FinalOrderQty != 0 {
+					t.Fatal("multi cancel left order")
+				}
+				if !cancel && it.FinalOrderQty <= 0 {
+					t.Fatal("selected supplier not filled")
+				}
+			case 10:
+				if it.FinalOrderQty != 4 {
+					t.Fatal("unselected supplier changed")
+				}
+			case 11:
+				if it.FinalOrderQty != 5 {
+					t.Fatal("other warehouse changed")
+				}
+			}
 		}
 	}
 }

@@ -16,13 +16,30 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Supplier  string  `json:"supplier"`
-		Warehouse *string `json:"warehouse"`
-		Cancel    bool    `json:"cancel"`
+		Supplier  string   `json:"supplier"`
+		Suppliers []string `json:"suppliers"`
+		Warehouse *string  `json:"warehouse"`
+		Cancel    bool     `json:"cancel"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req); err != nil || strings.TrimSpace(req.Supplier) == "" || req.Warehouse == nil {
-		writeError(w, http.StatusBadRequest, "выберите одного поставщика и один склад")
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil || (strings.TrimSpace(req.Supplier) == "" && len(req.Suppliers) == 0) || req.Warehouse == nil {
+		writeError(w, http.StatusBadRequest, "выберите поставщиков и один склад")
 		return
+	}
+	if len(req.Suppliers) > 1000 {
+		writeError(w, 400, "слишком много поставщиков")
+		return
+	}
+	selected := map[string]bool{}
+	if strings.TrimSpace(req.Supplier) != "" {
+		selected[strings.TrimSpace(req.Supplier)] = true
+	}
+	for _, supplier := range req.Suppliers {
+		supplier = strings.TrimSpace(supplier)
+		if supplier == "" {
+			writeError(w, 400, "пустой поставщик")
+			return
+		}
+		selected[supplier] = true
 	}
 	s.touchHeartbeat()
 	s.mu.Lock()
@@ -42,7 +59,7 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 		if supplier == "" {
 			supplier = "(Поставщик не указан)"
 		}
-		if supplier == req.Supplier && it.Warehouse == *req.Warehouse {
+		if selected[supplier] && it.Warehouse == *req.Warehouse {
 			rows[it.ExcelRow] = true
 			if !excluded[it.ExcelRow] {
 				delete(overrides, it.ExcelRow)

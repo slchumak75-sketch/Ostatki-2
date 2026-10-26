@@ -16,15 +16,16 @@ func (s *AppServer) handleToolbarLayout(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		Order  []string           `json:"order"`
-		Widths map[string]float64 `json:"widths"`
+		Order  []string            `json:"order"`
+		Widths map[string]float64  `json:"widths"`
+		Groups map[string][]string `json:"groups,omitempty"`
 	}
 	if r.Method == http.MethodPost {
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 			writeError(w, 400, "неверные настройки панели")
 			return
 		}
-		if len(req.Order) > 32 || len(req.Widths) > 32 {
+		if len(req.Order) > 128 || len(req.Widths) > 128 || len(req.Groups) > 32 {
 			writeError(w, 400, "слишком много кнопок")
 			return
 		}
@@ -35,6 +36,20 @@ func (s *AppServer) handleToolbarLayout(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 			seen[id] = true
+		}
+		grouped := map[string]bool{}
+		for key, ids := range req.Groups {
+			if (key != "topbar" && !strings.HasPrefix(key, "params-")) || len(key) > 50 || len(ids) > 128 {
+				writeError(w, 400, "неверная группа кнопок")
+				return
+			}
+			for _, id := range ids {
+				if !seen[id] || grouped[id] {
+					writeError(w, 400, "неверная группа кнопок")
+					return
+				}
+				grouped[id] = true
+			}
 		}
 		for id, width := range req.Widths {
 			if !seen[id] || width < 40 || width > 1200 {
