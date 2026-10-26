@@ -159,8 +159,7 @@
   }
   async function downloadNomenclature(path,name) {
     if(state.desktopMode) {
-      await apiPost(path,{}, {unabortable:true});
-      return;
+      return await apiPost(path,{}, {unabortable:true});
     }
     const res=await fetch(path,{cache:'no-store'});
     if (!res.ok) throw new Error(await res.text());
@@ -2771,7 +2770,15 @@
     el('btnBackupEtalon').addEventListener('click',async()=>{
       try {
         if(state.desktopMode) {
-          try {await apiPost('api/etalon/backup',{}, {unabortable:true});showToast('JSON-копия эталона сохранена: Загрузки / Эталон');return;}
+          try {
+            const backupResult=await apiPost('api/etalon/backup',{}, {unabortable:true});
+            // Keep the dated Excel copy next to the JSON with the same fresh time.
+            let excelName='';
+            try {excelName=(await apiPost('api/etalon/export',{}, {unabortable:true}))?.fileName||'';}
+            catch(exportErr){showToast(`JSON-копия сохранена: Загрузки / Эталон. Не удалось обновить Excel: ${exportErr.message}`);return;}
+            showToast(`Эталон сохранён в «Загрузки / Эталон»: JSON-копия${excelName?` и ${excelName}`:''} обновлены`);
+            return;
+          }
           catch(err){showToast(`Не удалось сохранить в папку Эталон: ${err.message}. Пробуем скачивание через браузер.`);}
         }
         const res=await fetch('api/etalon/backup');
@@ -2804,8 +2811,8 @@
       const button=el('btnExportEtalon');button.disabled=true;
       try {
         // Export the stored snapshot only; never save/refresh it implicitly.
-        await downloadNomenclature('api/etalon/export');
-        showToast('Сохранённый эталон выгружен. Рейтинг и остаток не изменены.');
+        const exported=await downloadNomenclature('api/etalon/export');
+        showToast(exported?.fileName?`Сохранённый эталон выгружен: Загрузки / Эталон • ${exported.fileName}. Рейтинг и остаток не изменены.`:'Сохранённый эталон выгружен. Рейтинг и остаток не изменены.');
       } catch(err) {showToast(`Ошибка выгрузки эталона: ${err.message}`);}
       finally {button.disabled=false;}
     });
