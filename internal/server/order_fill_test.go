@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/slchumak75-sketch/Ostatki-2/internal/forecast"
@@ -245,7 +247,7 @@ func TestFillOrderUsesSubmittedSeasonalParameters(t *testing.T) {
 	}
 }
 
-func TestClearSupplierOrderAllWarehouses(t *testing.T) {
+func TestClearSupplierOrderSelectedWarehouse(t *testing.T) {
 	t.Setenv("APPDATA", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	app := New(false)
@@ -266,7 +268,20 @@ func TestClearSupplierOrderAllWarehouses(t *testing.T) {
 		app.overrides[it.ExcelRow] = 17
 	}
 	app.report = forecast.CalculateExplicit(app.wb, app.params, app.overrides)
-	body, _ := json.Marshal(map[string]any{"supplier": supplier, "clear": true})
+	warehouse := ""
+	for _, it := range app.wb.Items {
+		if it.Supplier == supplier {
+			warehouse = it.Warehouse
+			break
+		}
+	}
+	missing, _ := json.Marshal(map[string]any{"supplier": supplier, "clear": true})
+	invalid := httptest.NewRecorder()
+	app.handleFillOrder(invalid, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(missing)))
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatal("clear without warehouse must be rejected")
+	}
+	body, _ := json.Marshal(map[string]any{"supplier": supplier, "warehouse": warehouse, "clear": true})
 	rec := httptest.NewRecorder()
 	app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
 	if rec.Code != 200 {
@@ -274,7 +289,7 @@ func TestClearSupplierOrderAllWarehouses(t *testing.T) {
 	}
 	cleared, retained := 0, 0
 	for _, it := range app.report.Items {
-		if it.Supplier == supplier {
+		if it.Supplier == supplier && it.Warehouse == warehouse {
 			cleared++
 			if it.FinalOrderQty != 0 {
 				t.Fatal("supplier order was not cleared")
@@ -291,5 +306,127 @@ func TestClearSupplierOrderAllWarehouses(t *testing.T) {
 	}
 	if cleared == 0 || retained == 0 {
 		t.Fatal("fixture must cover selected and other suppliers")
+	}
+}
+
+func TestFillOrderRefreshRowsInteractive(t *testing.T) {
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	app := New(false)
+	if err := app.LoadWorkbookFromPath(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx")); err != nil {
+		t.Fatal(err)
+	}
+	app.report = forecast.Calculate(app.wb, app.params, nil)
+	excludedScan := app.orderExclusionsLocked(app.wb)
+	scope := map[int]*model.CalculatedItem{}
+	supplier, warehouse := "", ""
+	for i := range app.report.Items {
+		it := &app.report.Items[i]
+		if strings.TrimSpace(it.Supplier) == "" || it.AutoOrderQty <= 0 || excludedScan[it.ExcelRow] {
+			continue
+		}
+		if supplier == "" {
+			supplier, warehouse = strings.TrimSpace(it.Supplier), it.Warehouse
+		}
+		if strings.TrimSpace(it.Supplier) == supplier && it.Warehouse == warehouse {
+			scope[it.ExcelRow] = it
+		}
+	}
+	if supplier == "" || len(scope) < 3 {
+		t.Fatal("fixture must contain a scope with at least three rows")
+	}
+	fresh := httptest.NewRecorder()
+	body, _ := json.Marshal(map[string]any{"supplier": supplier, "warehouse": warehouse})
+	app.handleFillOrder(fresh, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
+	if fresh.Code != 200 {
+		t.Fatalf("initial fill: %d %s", fresh.Code, fresh.Body.String())
+	}
+	keys := make([]int, 0, len(scope))
+	for row := range scope {
+		keys = append(keys, row)
+	}
+	sort.Ints(keys)
+	autoRow, manualRow, pinnedRow := keys[0], keys[1], keys[2]
+	item := func(row int) *model.CalculatedItem {
+		for i := range app.report.Items {
+			if app.report.Items[i].ExcelRow == row {
+				return &app.report.Items[i]
+			}
+		}
+		t.Fatalf("row %d missing from the report", row)
+		return nil
+	}
+	autoStored := item(autoRow).FinalOrderQty
+	if autoStored <= 0 {
+		t.Fatal("auto row must hold an algorithm quantity")
+	}
+	// The user edited the second row after the fill; the browser still reports the stale auto value.
+	manualStored := item(manualRow).FinalOrderQty
+	app.overrides[manualRow] = manualStored + 1000
+	app.report = forecast.CalculateExplicit(app.wb, app.params, app.overrides)
+	outsider := 0
+	for _, it := range app.report.Items {
+		if strings.TrimSpace(it.Supplier) != supplier || it.Warehouse != warehouse {
+			outsider = it.ExcelRow
+			break
+		}
+	}
+	if outsider == 0 {
+		t.Fatal("fixture must contain rows outside the scope")
+	}
+	outsiderQty := item(outsider).FinalOrderQty
+	params := model.DefaultParams()
+	params.HorizonDays = 90
+	refresh := map[int]int{autoRow: autoStored, manualRow: manualStored, 999999: 5}
+	body, _ = json.Marshal(map[string]any{"supplier": supplier, "warehouse": warehouse, "params": params, "refreshRows": refresh})
+	rec := httptest.NewRecorder()
+	app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
+	if rec.Code != 200 {
+		t.Fatalf("refresh: %d %s", rec.Code, rec.Body.String())
+	}
+	excluded := app.orderExclusionsLocked(app.wb)
+	calcOverrides := make(map[int]int, len(app.overrides)+len(app.report.Items))
+	for row, qty := range app.overrides {
+		calcOverrides[row] = qty
+	}
+	for _, it := range app.report.Items {
+		if it.ExcelRow != autoRow {
+			calcOverrides[it.ExcelRow] = it.FinalOrderQty
+		}
+	}
+	expected := forecast.Calculate(app.wb, params, calcOverrides, excluded)
+	expectedRow := func(row int) int {
+		for i := range expected.Items {
+			if expected.Items[i].ExcelRow == row {
+				return expected.Items[i].FinalOrderQty
+			}
+		}
+		return 0
+	}
+	if got := item(autoRow).FinalOrderQty; got != expectedRow(autoRow) {
+		t.Fatalf("refreshed row %d: got %d, expected %d", autoRow, got, expectedRow(autoRow))
+	}
+	if got := item(manualRow).FinalOrderQty; got != manualStored+1000 {
+		t.Fatalf("stale row %d must keep the manual quantity, got %d", manualRow, got)
+	}
+	if got := item(pinnedRow).FinalOrderQty; got != scope[pinnedRow].AutoOrderQty {
+		t.Fatalf("scope row outside refreshRows must stay pinned, got %d", got)
+	}
+	if got := item(outsider).FinalOrderQty; got != outsiderQty {
+		t.Fatalf("outsider row changed: %d -> %d", outsiderQty, got)
+	}
+	if app.params.HorizonDays != 90 {
+		t.Fatal("refresh must retain the submitted parameters")
+	}
+	// An empty refresh payload must not zero the scope.
+	before := item(autoRow).FinalOrderQty
+	body, _ = json.Marshal(map[string]any{"supplier": supplier, "warehouse": warehouse, "params": params, "refreshRows": map[int]int{}})
+	rec = httptest.NewRecorder()
+	app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
+	if rec.Code != 200 {
+		t.Fatalf("empty refresh: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := item(autoRow).FinalOrderQty; got != before {
+		t.Fatalf("empty refresh must not change quantities, got %d", got)
 	}
 }
