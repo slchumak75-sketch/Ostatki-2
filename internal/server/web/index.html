@@ -40,6 +40,8 @@
       </div>
 
       <div class="topbar-actions">
+        <button type="button" class="btn btn-beige" id="btnUndoAction" title="Отменить действие" aria-label="Отменить действие" disabled>←</button>
+        <button type="button" class="btn btn-beige" id="btnRedoAction" title="Повторить действие" aria-label="Повторить действие" disabled>→</button>
         <input type="file" id="fileInput" accept=".xlsx" class="hidden" />
         <input type="file" id="savedDbFileInput" accept=".xlsx" class="hidden" />
         <form id="staryoExportForm" method="POST" action="api/export/staryo" class="hidden">

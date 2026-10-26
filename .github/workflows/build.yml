@@ -290,6 +290,7 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/radar-export.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/order-preview.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/order-actions.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/action-history.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/toolbar-layout.cjs
 
       - name: Кросс-компиляция Windows x64 — «Вариант 6»

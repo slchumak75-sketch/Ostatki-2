@@ -263,6 +263,7 @@ func (s *AppServer) handleFullRestore(w http.ResponseWriter, r *http.Request) {
 	if selectedSet["settings.json"] {
 		s.params = params
 	}
+	s.historyWorkbookID.Add(1)
 	if s.wb != nil {
 		s.epoch.Add(1)
 		s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))

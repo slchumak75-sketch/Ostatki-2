@@ -39,6 +39,7 @@ type AppServer struct {
 	propertiesLoaded        bool
 	mu                      sync.RWMutex
 	epoch                   atomic.Uint64
+	historyWorkbookID       atomic.Uint64
 	wb                      *model.WorkbookData
 	rawXLSX                 []byte
 	params                  model.ForecastParams
@@ -63,6 +64,7 @@ type AppServer struct {
 }
 
 type stateEnvelope struct {
+	HistoryWorkbookID       uint64                   `json:"historyWorkbookId"`
 	HasWorkbook             bool                     `json:"hasWorkbook"`
 	CanSaveInPlace          bool                     `json:"canSaveInPlace"`
 	DesktopMode             bool                     `json:"desktopMode"`
@@ -97,6 +99,7 @@ func (s *AppServer) buildStateEnvelopeLocked() stateEnvelope {
 		overridesCopy[k] = v
 	}
 	env := stateEnvelope{
+		HistoryWorkbookID:       s.historyWorkbookID.Load(),
 		HasWorkbook:             s.wb != nil && s.report != nil,
 		CanSaveInPlace:          s.wb != nil && s.wb.FilePath != "",
 		DesktopMode:             s.desktopMode,
@@ -138,6 +141,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.catalogLocked()
+	s.historyWorkbookID.Add(1)
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = make(map[int]int)
@@ -178,6 +182,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 		return nil
 	}
 	s.catalogLocked()
+	s.historyWorkbookID.Add(1)
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = emptyOverrides
@@ -199,6 +204,7 @@ func (s *AppServer) ClearDatabase() {
 	s.epoch.Add(1)
 	s.mu.Lock()
 	s.catalogLocked()
+	s.historyWorkbookID.Add(1)
 	s.wb = nil
 	s.rawXLSX = nil
 	s.overrides = make(map[int]int)
@@ -300,6 +306,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/etalon/compare", s.handleCompareEtalon)
 	mux.HandleFunc("/api/etalon/import", s.handleImportEtalon)
 	mux.HandleFunc("/api/state", s.handleGetState)
+	mux.HandleFunc("/api/action-history", s.handleActionHistory)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
 	mux.HandleFunc("/api/orders/fill", s.handleFillOrder)
