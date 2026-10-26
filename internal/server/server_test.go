@@ -401,17 +401,20 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 
 	// Проверка порядка столбцов в таблице «Ведомость»:
-	// Группа -> Артикул -> Номенклатура -> Ед. -> Запас -> + -> Рейтинг, а также Цена -> Розница -> Сумма
+	// Группа -> Артикул -> Номенклатура -> Ед. -> + -> Рейтинг, а также Цена -> Розница -> Сумма.
+	// Столбец «Запас» (surplusStock) удалён из ведомости.
 	groupColIdx := strings.Index(htmlBody, `data-sort="group" data-col="group"`)
 	skuColIdx := strings.Index(htmlBody, `data-sort="sku" data-col="sku"`)
 	nameIdx := strings.Index(htmlBody, `data-sort="name" data-col="name"`)
 	unitIdx := strings.Index(htmlBody, `data-sort="unit" data-col="unit"`)
-	surplusIdx := strings.Index(htmlBody, `data-sort="surplusStock" data-col="surplusStock" class="num-col col-5digits"`)
 	plusColIdx := strings.Index(htmlBody, `data-sort="_staryoChecked" data-col="plus" class="plus-col"`)
 	ratingIdx := strings.Index(htmlBody, `data-sort="salesSegment" data-col="salesSegment" class="seg-col"`)
-	if !(groupColIdx > 0 && skuColIdx > groupColIdx && nameIdx > skuColIdx && unitIdx > nameIdx && surplusIdx > unitIdx && plusColIdx > surplusIdx && ratingIdx > plusColIdx) {
-		t.Fatalf("expected column order Группа -> Артикул -> Номенклатура -> Ед. -> Запас -> + -> Рейтинг, got indices %d, %d, %d, %d, %d, %d, %d",
-			groupColIdx, skuColIdx, nameIdx, unitIdx, surplusIdx, plusColIdx, ratingIdx)
+	if !(groupColIdx > 0 && skuColIdx > groupColIdx && nameIdx > skuColIdx && unitIdx > nameIdx && plusColIdx > unitIdx && ratingIdx > plusColIdx) {
+		t.Fatalf("expected column order Группа -> Артикул -> Номенклатура -> Ед. -> + -> Рейтинг, got indices %d, %d, %d, %d, %d, %d",
+			groupColIdx, skuColIdx, nameIdx, unitIdx, plusColIdx, ratingIdx)
+	}
+	if surplusIdx := strings.Index(htmlBody, `data-sort="surplusStock"`); surplusIdx != -1 {
+		t.Fatalf("Запас column must stay removed from the statement, found index %d", surplusIdx)
 	}
 	// Проверка, что столбец «Розница» следует сразу после столбца «Цена»
 	priceIdx := strings.Index(htmlBody, `data-sort="purchasePrice" data-col="purchasePrice"`)
@@ -535,7 +538,6 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"auto-order-row",
 		"salesSegment",
 		"salesSegmentLabel",
-		"it.surplusStock",
 		`<td class="unit-cell">шт.</td>`,
 		`<td class="plus-cell"><input type="checkbox" class="plus-input`,
 		`data-rating-row="${it.excelRow}"`,
@@ -574,8 +576,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("app.js missing required UI helper/function: %q", mustHaveJS)
 		}
 	}
-	// Автофильтры перенесены в заголовки всех 15 столбцов.
-	for _, col := range []string{"warehouse", "group", "sku", "name", "unit", "surplusStock", "plus", "salesSegment", "sumSalesLast12M", "closingStock", "finalOrderQty", "purchasePrice", "retailPrice", "orderCost", "supplier"} {
+	// Автофильтры перенесены в заголовки всех столбцов ведомости («Запас» удалён).
+	for _, col := range []string{"warehouse", "group", "sku", "name", "unit", "plus", "salesSegment", "sumSalesLast12M", "closingStock", "finalOrderQty", "purchasePrice", "retailPrice", "orderCost", "supplier"} {
 		if !strings.Contains(htmlBody, `data-filter-col="`+col+`"`) {
 			t.Fatalf("missing column filter: %s", col)
 		}
