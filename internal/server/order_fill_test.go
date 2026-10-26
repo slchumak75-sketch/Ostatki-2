@@ -188,3 +188,108 @@ func TestFillMultipleSuppliers(t *testing.T) {
 		}
 	}
 }
+
+func TestFillOrderUsesSubmittedSeasonalParameters(t *testing.T) {
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	app := New(false)
+	if err := app.LoadWorkbookFromPath(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx")); err != nil {
+		t.Fatal(err)
+	}
+	var target model.CalculatedItem
+	for _, it := range app.report.Items {
+		if it.AutoOrderQty > 0 && it.Supplier != "" {
+			target = it
+			break
+		}
+	}
+	if target.ExcelRow == 0 {
+		t.Fatal("missing seasonal recommendation")
+	}
+	base := model.DefaultParams()
+	base.PlanStartDate = "2026-05-01"
+	variants := []model.ForecastParams{base, base, base, base, base}
+	variants[1].HorizonDays = 90
+	variants[2].LeadTimeDays = 30
+	variants[3].SafetyStockPct = 80
+	variants[4].SeasonMode = model.SeasonFlatSimple
+	totals := make([]int, len(variants))
+	for i, params := range variants {
+		// Stale server settings must not win over the current form submitted with Fill.
+		app.params = base
+		app.overrides = map[int]int{}
+		app.report = forecast.CalculateExplicit(app.wb, base, app.overrides)
+		expected := forecast.Calculate(app.wb, params, nil)
+		body, _ := json.Marshal(map[string]any{"supplier": target.Supplier, "warehouse": target.Warehouse, "params": params})
+		rec := httptest.NewRecorder()
+		app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
+		if rec.Code != 200 {
+			t.Fatalf("variant %d: %d %s", i, rec.Code, rec.Body.String())
+		}
+		for j, it := range app.report.Items {
+			if it.Supplier == target.Supplier && it.Warehouse == target.Warehouse {
+				if it.FinalOrderQty != expected.Items[j].FinalOrderQty {
+					t.Fatalf("variant %d row %d does not follow current forecast", i, it.ExcelRow)
+				}
+				totals[i] += it.FinalOrderQty
+			} else if it.FinalOrderQty != 0 {
+				t.Fatal("filled an unrelated supplier/warehouse")
+			}
+		}
+		if app.params.HorizonDays != params.HorizonDays || app.params.LeadTimeDays != params.LeadTimeDays || app.params.SafetyStockPct != params.SafetyStockPct || app.params.SeasonMode != params.SeasonMode {
+			t.Fatal("submitted settings not retained")
+		}
+	}
+	if totals[0] == totals[1] || totals[0] == totals[2] || totals[0] == totals[3] {
+		t.Fatalf("coverage, lead time and safety must affect the order: %v", totals)
+	}
+}
+
+func TestClearSupplierOrderAllWarehouses(t *testing.T) {
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	app := New(false)
+	if err := app.LoadWorkbookFromPath(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx")); err != nil {
+		t.Fatal(err)
+	}
+	supplier := ""
+	for _, it := range app.wb.Items {
+		if it.Supplier != "" {
+			supplier = it.Supplier
+			break
+		}
+	}
+	if supplier == "" {
+		t.Fatal("missing supplier")
+	}
+	for _, it := range app.wb.Items {
+		app.overrides[it.ExcelRow] = 17
+	}
+	app.report = forecast.CalculateExplicit(app.wb, app.params, app.overrides)
+	body, _ := json.Marshal(map[string]any{"supplier": supplier, "clear": true})
+	rec := httptest.NewRecorder()
+	app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))
+	if rec.Code != 200 {
+		t.Fatalf("clear: %d %s", rec.Code, rec.Body.String())
+	}
+	cleared, retained := 0, 0
+	for _, it := range app.report.Items {
+		if it.Supplier == supplier {
+			cleared++
+			if it.FinalOrderQty != 0 {
+				t.Fatal("supplier order was not cleared")
+			}
+			if _, ok := app.overrides[it.ExcelRow]; ok {
+				t.Fatal("manual override retained")
+			}
+		} else {
+			retained++
+			if it.FinalOrderQty != 17 {
+				t.Fatal("other supplier order changed")
+			}
+		}
+	}
+	if cleared == 0 || retained == 0 {
+		t.Fatal("fixture must cover selected and other suppliers")
+	}
+}

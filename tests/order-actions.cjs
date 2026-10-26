@@ -6,7 +6,7 @@ const make=(excelRow,sku,warehouse,autoOrderQty,finalOrderQty=0,supplier='Пос
 const items=[make(8,'001','Мир',5),make(9,'002','Мир',0),make(10,'001','Другой',7),make(11,'001','Мир',9,0,'Другой'),make(12,'001','Другой',2),make(13,'999','Другой',1)];
 items[2].closingStock=4;items[4].closingStock=2;items[5].closingStock=99;items[5].name='Совершенно другая номенклатура';
 const report={fileName:'Тест.xlsx',items,params:{budgetCap:0},periods:[],warehouses:[],groups:[],suppliers:[]};
-w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if(it.warehouse===req.warehouse&&(req.suppliers||[req.supplier]).includes(it.supplier)){it.finalOrderQty=req.cancel?0:it.autoOrderQty;it.manualOverride=req.cancel?null:it.finalOrderQty;}}return {ok:true,json:async()=>({report})};};
+w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if((req.clear||it.warehouse===req.warehouse)&&(req.suppliers||[req.supplier]).includes(it.supplier)){it.finalOrderQty=(req.clear||req.cancel)?0:it.autoOrderQty;it.manualOverride=(req.clear||req.cancel)?null:it.finalOrderQty;}}return {ok:true,json:async()=>({report})};};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__actions={state,refreshExcelTable,collectUIState,applyEnvelope}; bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
@@ -27,7 +27,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  // Restore explicit scope after the saved-state replay.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const outside=items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty);
- fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);const request=calls.find(c=>c.path==='api/orders/fill');assert.deepEqual(JSON.parse(request.options.body),{warehouse:'Мир',supplier:'Поставщик',cancel:false});
+ fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);const request=calls.find(c=>c.path==='api/orders/fill');const sent=JSON.parse(request.options.body);assert.equal(sent.warehouse,'Мир');assert.equal(sent.supplier,'Поставщик');assert.equal(sent.cancel,false);assert.equal(sent.params.horizonDays,30);assert.equal(sent.params.leadTimeDays,4);assert.equal(sent.params.safetyStockPct,10);
  assert.equal(fill.getAttribute('aria-pressed'),'true');
  const recommendations=[...state.highlightedOrderRows];
  fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(fill.getAttribute('aria-pressed'),'false');assert.deepEqual([...state.highlightedOrderRows],recommendations,'Cancel order must not cancel recommendations');assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);
@@ -47,6 +47,16 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,11]);
  fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.equal(items[3].finalOrderQty,9);const multi=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(multi.suppliers.length,2);assert.equal(multi.warehouse,'Мир');assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
  fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(items[3].finalOrderQty,0);assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
+ // Changing calculation parameters turns the next click into recalculation, not cancellation.
+ state.filledOrderScopes.add(JSON.stringify(['Поставщик','Мир']));
+ for(const [id,value] of [['inpHorizon','90'],['inpLeadTime','22'],['inpSafety','35']]){d.getElementById(id).value=value;d.getElementById(id).dispatchEvent(new w.Event('change'));}
+ fill.click();await tick();const fresh=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(fresh.cancel,false);assert.equal(fresh.params.horizonDays,90);assert.equal(fresh.params.leadTimeDays,22);assert.equal(fresh.params.safetyStockPct,35);
+ // Clear requires explicit confirmation and applies only to the named supplier, across warehouses.
+ items[0].finalOrderQty=6;items[2].finalOrderQty=7;items[3].finalOrderQty=9;state.orderTransferRows.add(9);refreshExcelTable();
+ d.querySelector('[data-filter-col="supplier"]').click();
+ const clearCalls=()=>calls.filter(c=>c.path==='api/orders/fill'&&JSON.parse(c.options.body).clear);
+ d.querySelector('[data-supplier-clear="Поставщик"]').click();assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'));assert.equal(clearCalls().length,0);d.getElementById('safetyDialogNo').click();await tick();assert.equal(clearCalls().length,0);assert.equal(items[0].finalOrderQty,6);
+ d.querySelector('[data-supplier-clear="Поставщик"]').click();d.getElementById('safetyDialogYes').click();await tick();assert.equal(clearCalls().length,1);assert.equal(items[0].finalOrderQty,0);assert.equal(items[2].finalOrderQty,0);assert.equal(items[3].finalOrderQty,9);assert.ok(!state.orderTransferRows.has(9));assert.ok([...state.filledOrderScopes].every(k=>JSON.parse(k)[0]!=='Поставщик'));
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(!css.includes('.qty-input.is-manual'));
  console.log('Scoped order actions, blank recommendation highlighting, filters/sorting, manual edit styling, persistence and other-warehouse stock tooltip passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

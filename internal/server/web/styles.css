@@ -2527,3 +2527,7 @@ body {
 #chartsContent .chart-values thead th {position:static;cursor:default;white-space:normal;}
 #chartsContent .chart-values th,#chartsContent .chart-values td {padding:5px;line-height:1.25;}
 #chartsContent .chart-values tbody tr {cursor:default;}
+
+.ef-supplier-clear {flex:0 0 auto;margin-left:6px;}
+.stock-mode-switch.toolbar-custom-width > #btnStockSearchMode {flex:1;min-width:0;}
+.stock-match-control.toolbar-custom-width {overflow:hidden;}

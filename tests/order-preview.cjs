@@ -24,6 +24,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  state.msFilters.warehouse.add('Мир');renderKPIs(report);assert.equal(budgetNumber(),28);
  state.colFilters.warehouse=['Другой'];renderKPIs(report);assert.equal(budgetNumber(),0,'Conflicting warehouse filters must not fall back to all');
  state.msFilters.warehouse.clear();delete state.colFilters.warehouse;renderKPIs(report);assert.equal(budgetNumber(),42);
+ state.checkedSuppliers.clear();renderKPIs(report);assert.equal(budgetNumber(),42,'Budget includes every supplier even without checkmarks');state.checkedSuppliers.add('Поставщик');renderKPIs(report);assert.equal(budgetNumber(),42,'Budget ignores supplier selections');state.checkedSuppliers.add('Другой');
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(!css.includes('--auto-order-bg'),'No green order-row highlighting');
  const before=JSON.stringify(items),budget=d.getElementById('kpiOrderCost').textContent;
  const search=d.getElementById('inpSearch');search.value='нет совпадений';search.dispatchEvent(new w.Event('input',{bubbles:true}));

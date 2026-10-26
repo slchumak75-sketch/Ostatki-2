@@ -211,7 +211,7 @@
         </div>
         <div class="tabs-order-summary">
           <div class="current-supplier-card" id="currentSupplierCard"><span id="currentSupplierName">Поставщик не выбран</span><strong id="currentSupplierSum">0,00 руб.</strong></div>
-        <div class="budget-inline-card" id="budgetInlineCard">
+        <div class="budget-inline-card" id="budgetInlineCard" title="Сумма заказов всех поставщиков выбранного склада; фильтр поставщика и галочки не влияют">
           <span class="kpi-label">Бюджет закупки</span>
           <span class="kpi-value" id="kpiOrderCost">0,00 руб.</span>
         </div>
@@ -523,7 +523,7 @@
           <select id="fltSupplier" class="sr-only-select" aria-label="Фильтр по поставщику">
             <option value="">Все поставщики</option>
           </select>
-          <button type="button" class="supplier-dd-trigger" id="btnSupplierDropdown" aria-expanded="false" title="Выберите галочками поставщиков для расчёта бюджета закупки, статуса «Готов к отправке» и формирования Excel-файлов">
+          <button type="button" class="supplier-dd-trigger" id="btnSupplierDropdown" aria-expanded="false" title="Выберите галочками поставщиков для статуса «Готов к отправке» и формирования Excel-файлов. Бюджет учитывает всех поставщиков.">
             <span class="supplier-dd-label" id="supplierDropdownLabel">Все поставщики</span>
             <span class="supplier-dd-caret">▾</span>
           </button>
