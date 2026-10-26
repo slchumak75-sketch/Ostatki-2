@@ -282,6 +282,7 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/virtual-scroll.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/desktop-lifecycle.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/etalon.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/etalon-desktop.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/reference-safety.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/reference-day-gate.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/etalon-comparison.cjs

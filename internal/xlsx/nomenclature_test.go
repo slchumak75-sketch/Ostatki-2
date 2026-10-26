@@ -186,3 +186,34 @@ func TestReferenceRowsValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeCatalogWithoutPropertiesMap(t *testing.T) {
+	// Повреждённые ранее эталоны: версия 2 без карты свойств, но с записями.
+	key := NomenclaturePropertyKey("001", "", "Товар", "Склад")
+	raw, _ := json.Marshal(map[string]any{
+		"version":      2,
+		"nomenclature": map[string]model.NomenclatureRecord{key: {SKU: "001", Name: "Товар", Warehouse: "Склад", Checked: true, Rating: 3, Stock: 5}},
+	})
+	catalog, err := DecodeNomenclatureCatalog(raw)
+	if err != nil {
+		t.Fatalf("catalog without properties map must load, got %v", err)
+	}
+	if !catalog.Properties[key] {
+		t.Fatal("marks must be derived from the records")
+	}
+	if _, err := GenerateNomenclatureXLSX(catalog.Nomenclature); err != nil {
+		t.Fatalf("such catalog must export: %v", err)
+	}
+	if _, err := DecodeNomenclatureCatalog([]byte(`{"version":2,"nomenclature":{}}`)); err == nil {
+		t.Fatal("empty records and no properties map must stay rejected")
+	}
+}
+
+func TestGenerateNomenclatureXLSXErrorNamesRecord(t *testing.T) {
+	key := NomenclaturePropertyKey("001", "", "Плохая строка", "Склад")
+	r := model.NomenclatureRecord{SKU: "001", Name: "Плохая строка", Warehouse: "Склад", Rating: 9}
+	_, err := GenerateNomenclatureXLSX(map[string]model.NomenclatureRecord{key: r})
+	if err == nil || !strings.Contains(err.Error(), "Плохая строка") {
+		t.Fatalf("validation error must name the record, got %v", err)
+	}
+}

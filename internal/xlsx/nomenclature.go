@@ -83,8 +83,16 @@ func DecodeNomenclatureCatalog(raw []byte) (model.NomenclatureCatalog, error) {
 		if err := json.Unmarshal(raw, &c); err != nil {
 			return c, fmt.Errorf("неверный каталог: %w", err)
 		}
-		if c.Version != 2 || c.Properties == nil || c.Nomenclature == nil {
+		if c.Version != 2 || c.Nomenclature == nil || (c.Properties == nil && len(c.Nomenclature) == 0) {
 			return c, fmt.Errorf("неподдерживаемый формат каталога")
+		}
+		if c.Properties == nil {
+			// Older writers could omit the properties map: derive marks from the records
+			// instead of rejecting the whole catalog as damaged.
+			c.Properties = make(map[string]bool, len(c.Nomenclature))
+			for k, r := range c.Nomenclature {
+				c.Properties[k] = r.Checked
+			}
 		}
 	} else {
 		if err := json.Unmarshal(raw, &c.Properties); err != nil {
@@ -144,7 +152,7 @@ func GenerateNomenclatureXLSX(records map[string]model.NomenclatureRecord) ([]by
 	for i, key := range keys {
 		r := records[key]
 		if err := ValidateNomenclature(r); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("строка %q (%s): %w", key, r.Name, err)
 		}
 		row := strconv.Itoa(i + 2)
 		sheet.WriteString(`<row r="` + row + `">`)
