@@ -22,6 +22,7 @@
     stockSearchProducts: [],
     stockSimilarityPercent: 80,
     stockSearchMode: 'other',
+    stockHintsDisabled: false,
     canSaveInPlace: false,
     desktopMode: false,
     sourceFileName: '',
@@ -827,6 +828,7 @@
     return {
       stockSimilarityPercent: state.stockSimilarityPercent,
       stockSearchMode: state.stockSearchMode,
+      stockHintsDisabled: state.stockHintsDisabled,
       filledOrderScopes: [...state.filledOrderScopes],
       orderTransferRows: [...state.orderTransferRows],
       highlightedOrderRows: [...state.highlightedOrderRows],
@@ -1054,6 +1056,7 @@
       const ui = env.uiState || {};
       state.stockSimilarityPercent = Number.isInteger(ui.stockSimilarityPercent) ? Math.max(0,Math.min(100,ui.stockSimilarityPercent)) : 80;
       state.stockSearchMode = ui.stockSearchMode==='similar'?'similar':'other';
+      state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);
       state.filledOrderScopes = new Set((ui.filledOrderScopes || []).filter(s=>typeof s==='string'));
       state.orderTransferRows = new Set((ui.orderTransferRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.highlightedOrderRows = new Set((ui.highlightedOrderRows || []).map(Number).filter(n=>state.rowMap.has(n)));
@@ -2028,10 +2031,15 @@
   function syncStockSearchControls(){
     el('stockSimilarityPercent').value=String(state.stockSimilarityPercent);
     const button=el('btnStockSearchMode'),same=state.stockSearchMode==='similar';
+    const off=el('btnStockHintsOff');off.setAttribute('aria-pressed',String(state.stockHintsDisabled));off.title=state.stockHintsDisabled?'Включить подсказки':'Отключить подсказки';off.setAttribute('aria-label',off.title);
+    button.disabled=state.stockHintsDisabled;
+    button.parentElement.classList.toggle('stock-hints-disabled',state.stockHintsDisabled);
     button.textContent=same?'Похожий товар':'Другой склад';button.setAttribute('aria-pressed',String(same));
+    if(state.stockHintsDisabled){button.title='Подсказки отключены. Для включения нажмите зелёный квадратик справа.';return;}
     button.title=same?'Похожие товары на текущем складе. Нажмите для поиска на других складах.':'Такой же или похожий товар на других складах. Нажмите для поиска на текущем складе.';
   }
   function showWarehouseStock(anchor){
+    if(state.stockHintsDisabled){hideWarehouseStock();return;}
     const it=state.rowMap.get(Number(anchor.dataset.stockRow));if(!it)return;
     const same=state.stockSearchMode==='similar',signature=stockNameSignature(it.name),key=stockProductKey(it),warehouse=it.warehouse||'';
     const matches=[];
@@ -2051,19 +2059,14 @@
     pop.classList.remove('hidden');pop.setAttribute('aria-hidden','false');
     const viewport=window.visualViewport;
     const bounds={left:(viewport?.offsetLeft||0)+8,top:(viewport?.offsetTop||0)+8,width:Math.max(1,(viewport?.width||window.innerWidth)-16),height:Math.max(1,(viewport?.height||window.innerHeight)-16)};
-    pop.style.boxSizing='border-box';pop.style.width=`${Math.min(480,bounds.width)}px`;pop.style.maxWidth=`${bounds.width}px`;pop.style.maxHeight=`${bounds.height}px`;
-    const rect=anchor.getBoundingClientRect(),width=pop.offsetWidth||Math.min(480,bounds.width);
-    const naturalHeight=pop.offsetHeight||Math.min(160,bounds.height);
-    const belowSpace=Math.max(0,bounds.top+bounds.height-rect.bottom-6);
-    const aboveSpace=Math.max(0,rect.top-6-bounds.top);
-    const below=naturalHeight<=belowSpace || (naturalHeight>aboveSpace && belowSpace>=aboveSpace);
-    const available=Math.max(1,Math.min(bounds.height,below?belowSpace:aboveSpace));
-    pop.style.maxHeight=`${available}px`;
-    pop.dataset.placement=below?'below':'above';
-    const height=Math.min(pop.offsetHeight||naturalHeight,available);
-    pop.style.left=`${Math.max(bounds.left,Math.min(rect.left,bounds.left+bounds.width-width))}px`;
-    const top=below?rect.bottom+6:rect.top-height-6;
-    pop.style.top=`${Math.max(bounds.top,Math.min(top,bounds.top+bounds.height-height))}px`;
+    const rect=anchor.getBoundingClientRect();
+    const leftSpace=rect.left-bounds.left-8;
+    const desiredWidth=Math.min(480,bounds.width,leftSpace>=180?leftSpace:bounds.width);
+    pop.style.boxSizing='border-box';pop.style.width=`${desiredWidth}px`;pop.style.maxWidth=`${bounds.width}px`;pop.style.maxHeight=`${bounds.height}px`;
+    const width=pop.offsetWidth||desiredWidth,height=Math.min(pop.offsetHeight||160,bounds.height);
+    pop.dataset.placement='left';
+    pop.style.left=`${Math.max(bounds.left,Math.min(rect.left-width-8,bounds.left+bounds.width-width))}px`;
+    pop.style.top=`${Math.max(bounds.top,Math.min(rect.top,bounds.top+bounds.height-height))}px`;
 
   }
 
@@ -2954,7 +2957,8 @@
       state.hasUnsavedChanges=true;hideWarehouseStock();
     });
     el('stockSimilarityPercent').addEventListener('change',()=>syncStockSearchControls());
-    el('btnStockSearchMode').addEventListener('click',()=>{state.stockSearchMode=state.stockSearchMode==='other'?'similar':'other';state.hasUnsavedChanges=true;syncStockSearchControls();hideWarehouseStock();});
+    el('btnStockHintsOff').addEventListener('click',event=>{event.stopPropagation();state.stockHintsDisabled=!state.stockHintsDisabled;state.hasUnsavedChanges=true;syncStockSearchControls();hideWarehouseStock();});
+    el('btnStockSearchMode').addEventListener('click',()=>{if(state.stockHintsDisabled)return;state.stockSearchMode=state.stockSearchMode==='other'?'similar':'other';state.hasUnsavedChanges=true;syncStockSearchControls();hideWarehouseStock();});
     document.addEventListener('mouseover',e=>{
       const anchor=e.target.closest('[data-stock-row]');
       if(anchor && !anchor.contains(e.relatedTarget))showWarehouseStock(anchor);
@@ -4353,7 +4357,7 @@
     for(const [id,key] of [['fltSupplier','fltSupplier'],['inpSearch','searchName'],['inpSupplierFilter','fltSupplierSearch'],['ovFltWarehouse','ovFltWarehouse'],['ovFltName','ovFltName'],['ovFltRating','ovFltRating'],['ovFltSupplier','ovFltSupplier'],['ovInpSearch','ovSearch']])if(el(id))el(id).value=ui[key]||'';
     state.ovSortKey=ui.ovSortKey;state.ovSortDir=ui.ovSortDir;state.overstockLimit=ui.overstockLimit;
     state.filledOrderScopes=new Set(ui.filledOrderScopes||[]);state.orderTransferRows=new Set(ui.orderTransferRows||[]);state.highlightedOrderRows=new Set(ui.highlightedOrderRows||[]);
-    state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';
+    state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);
     state.comparison=view.comparison?new Map(view.comparison):null;
     syncPropertyFilters();switchTabUI(ui.activeTab||'table');
     el('paramsBody').classList.toggle('hidden',!ui.paramsExpanded);el('paramsPanel').classList.toggle('hidden',!ui.paramsExpanded);el('btnToggleAdvanced').textContent=ui.paramsExpanded?'Параметры ▾':'Параметры ▸';el('btnToggleAdvanced').setAttribute('aria-expanded',String(ui.paramsExpanded));
