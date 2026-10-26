@@ -2482,3 +2482,6 @@ body {
 #warehouseStockPopover td:nth-child(2) {text-align:right;padding:3px 8px;white-space:nowrap;}
 #warehouseStockPopover th {text-align:left;font-size:11px;color:var(--text-muted);}
 .stock-match-note {font-size:10px;color:var(--text-muted);margin-top:4px;}
+
+/* Bold history arrows; preserve the existing button height and accessible labels. */
+#btnUndoAction, #btnRedoAction {font-weight:900;font-size:18px;line-height:1;-webkit-text-stroke:0.25px currentColor;}
