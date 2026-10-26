@@ -138,7 +138,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 	}
 	if changed && s.wb != nil {
 		s.epoch.Add(1)
-		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
+		s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	name := ""
 	if req.Persist && !req.Save {
@@ -348,7 +348,7 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 	}
 	if s.wb != nil {
 		s.epoch.Add(1)
-		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
+		s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"properties": s.properties, "nomenclature": s.catalogLocked().Nomenclature, "imported": len(marks), "state": s.buildStateEnvelopeLocked()})

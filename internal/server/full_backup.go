@@ -265,7 +265,7 @@ func (s *AppServer) handleFullRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.wb != nil {
 		s.epoch.Add(1)
-		s.report = forecast.Calculate(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
+		s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 	writeJSON(w, 200, map[string]any{"restored": strings.Join(selected, ", ")})
 }

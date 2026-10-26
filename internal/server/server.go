@@ -149,7 +149,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.savedDBName = ""
 	s.lastSavedAt = ""
 	s.params = s.preferredParamsLocked()
-	s.report = forecast.Calculate(s.wb, s.params, s.overrides, excludedRows)
+	s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, excludedRows)
 	return nil
 }
 
@@ -170,7 +170,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	p := s.preferredParamsLocked()
 	s.mu.RUnlock()
 	emptyOverrides := make(map[int]int)
-	rep := forecast.Calculate(wb, p, emptyOverrides, s.orderExclusions(wb))
+	rep := forecast.CalculateExplicit(wb, p, emptyOverrides, s.orderExclusions(wb))
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -301,6 +301,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
+	mux.HandleFunc("/api/orders/fill", s.handleFillOrder)
 	mux.HandleFunc("/api/selected-suppliers", s.handleSelectedSuppliers)
 	mux.HandleFunc("/api/upload", s.handleUpload)
 	mux.HandleFunc("/api/clear", s.handleClearDatabase)
@@ -375,7 +376,7 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 
 	var rep *model.CalculationReport
 	if wb != nil {
-		rep = forecast.Calculate(wb, normParams, overridesCopy, excludedRows)
+		rep = forecast.CalculateExplicit(wb, normParams, overridesCopy, excludedRows)
 	}
 
 	s.mu.Lock()
@@ -436,7 +437,7 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Unlock()
 
-	rep := forecast.Calculate(wb, params, overridesCopy, excludedRows)
+	rep := forecast.CalculateExplicit(wb, params, overridesCopy, excludedRows)
 
 	s.mu.Lock()
 	if s.epoch.Load() != startEpoch || s.wb == nil {
@@ -506,7 +507,7 @@ func (s *AppServer) reportForExportLocked() *model.CalculationReport {
 			effOverrides[item.ExcelRow] = 0
 		}
 	}
-	rep := forecast.Calculate(s.wb, s.params, effOverrides, s.orderExclusionsLocked(s.wb))
+	rep := forecast.CalculateExplicit(s.wb, s.params, effOverrides, s.orderExclusionsLocked(s.wb))
 	return rep
 }
 
