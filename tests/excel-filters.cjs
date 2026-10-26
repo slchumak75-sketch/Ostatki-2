@@ -35,6 +35,11 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  d.getElementById('paramsPanel').classList.add('hidden');anchor.getBoundingClientRect=oldAnchorRect;pop.getBoundingClientRect=oldPopRect;w.innerHeight=oldHeight;
 
  assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(cell=>cell.textContent),['1','2']);
+ assert.ok(!d.querySelector('th[data-col="surplusStock"]'),'Запас column must be removed from the statement');
+ assert.ok(![...d.querySelectorAll('#itemsTable thead th')].some(th=>th.textContent.includes('Запас')));
+ const thCount=d.querySelectorAll('#itemsTable thead th').length;
+ assert.equal(d.querySelector('#tableBody tr[data-row]').children.length,thCount,'Body cells must stay aligned with the headers');
+ assert.equal(d.querySelector('#tableFoot td')?.colSpan,10,'Footer keeps spanning every visible lead column');
  assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
  assert.equal(d.getElementById('chkAllPlus'),null);
  d.querySelector('[data-filter-col="plus"]').click();
