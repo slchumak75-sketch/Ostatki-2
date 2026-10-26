@@ -19,6 +19,9 @@
     report: null,
     rowMap: new Map(),
     stockByProduct: new Map(),
+    stockSearchProducts: [],
+    stockSimilarityPercent: 80,
+    stockSearchMode: 'other',
     canSaveInPlace: false,
     desktopMode: false,
     sourceFileName: '',
@@ -318,6 +321,8 @@
   function indexReportItems(rep) {
     hideWarehouseStock();
     state.stockByProduct.clear();
+    state.stockSearchProducts=[];
+    const products=new Map();
     state.rowMap.clear();
     if (!rep?.items) return;
     const items = rep.items;
@@ -328,6 +333,9 @@
       if(!state.stockByProduct.has(product))state.stockByProduct.set(product,new Map());
       const stocks=state.stockByProduct.get(product);
       stocks.set(warehouse,(stocks.get(warehouse)||0)+(Number(it.closingStock)||0));
+      const key=JSON.stringify([product,warehouse]);
+      if(!products.has(key))products.set(key,{item:it,stock:0,signature:stockNameSignature(it.name)});
+      products.get(key).stock+=Number(it.closingStock)||0;
       const rawSku = String(it.sku || '');
       it._skuLC = rawSku.toLowerCase();
       it._startsWithPlus = rawSku.trimStart().startsWith('+');
@@ -337,6 +345,7 @@
         it._ovSearchLC = `${it.name || ''} ${rawSku} ${it.group || ''} ${it.supplier || ''} ${it.warehouse || ''}`.toLowerCase();
       }
     }
+    state.stockSearchProducts=[...products.values()];
   }
 
     function orderScope() {
@@ -346,14 +355,16 @@
       const supplier=el('fltSupplier')?.value;
       if(supplier) suppliers=new Set([...suppliers].filter(s=>s===supplier));
       if(Object.hasOwn(state.colFilters,'supplier'))suppliers=new Set([...suppliers].filter(s=>state.colFilters.supplier.includes(s)));
-      if(warehouses.size!==1 || suppliers.size!==1)throw new Error('Выберите одного поставщика и один склад в фильтрах ведомости');
-      return {warehouse:[...warehouses][0],supplier:[...suppliers][0]};
+      if(warehouses.size!==1 || !suppliers.size || (suppliers.size>1 && !Object.hasOwn(state.colFilters,'supplier') && !supplier))throw new Error('Выберите поставщиков и один склад в фильтрах ведомости');
+      const selected=[...suppliers].sort();
+      return selected.length===1 ? {warehouse:[...warehouses][0],supplier:selected[0]} : {warehouse:[...warehouses][0],suppliers:selected};
     }
-  function orderScopeKey(scope){return JSON.stringify([scope.supplier,scope.warehouse]);}
-  function scopeItems(scope){return (state.report?.items||[]).filter(it=>(it.warehouse||'')===scope.warehouse && normalizeSupName(it.supplier)===scope.supplier);}
+  function scopeSuppliers(scope){return scope.suppliers || [scope.supplier];}
+  function orderScopeKeys(scope){return scopeSuppliers(scope).map(supplier=>JSON.stringify([supplier,scope.warehouse]));}
+  function scopeItems(scope){return (state.report?.items||[]).filter(it=>(it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier)));}
   function renderOrderActionButtons(){
     let filled=false,highlighted=false;
-    try{const scope=orderScope();filled=state.filledOrderScopes.has(orderScopeKey(scope));highlighted=scopeItems(scope).some(it=>state.highlightedOrderRows.has(it.excelRow));}catch(_){}
+    try{const scope=orderScope();filled=orderScopeKeys(scope).every(key=>state.filledOrderScopes.has(key));highlighted=scopeItems(scope).some(it=>state.highlightedOrderRows.has(it.excelRow));}catch(_){}
     for(const [id,active] of [['btnFillOrder',filled],['btnHighlightOrder',highlighted]]){const button=el(id);button.setAttribute('aria-pressed',String(active));button.classList.toggle('btn-active-toggle',active);}
   }
 
@@ -780,10 +791,9 @@
   }
 
   function switchTabUI(tabName) {
-    const nextTab = ['table', 'suppliers', 'overstock', 'charts', 'liquidity'].includes(tabName) ? tabName : 'table';
+    const nextTab = ['table', 'suppliers', 'overstock', 'charts'].includes(tabName) ? tabName : 'table';
     state.activeTab = nextTab;
     if(nextTab === 'charts') window.SalesCharts?.update(state.report);
-    if(nextTab === 'liquidity') window.LiquidityAnalysis?.update(state.report);
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
   }
@@ -812,6 +822,8 @@
     const ratArr = [...state.msFilters.rating];
     const stArr = [...state.msFilters.status];
     return {
+      stockSimilarityPercent: state.stockSimilarityPercent,
+      stockSearchMode: state.stockSearchMode,
       filledOrderScopes: [...state.filledOrderScopes],
       orderTransferRows: [...state.orderTransferRows],
       highlightedOrderRows: [...state.highlightedOrderRows],
@@ -860,9 +872,9 @@
     captureNomenclatureRecords();
     hideWarehouseStock();
     state.stockByProduct.clear();
+    state.stockSearchProducts=[];
     state.report = null;
     state.overstockExportRows = [];
-    window.LiquidityAnalysis?.update(null);
     window.SalesCharts?.update(null);
     state.rowMap.clear();
     state.canSaveInPlace = false;
@@ -959,7 +971,6 @@
     state.lastSavedAt = env.lastSavedAt || '';
     state.report = env.report || null;
     window.SalesCharts?.update(state.report);
-    window.LiquidityAnalysis?.update(state.report);
 
     el('btnSaveInPlace')?.classList.toggle('hidden', !state.canSaveInPlace);
     if (!state.report) {
@@ -1037,6 +1048,8 @@
 
     if (shouldRestoreSaved) {
       const ui = env.uiState || {};
+      state.stockSimilarityPercent = Number.isInteger(ui.stockSimilarityPercent) ? Math.max(0,Math.min(100,ui.stockSimilarityPercent)) : 80;
+      state.stockSearchMode = ui.stockSearchMode==='similar'?'similar':'other';
       state.filledOrderScopes = new Set((ui.filledOrderScopes || []).filter(s=>typeof s==='string'));
       state.orderTransferRows = new Set((ui.orderTransferRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.highlightedOrderRows = new Set((ui.highlightedOrderRows || []).map(Number).filter(n=>state.rowMap.has(n)));
@@ -1507,6 +1520,7 @@
   }
 
   function renderKPIs(rep) {
+    syncStockSearchControls();
     renderSafetyStatus();
     const firstP = rep.periods[0]?.label || '';
     const lastP = rep.periods[rep.periods.length - 1]?.label || '';
@@ -1980,18 +1994,69 @@
     const pop=el('warehouseStockPopover');
     if(pop){pop.classList.add('hidden');pop.setAttribute('aria-hidden','true');}
   }
+  const stockWordAliases=new Map([
+    ['силикон','силикон'],['силик','силикон'],['силиконовый','силикон'],['силиконовая','силикон'],
+    ['ун','универсальный'],['унив','универсальный'],['универс','универсальный'],['универсальный','универсальный'],['универсальная','универсальный'],
+    ['бел','белый'],['белый','белый'],['белая','белый'],['белое','белый'],
+    ['прозр','прозрачный'],['прозрачный','прозрачный'],['черн','черный'],['черный','черный'],
+    ['санит','санитарный'],['санитарный','санитарный'],['нейтр','нейтральный'],['нейтральный','нейтральный']
+  ]);
+  const stockIgnoredWords=new Set(['и','в','на','с','из','по','от','для','без','мл','л','мм','см','м','г','кг','шт']);
+  function stockNameSignature(value){
+    const normalized=String(value||'').normalize('NFKC').toLowerCase().replace(/ё/g,'е').replace(/[×х]/g,'x').replace(/(\d),(?=\d)/g,'$1.');
+    const parts=(normalized.match(/[\p{L}\p{N}]+(?:[.]\d+)?/gu)||[]).map(word=>stockWordAliases.get(word)||word).filter(word=>!stockIgnoredWords.has(word));
+    return {name:[...new Set(parts)].sort().join(' '),tokens:new Set(parts.filter(word=>!/^\d/.test(word)))};
+  }
+  function stockNameScore(a,b){
+    if(!a.name || !b.name)return 0;if(a.name===b.name)return 100;
+    // Order-independent textual overlap. Volumes and dimensions remain visible
+    // but are not a prerequisite for finding a possible alternative product.
+    const remaining=new Set(b.tokens);let overlap=0;
+    for(const token of a.tokens)if(remaining.delete(token))overlap++;
+    for(const token of a.tokens){
+      if(b.tokens.has(token))continue;
+      const match=[...remaining].find(other=>Math.min(token.length,other.length)>=4 && (token.startsWith(other)||other.startsWith(token)));
+      if(match){remaining.delete(match);overlap+=0.9;}
+    }
+    return Math.min(99,Math.round(200*overlap/Math.max(1,a.tokens.size+b.tokens.size)));
+  }
+  function syncStockSearchControls(){
+    el('stockSimilarityPercent').value=String(state.stockSimilarityPercent);
+    const button=el('btnStockSearchMode'),same=state.stockSearchMode==='similar';
+    button.textContent=same?'Похожий товар':'Другой склад';button.setAttribute('aria-pressed',String(same));
+    button.title=same?'Похожие товары на текущем складе. Нажмите для поиска на других складах.':'Такой же или похожий товар на других складах. Нажмите для поиска на текущем складе.';
+  }
   function showWarehouseStock(anchor){
-    const it=state.rowMap.get(Number(anchor.dataset.stockRow));
-    if(!it)return;
-    const stocks=state.stockByProduct.get(stockProductKey(it)) || new Map();
-    const others=[...stocks].filter(([warehouse])=>warehouse!==(it.warehouse||''));
-    const pop=el('warehouseStockPopover');
-    pop.innerHTML=`<strong>Остатки на других складах</strong><div>${esc(it.name)}</div>`+
-      (others.length ? `<table>${others.map(([warehouse,qty])=>`<tr><td>${esc(warehouse||'(Склад не указан)')}</td><td>${fmtNum(qty,2)} шт.</td></tr>`).join('')}</table>` : '<p>На других складах номенклатура не найдена</p>');
+    const it=state.rowMap.get(Number(anchor.dataset.stockRow));if(!it)return;
+    const same=state.stockSearchMode==='similar',signature=stockNameSignature(it.name),key=stockProductKey(it),warehouse=it.warehouse||'';
+    const matches=[];
+    for(const candidate of state.stockSearchProducts){
+      const other=candidate.item,otherWarehouse=other.warehouse||'',sameProduct=stockProductKey(other)===key;
+      if(same ? otherWarehouse!==warehouse || sameProduct : otherWarehouse===warehouse)continue;
+      const score=sameProduct?100:stockNameScore(signature,candidate.signature);
+      if(score>=state.stockSimilarityPercent)matches.push({...candidate,score});
+    }
+    matches.sort((a,b)=>b.score-a.score || b.stock-a.stock || String(a.item.name).localeCompare(String(b.item.name),'ru'));
+    const pop=el('warehouseStockPopover'),limit=50;
+    pop.innerHTML=`<strong>${same?'Похожие товары на этом складе':'Такой же или похожий товар на других складах'}</strong><div>${esc(it.name)}</div><div class="stock-match-note">Сходство названий не гарантирует взаимозаменяемость</div>`+
+      (matches.length ? `<table><thead><tr><th>Товар</th><th>Остаток</th></tr></thead><tbody>${matches.slice(0,limit).map(({item,stock})=>`<tr><td>${esc(item.name)}<small>${esc(item.sku||'Без артикула')}</small></td><td>${fmtNum(stock,2)} шт.</td></tr>`).join('')}</tbody></table>${matches.length>limit?`<div>Показано ${limit} из ${matches.length}. Уточните поиск полем совпадения.</div>`:''}` : '<p>Совпадений с заданным процентом не найдено</p>');
     pop.classList.remove('hidden');pop.setAttribute('aria-hidden','false');
-    const rect=anchor.getBoundingClientRect(), width=pop.offsetWidth||320, height=pop.offsetHeight||100;
-    pop.style.left=`${Math.max(8,Math.min(rect.left,window.innerWidth-width-8))}px`;
-    pop.style.top=`${Math.max(8,Math.min(rect.bottom+6,window.innerHeight-height-8))}px`;
+    const viewport=window.visualViewport;
+    const bounds={left:(viewport?.offsetLeft||0)+8,top:(viewport?.offsetTop||0)+8,width:Math.max(1,(viewport?.width||window.innerWidth)-16),height:Math.max(1,(viewport?.height||window.innerHeight)-16)};
+    pop.style.boxSizing='border-box';pop.style.width=`${Math.min(480,bounds.width)}px`;pop.style.maxWidth=`${bounds.width}px`;pop.style.maxHeight=`${bounds.height}px`;
+    const rect=anchor.getBoundingClientRect(),width=pop.offsetWidth||Math.min(480,bounds.width);
+    const naturalHeight=pop.offsetHeight||Math.min(160,bounds.height);
+    const belowSpace=Math.max(0,bounds.top+bounds.height-rect.bottom-6);
+    const aboveSpace=Math.max(0,rect.top-6-bounds.top);
+    const below=naturalHeight<=belowSpace || (naturalHeight>aboveSpace && belowSpace>=aboveSpace);
+    const available=Math.max(1,Math.min(bounds.height,below?belowSpace:aboveSpace));
+    pop.style.maxHeight=`${available}px`;
+    pop.dataset.placement=below?'below':'above';
+    const height=Math.min(pop.offsetHeight||naturalHeight,available);
+    pop.style.left=`${Math.max(bounds.left,Math.min(rect.left,bounds.left+bounds.width-width))}px`;
+    const top=below?rect.bottom+6:rect.top-height-6;
+    pop.style.top=`${Math.max(bounds.top,Math.min(top,bounds.top+bounds.height-height))}px`;
+
   }
 
   function showRatingChartPopover(anchorEl, excelRow) {
@@ -2753,7 +2818,6 @@
         state.activeTab = btn.dataset.tab;
         if(state.report)renderKPIs(state.report);
         if(state.activeTab === 'charts') window.SalesCharts?.update(state.report);
-        if(state.activeTab === 'liquidity') window.LiquidityAnalysis?.update(state.report);
         document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.activeTab}`));
       });
@@ -2875,18 +2939,26 @@
       if (state.report) renderOverstockView(state.report);
     });
 
+    el('stockSimilarityPercent').addEventListener('input',()=>{
+      const input=el('stockSimilarityPercent');if(input.value==='')return;
+      state.stockSimilarityPercent=Math.max(0,Math.min(100,Math.round(Number(input.value)||0)));input.value=state.stockSimilarityPercent;
+      state.hasUnsavedChanges=true;hideWarehouseStock();
+    });
+    el('stockSimilarityPercent').addEventListener('change',()=>syncStockSearchControls());
+    el('btnStockSearchMode').addEventListener('click',()=>{state.stockSearchMode=state.stockSearchMode==='other'?'similar':'other';state.hasUnsavedChanges=true;syncStockSearchControls();hideWarehouseStock();});
     document.addEventListener('mouseover',e=>{
       const anchor=e.target.closest('[data-stock-row]');
       if(anchor && !anchor.contains(e.relatedTarget))showWarehouseStock(anchor);
     });
     document.addEventListener('mouseout',e=>{
       const anchor=e.target.closest('[data-stock-row]');
-      if(anchor && !anchor.contains(e.relatedTarget))hideWarehouseStock();
+      if(anchor && !anchor.contains(e.relatedTarget) && !el('warehouseStockPopover').contains(e.relatedTarget))hideWarehouseStock();
     });
     document.addEventListener('focusin',e=>{const anchor=e.target.closest('[data-stock-row]');if(anchor)showWarehouseStock(anchor);});
     document.addEventListener('focusout',e=>{if(e.target.closest('[data-stock-row]'))hideWarehouseStock();});
     document.addEventListener('keydown',e=>{if(e.key==='Escape')hideWarehouseStock();});
-    document.addEventListener('scroll',hideWarehouseStock,true);
+    el('warehouseStockPopover').addEventListener('mouseleave',e=>{if(!e.relatedTarget?.closest?.('[data-stock-row]'))hideWarehouseStock();});
+    document.addEventListener('scroll',e=>{if(!el('warehouseStockPopover').contains(e.target))hideWarehouseStock();},true);
     window.addEventListener('resize',hideWarehouseStock);
 
     document.addEventListener('click',e=>{const anchor=e.target.closest('[data-rating-row]');if(anchor)showRatingChartPopover(anchor,Number(anchor.dataset.ratingRow));});
@@ -2958,7 +3030,7 @@
 
     function highlightOrder(scope) {
       for(const it of state.report.items){
-        if((it.warehouse||'')!==scope.warehouse || normalizeSupName(it.supplier)!==scope.supplier)continue;
+        if((it.warehouse||'')!==scope.warehouse || !scopeSuppliers(scope).includes(normalizeSupName(it.supplier)))continue;
         if(Number(it.autoOrderQty)>0 && !state.staryoRows.has(it.excelRow) && !state.orderTransferRows.has(it.excelRow))state.highlightedOrderRows.add(it.excelRow);else state.highlightedOrderRows.delete(it.excelRow);
       }
       state.sortKey='finalOrderQty';state.sortDir='desc';
@@ -2975,13 +3047,13 @@
         if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
         button.disabled=true;
         const epoch=state.clientEpoch;
-        const key=orderScopeKey(scope),cancel=state.filledOrderScopes.has(key);
+        const keys=orderScopeKeys(scope),cancel=keys.every(key=>state.filledOrderScopes.has(key));
         const env=await apiPost('api/orders/fill',{...scope,cancel});
         if(epoch!==state.clientEpoch)return;
-        for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && normalizeSupName(it.supplier)===scope.supplier && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
-        if(cancel)state.filledOrderScopes.delete(key);else state.filledOrderScopes.add(key);
+        for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier)) && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
+        for(const key of keys){if(cancel)state.filledOrderScopes.delete(key);else state.filledOrderScopes.add(key);}
         applyEnvelope(env);refreshExcelTable();
-        showToast(cancel?'Заказ выбранного поставщика и склада отменён':'Заказ рассчитан для выбранного поставщика и склада');
+        showToast(cancel?'Автозаказ выбранных поставщиков на складе отменён':'Автозаказ рассчитан для выбранных поставщиков на складе');
       }catch(err){showToast(err.message);}finally{button.disabled=false;}
     });
 
@@ -4196,7 +4268,7 @@
       if(key === 'supplier') el('fltSupplier').value = '';
       const q = el('efSearchInput').value.trim();
       const values = q ? excelMatches().filter(o => draft.has(o.value)).map(o => o.value) : [...draft];
-      if(!q && options.every(o => draft.has(o.value)) && draft.size === options.length) delete state.colFilters[key];
+      if(key!=='supplier' && !q && options.every(o => draft.has(o.value)) && draft.size === options.length) delete state.colFilters[key];
       else state.colFilters[key] = values;
       closeExcelFilter();refreshExcelTable();
     });

@@ -60,7 +60,7 @@
         <button class="btn btn-ghost property-filter-active" id="btnSales12" type="button" aria-pressed="true">Продажи 12 мес.</button>
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
         <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон</button>
-        <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать заказ</button>
+        <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать автозаказ</button>
         <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
       </div>
@@ -204,7 +204,8 @@
             Радар неликвидов <span class="tab-counter" id="cntTabOverstock">0</span>
           </button>
           <button class="tab-btn" data-tab="charts" role="tab">Графики</button>
-          <button class="tab-btn" data-tab="liquidity" role="tab">Ликвидность</button>
+          <label class="stock-match-control" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="number" min="0" max="100" step="1" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /></label>
+          <button type="button" class="btn btn-beige" id="btnStockSearchMode" aria-pressed="false" title="Показать совпадения на других складах">Другой склад</button>
         </div>
         <div class="tabs-order-summary">
           <div class="current-supplier-card" id="currentSupplierCard"><span id="currentSupplierName">Поставщик не выбран</span><strong id="currentSupplierSum">0,00 руб.</strong></div>
@@ -370,23 +371,6 @@
       </div>
       <p class="charts-note">Продажи в текущих закупочных ценах: количество × «Цена», не фактическая выручка. Только положительные продажи; возвраты не включены. Все позиции ведомости, независимо от фильтров и бюджета.</p>
       <div id="chartsContent" class="charts-content" aria-live="polite"></div>
-    </section>
-    <section class="tab-view" id="view-liquidity">
-      <div class="charts-controls liquidity-controls">
-        <label>Проценты<select id="liqBasis"><option value="value">По стоимости запаса</option><option value="count">По количеству позиций</option></select></label>
-        <label>Склад<select id="liqWarehouse"><option value="">Все склады</option></select></label>
-        <label>Период с<select id="liqFrom"></select></label>
-        <label>по<select id="liqTo"></select></label>
-        <label>Категория<select id="liqCategory"><option value="">Все категории</option><option value="fast">До 30 дней</option><option value="normal">31–90 дней</option><option value="slow">91–180 дней</option><option value="excess">181–365 дней</option><option value="overyear">Более 365 дней</option><option value="nosales">Запас без продаж</option><option value="nostock">Нет положительного остатка</option></select></label>
-        <label>Поиск<input id="liqSearch" type="search" placeholder="Наименование, артикул, группа, поставщик" /></label>
-      </div>
-      <details class="liquidity-method"><summary>Как рассчитывается ликвидность</summary>
-        <p>Запас в днях = текущий положительный остаток ÷ средние продажи в день выбранного периода. Оборот за период = продажи ÷ текущий остаток — приближение, не бухгалтерская оборачиваемость: история средних остатков неизвестна. Категории показывают срок покрытия, а не гарантированный спрос.</p>
-        <p>Продажи в день учитывают длительность выбранных месяцев и завершённость последнего месяца из ведомости. Только положительные продажи; возвраты исключены. Суммы = количество × текущая «Цена», не выручка. Отрицательные остатки не дают положительной стоимости запаса.</p>
-        <p>Помесячные цветные линии — оценка: один и тот же текущий остаток сопоставляется с продажами каждого месяца. Это не фактическая история запасов. График зависит от склада и поиска, но не от фильтра категории. Проценты по стоимости исключают строки без цены; проценты по количеству включают все позиции.</p>
-        <p>Анализ использует текущие остатки и все строки ведомости независимо от фильтров таблицы и бюджета. Исторической ликвидности и отсутствия товара по месяцам в файле нет. Заказы и эталон не изменяются.</p>
-      </details>
-      <div id="liquidityContent" aria-live="polite"></div>
     </section>
   </main>
 
@@ -703,7 +687,6 @@
   </div>
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=1"></script>
-  <script src="liquidity.js?v=2"></script>
   <script src="app.js?v=4.18"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>

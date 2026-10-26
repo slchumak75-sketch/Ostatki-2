@@ -1,0 +1,27 @@
+const {JSDOM}=require('jsdom');const fs=require('node:fs'),assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});const w=dom.window,d=w.document,calls=[];w.scrollTo=()=>{};w.setInterval=()=>1;
+const item=(excelRow,sku,warehouse,name,closingStock)=>({excelRow,sku,warehouse,name,closingStock,supplier:'Поставщик',group:'Кабели',sumSalesLast12M:5,salesSegment:3,monthlySales:[],autoOrderQty:0,finalOrderQty:0,purchasePrice:10});
+const items=[item(8,'001','A','Кабель медный силовой 3х2,5',1),item(9,'001','B','Кабель медный силовой 3х2,5',4),item(10,'001','B','Кабель медный силовой 3х2,5',2),item(11,'002','A','Кабель медный силовой 3х1,5',8),item(12,'003','B','Кабель медный силовой 3х1,5',7),item(13,'004','A','Отвёртка крестовая <опасно>',99),item(14,'005','A','Кабель медный силовой 3х2,5',3)];
+const report={fileName:'Тест.xlsx',items,periods:[],params:{},warehouses:[],groups:[],suppliers:[]};w.fetch=async(path,options)=>{calls.push({path,options});return {ok:true,json:async()=>path==='api/properties'?{properties:{}}:{report}};};
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__similar={state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore};bootstrap();'));
+const tick=()=>new Promise(r=>setTimeout(r,50));
+(async()=>{try{
+ await tick();assert.equal(d.querySelector('[data-tab="liquidity"]'),null);assert.equal(d.querySelector('#view-liquidity'),null);assert.equal(d.querySelector('[data-tab="charts"]').nextElementSibling.querySelector('input').id,'stockSimilarityPercent');
+ const {state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore}=w.__similar;const percent=d.getElementById('stockSimilarityPercent'),toggle=d.getElementById('btnStockSearchMode'),pop=d.getElementById('warehouseStockPopover');
+ const hover=()=>d.querySelector('[data-stock-row="8"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const rows=()=>[...pop.querySelectorAll('tbody tr')];const setPercent=value=>{percent.value=value;percent.dispatchEvent(new w.Event('input',{bubbles:true}));};
+ const snapshot=JSON.stringify(items),writes=calls.filter(c=>c.options?.method==='POST').length;
+ setPercent(100);hover();assert.equal(toggle.textContent,'Другой склад');assert.equal(rows().length,1,'Same SKU split into lines must aggregate');assert.match(rows()[0].textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('%'));assert.ok(!pop.textContent.includes('Товар / склад'));assert.ok(!rows()[0].textContent.includes('B'));
+ const score=stockNameScore(stockNameSignature(items[0].name),stockNameSignature(items[4].name));assert.ok(score>0&&score<100);setPercent(score);hover();assert.equal(rows().length,2);setPercent(score+1);hover();assert.equal(rows().length,1,'Threshold excludes lower matches');
+ toggle.click();assert.equal(toggle.textContent,'Похожий товар');setPercent(100);hover();assert.equal(rows().length,1);assert.match(rows()[0].textContent,/005/);assert.ok(!rows()[0].textContent.includes('001'),'Current product itself is excluded');setPercent(score);hover();assert.equal(rows().length,2);assert.ok(!pop.textContent.includes('Отвёртка'));
+ setPercent(0);hover();assert.equal(rows().length,3);assert.ok(pop.textContent.includes('Отвёртка крестовая <опасно>'));assert.equal(pop.querySelector('опасно'),null,'Names are escaped');
+ setPercent(150);assert.equal(percent.value,'100');setPercent(-2);assert.equal(percent.value,'0');
+ const saved=collectUIState();assert.equal(saved.stockSimilarityPercent,0);assert.equal(saved.stockSearchMode,'similar');applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(percent.value,'0');assert.equal(toggle.textContent,'Похожий товар');
+ assert.equal(JSON.stringify(items),snapshot);assert.equal(calls.filter(c=>c.options?.method==='POST').length,writes,'Hover/settings do not write report, orders or reference');
+ assert.equal(stockNameScore(stockNameSignature('КАБЕЛЬ 3×2,5'),stockNameSignature('кабель 3х2.5')),100);
+ const sealantA=stockNameSignature('Герметик силикон. бел. унив. 280мл. РЕАЛИСТ'),sealantB=stockNameSignature('Герметик силик. ун. бел. 270мл Экон');
+ assert.ok(stockNameScore(sealantA,sealantB)>=80,'Abbreviated sealants with reordered properties must match at the default threshold');
+ assert.equal(stockNameScore(stockNameSignature('Герметик бел. ун. силик.'),stockNameSignature('силикон. унив. белый Герметик')),100,'Block order and known abbreviations do not affect textual identity');
+ const anchor=d.querySelector('[data-stock-row="8"]');anchor.getBoundingClientRect=()=>({left:290,top:170,bottom:195});Object.defineProperty(w,'visualViewport',{configurable:true,value:{width:300,height:200,offsetLeft:10,offsetTop:20}});hover();assert.equal(pop.style.width,'284px');assert.equal(pop.style.maxHeight,'136px');assert.equal(pop.dataset.placement,'above');assert.ok(parseFloat(pop.style.left)>=18&&parseFloat(pop.style.left)<=26);assert.ok(parseFloat(pop.style.top)>=28);assert.equal(pop.style.boxSizing,'border-box');
+ anchor.getBoundingClientRect=()=>({left:30,top:30,bottom:45});hover();assert.equal(pop.dataset.placement,'below');assert.equal(pop.style.top,'51px');assert.equal(pop.style.maxHeight,'161px');
+ console.log('Similarity threshold, warehouse modes, aggregation, escaping, empty orders and saved settings passed');
+}finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
