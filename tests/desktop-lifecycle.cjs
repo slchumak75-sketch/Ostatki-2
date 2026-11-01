@@ -10,7 +10,7 @@ w.fetch=async(path,opts={})=>{
 w.navigator.sendBeacon=(path,body)=>{beacons.push({path,body});return true;};
 const closeWindow=w.close.bind(w);
 w.scrollTo=()=>{};w.close=()=>{};
-w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
+w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__lifecycle={openCloseConfirmModal};bootstrap();'));
 const tick=()=>new Promise(resolve=>setTimeout(resolve,40));
 (async()=>{
  try {
@@ -24,8 +24,15 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,40));
   assert.ok(beacons.some(b=>b.path==='api/properties'),'Keep last-chance property saving');
   calls.length=0;w.dispatchEvent(new w.Event('pageshow'));await tick();
   assert.ok(calls.includes('api/heartbeat'));
-  d.getElementById('btnCloseApp').click();d.getElementById('btnCloseSaveNo').click();await tick();
+  assert.ok(!d.getElementById('btnCloseApp'),'In-app exit button must stay removed');
+  w.__lifecycle.openCloseConfirmModal();d.getElementById('btnCloseSaveNo').click();await tick();
   assert.ok(calls.includes('api/shutdown'),'Confirmed in-app exit must still terminate server');
+  for(let i=0;i<4;i++)d.getElementById('btnConfigurePanel').click();
+  assert.ok(!d.getElementById('paramsPanel').classList.contains('hidden'),'Configuration button opens the planning panel');
+  assert.equal(d.getElementById('btnConfigurePanel').getAttribute('aria-expanded'),'true');
+  assert.ok(d.getElementById('btnConfigurePanel').classList.contains('btn-active-toggle'));
+  d.getElementById('btnConfigurePanel').click();
+  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'),'Configuration button hides the planning panel again');
   console.log('Desktop reload/resume/explicit-exit lifecycle tests passed');
  } finally {closeWindow();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

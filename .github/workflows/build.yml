@@ -252,8 +252,8 @@ jobs:
               "dist/Variant_3_Windows_x64.zip#Variant_3_Windows_x64.zip (Полный архив Вариант 3)"
           fi
 
-  build-variant-6:
-    name: Вариант 6 (актуальная сборка PRO SCM)
+  build-variant-7:
+    name: Вариант 7 (актуальная сборка PRO SCM)
     runs-on: ubuntu-latest
 
     steps:
@@ -266,7 +266,7 @@ jobs:
           go-version: '1.24'
           cache: false
 
-      - name: Автотесты актуальной сборки «Вариант 6»
+      - name: Автотесты актуальной сборки «Вариант 7»
         run: |
           go vet ./cmd/... ./internal/...
           go test -v -race ./internal/...
@@ -283,6 +283,7 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/desktop-lifecycle.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/etalon.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/etalon-desktop.cjs
+          NODE_PATH=/tmp/ui-check/node_modules node tests/column-widths-migration.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/reference-safety.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/reference-day-gate.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/etalon-comparison.cjs
@@ -294,21 +295,21 @@ jobs:
           NODE_PATH=/tmp/ui-check/node_modules node tests/action-history.cjs
           NODE_PATH=/tmp/ui-check/node_modules node tests/toolbar-layout.cjs
 
-      - name: Кросс-компиляция Windows x64 — «Вариант 6»
+      - name: Кросс-компиляция Windows x64 — «Вариант 7»
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq osslsigncode
 
-          mkdir -p "dist/Вариант 6" cert_tmp
+          mkdir -p "dist/Вариант 7" cert_tmp
 
           # Сборка без стриппинга таблиц символов (-s -w) и со встроенным Windows PE-ресурсом (.syso: иконка + манифест asInvoker + VERSIONINFO)
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
             go build -ldflags="-H=windowsgui" \
-            -o "dist/Вариант 6/OstatkiZakupki_Вариант_6_unsigned.exe" ./cmd/ostatki
+            -o "dist/Вариант 7/OstatkiZakupki_Вариант_7_unsigned.exe" ./cmd/ostatki
 
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
             go build \
-            -o "dist/Вариант 6/OstatkiZakupki_Вариант_6_cli_unsigned.exe" ./cmd/ostatki
+            -o "dist/Вариант 7/OstatkiZakupki_Вариант_7_cli_unsigned.exe" ./cmd/ostatki
 
           # Выпуск Code Signing сертификата и расчёт PE Checksum + Authenticode SHA-256 подписи
           openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -sha256 \
@@ -317,32 +318,32 @@ jobs:
             -addext "keyUsage=critical,digitalSignature,keyCertSign" \
             -addext "extendedKeyUsage=codeSigning" \
             -keyout cert_tmp/codesign.key \
-            -out "dist/Вариант 6/Ostatki2_CodeSign.cer"
+            -out "dist/Вариант 7/Ostatki2_CodeSign.cer"
 
           osslsigncode sign \
-            -certs "dist/Вариант 6/Ostatki2_CodeSign.cer" \
+            -certs "dist/Вариант 7/Ostatki2_CodeSign.cer" \
             -key cert_tmp/codesign.key \
             -h sha256 \
-            -n "Остатки 2 (Вариант 6)" \
-            -in "dist/Вариант 6/OstatkiZakupki_Вариант_6_unsigned.exe" \
-            -out "dist/Вариант 6/OstatkiZakupki_Вариант_6.exe"
+            -n "Остатки 2 (Вариант 7)" \
+            -in "dist/Вариант 7/OstatkiZakupki_Вариант_7_unsigned.exe" \
+            -out "dist/Вариант 7/OstatkiZakupki_Вариант_7.exe"
 
           osslsigncode sign \
-            -certs "dist/Вариант 6/Ostatki2_CodeSign.cer" \
+            -certs "dist/Вариант 7/Ostatki2_CodeSign.cer" \
             -key cert_tmp/codesign.key \
             -h sha256 \
-            -n "Остатки 2 CLI (Вариант 6)" \
-            -in "dist/Вариант 6/OstatkiZakupki_Вариант_6_cli_unsigned.exe" \
-            -out "dist/Вариант 6/OstatkiZakupki_Вариант_6_cli.exe"
+            -n "Остатки 2 CLI (Вариант 7)" \
+            -in "dist/Вариант 7/OstatkiZakupki_Вариант_7_cli_unsigned.exe" \
+            -out "dist/Вариант 7/OstatkiZakupki_Вариант_7_cli.exe"
 
-          rm -rf cert_tmp "dist/Вариант 6/OstatkiZakupki_Вариант_6_unsigned.exe" "dist/Вариант 6/OstatkiZakupki_Вариант_6_cli_unsigned.exe"
+          rm -rf cert_tmp "dist/Вариант 7/OstatkiZakupki_Вариант_7_unsigned.exe" "dist/Вариант 7/OstatkiZakupki_Вариант_7_cli_unsigned.exe"
 
           printf '%s\r\n' \
             '@echo off' \
             'chcp 65001 >nul' \
             'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-ChildItem -LiteralPath ''%~dp0'' -Include *.exe,*.cer -Recurse | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1' \
-            'start "" "%~dp0OstatkiZakupki_Вариант_6.exe"' \
-            > "dist/Вариант 6/Запустить_Вариант_6.bat"
+            'start "" "%~dp0OstatkiZakupki_Вариант_7.exe"' \
+            > "dist/Вариант 7/Запустить_Вариант_7.bat"
 
           printf '%s\r\n' \
             '@echo off' \
@@ -351,23 +352,23 @@ jobs:
             'powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = Join-Path ''%~dp0'' ''Ostatki2_CodeSign.cer''; Unblock-File -LiteralPath $c -ErrorAction SilentlyContinue; Import-Certificate -FilePath $c -CertStoreLocation Cert:\CurrentUser\Root | Out-Null; Import-Certificate -FilePath $c -CertStoreLocation Cert:\CurrentUser\TrustedPublisher | Out-Null; Get-ChildItem -LiteralPath ''%~dp0'' -Filter *.exe | Unblock-File -ErrorAction SilentlyContinue"' \
             'echo Сертификат установлен. SmartScreen может по-прежнему показывать предупреждение.' \
             'pause' \
-            > "dist/Вариант 6/Установить_сертификат_доверия_(один_раз).bat"
+            > "dist/Вариант 7/Установить_сертификат_доверия_(один_раз).bat"
 
           printf '%s\r\n' \
             '@echo off' \
             'chcp 65001 >nul' \
             'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Get-ChildItem -LiteralPath ''%~dp0'' -Filter *.exe | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1' \
-            '"%~dp0OstatkiZakupki_Вариант_6_cli.exe" -headless -inplace -orders-output "Заявки поставщикам (авторасчёт).xlsx"' \
+            '"%~dp0OstatkiZakupki_Вариант_7_cli.exe" -headless -inplace -orders-output "Заявки поставщикам (авторасчёт).xlsx"' \
             'echo.' \
             'pause' \
-            > "dist/Вариант 6/Автозаполнение_без_окна_Вариант_6.bat"
+            > "dist/Вариант 7/Автозаполнение_без_окна_Вариант_7.bat"
 
-          cat << 'TXT1' > "dist/Вариант 6/КАК_ЗАПУСТИТЬ_В_WINDOWS.txt"
-          КАК ЗАПУСТИТЬ «ОСТАТКИ 2 — ВАРИАНТ 6» НА WINDOWS 10 / 11
+          cat << 'TXT1' > "dist/Вариант 7/КАК_ЗАПУСТИТЬ_В_WINDOWS.txt"
+          КАК ЗАПУСТИТЬ «ОСТАТКИ 2 — ВАРИАНТ 7» НА WINDOWS 10 / 11
 
-          Способ 1 (рекомендуемый — из архива Variant_6_Windows_x64.zip):
-          1. Распакуйте архив Variant_6_Windows_x64.zip в любую удобную папку.
-          2. Запустите файл «Запустить_Вариант_6.bat» — он автоматически снимает метку скачивания
+          Способ 1 (рекомендуемый — из архива Variant_7_Windows_x64.zip):
+          1. Распакуйте архив Variant_7_Windows_x64.zip в любую удобную папку.
+          2. Запустите файл «Запустить_Вариант_7.bat» — он автоматически снимает метку скачивания
              из интернета и открывает программу в развёрнутом окне без всплывающей панели браузера.
           3. SmartScreen «Система Windows защитила ваш компьютер» может появиться при первом запуске.
              Самоподписанный сертификат не устраняет это предупреждение. Установка его в доверенные
@@ -376,41 +377,41 @@ jobs:
              требуется доверенная подпись издателя и репутация приложения; даже такая подпись
              не гарантирует отсутствие предупреждения для новой версии.
 
-          Способ 2 (при прямом скачивании одиночного OstatkiZakupki_Variant_6.exe):
+          Способ 2 (при прямом скачивании одиночного OstatkiZakupki_Variant_7.exe):
           - При первом открытии в окне SmartScreen нажмите «Подробнее» -> «Выполнить в любом случае»
             (или правый клик по файлу -> «Свойства» -> галочка «Разблокировать» -> ОК).
           TXT1
 
-          cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 6/"
-          cp "Ведомость с периодом ОК.xlsx" "dist/Вариант 6/"
-          cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 6/"
-          cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 6/"
+          cp "Ведомость с периодом ОК (1).xlsx" "dist/Вариант 7/"
+          cp "Ведомость с периодом ОК.xlsx" "dist/Вариант 7/"
+          cp "Заявки поставщикам (авторасчёт).xlsx" "dist/Вариант 7/"
+          cp README.md AGENTS.md CHANGELOG.md "dist/Вариант 7/"
 
-          cp "dist/Вариант 6/OstatkiZakupki_Вариант_6.exe" "dist/OstatkiZakupki_Variant_6.exe"
-          (cd "dist/Вариант 6" && zip -r ../Variant_6_Windows_x64.zip .)
+          cp "dist/Вариант 7/OstatkiZakupki_Вариант_7.exe" "dist/OstatkiZakupki_Variant_7.exe"
+          (cd "dist/Вариант 7" && zip -r ../Variant_7_Windows_x64.zip .)
 
           # Smoke-проверка пакетной обработки свежесобранным бинарником Варианта 5
-          go build -trimpath -ldflags="-s -w" -o dist/ostatki-v6-linux ./cmd/ostatki
-          ./dist/ostatki-v6-linux -headless -input "Ведомость с периодом ОК (1).xlsx" -output dist/verified_v6.xlsx
+          go build -trimpath -ldflags="-s -w" -o dist/ostatki-v7-linux ./cmd/ostatki
+          ./dist/ostatki-v7-linux -headless -input "Ведомость с периодом ОК (1).xlsx" -output dist/verified_v7.xlsx
 
-      - name: Публикация артефакта «Вариант 6»
+      - name: Публикация артефакта «Вариант 7»
         uses: actions/upload-artifact@v4
         with:
-          name: Вариант 6
-          path: dist/Вариант 6/*
+          name: Вариант 7
+          path: dist/Вариант 7/*
           if-no-files-found: error
 
-      - name: Публикация релиза GitHub «Вариант 6»
+      - name: Публикация релиза GitHub «Вариант 7»
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES_V6="Вариант 6: нули в поле Заказ отображаются пустыми; предварительный просмотр заказа поставщика и склада. Сохранены сравнение с эталоном, история, резервные копии и все функции Варианта 5. Совместимое хранилище эталона и настроек. Вариант 5 остаётся отдельным релизом. Подпись Authenticode SHA-256."
-          gh release delete variant-6 --cleanup-tag -y || true
-          gh release create variant-6 \
+          NOTES_V7="Вариант 7: фильтры работают в режиме сравнения с эталоном (в «Номенклатуре» — только свойства сравнения); кнопка «Конфигурация» вместо «Закрыть программу»; ведомости загружаются без эталона с вопросом «Загрузить эталон?»; очистка заказа поставщика с выбором склада; интерактивный пересчёт автозаказа при смене режима планирования; столбец «Запас» удалён, настройки полей мигрируют автоматически; «Выгрузить неликвиды в Excel»; эталон: JSON-копия обновляет датированный Excel одним временем; закреплённая плашка «Вид графика». Хранилище эталона и настроек общее с Вариантами 5–6. Подпись Authenticode SHA-256."
+          gh release delete variant-7 --cleanup-tag -y || true
+          gh release create variant-7 \
             --target "${{ github.sha }}" \
             --latest \
-            --title "Вариант 6" \
-            --notes "$NOTES_V6" \
-            "dist/OstatkiZakupki_Variant_6.exe#OstatkiZakupki_Variant_6.exe (Вариант 6 — Windows x64 GUI)" \
-            "dist/Variant_6_Windows_x64.zip#Variant_6_Windows_x64.zip (Полный архив Вариант 6)"
+            --title "Вариант 7" \
+            --notes "$NOTES_V7" \
+            "dist/OstatkiZakupki_Variant_7.exe#OstatkiZakupki_Variant_7.exe (Вариант 7 — Windows x64 GUI)" \
+            "dist/Variant_7_Windows_x64.zip#Variant_7_Windows_x64.zip (Полный архив Вариант 7)"

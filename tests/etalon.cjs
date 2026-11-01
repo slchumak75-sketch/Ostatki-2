@@ -36,16 +36,16 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnFillOrder');
  assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnHighlightOrder');
  assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
- assert.equal(d.getElementById('btnUpload').disabled,true);
- assert.equal(d.getElementById('btnLoadSavedDb').disabled,true);
+ assert.equal(d.getElementById('btnUpload').disabled,false,'Workbook buttons are available without a reference');
+ assert.equal(d.getElementById('btnLoadSavedDb').disabled,false,'Saved workbook button is available without a reference');
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Bootstrap must not save a reference');
  const blocked=d.getElementById('fileInput');Object.defineProperty(blocked,'files',{configurable:true,value:[new w.File(['xlsx'],'1C.xlsx')]});
  blocked.dispatchEvent(new w.Event('change'));await tick();
- assert.equal(calls.filter(c=>c.path==='api/upload').length,0,'File event cannot bypass missing reference');
+ assert.equal(calls.filter(c=>c.path==='api/upload').length,0,'Unverified file still cannot reach the upload endpoint');
  const failedInput=d.getElementById('etalonFileInput');failImport=true;
  Object.defineProperty(failedInput,'files',{value:[new w.File(['bad'],'bad.xlsx')],configurable:true});failedInput.dispatchEvent(new w.Event('change'));await tick();
- assert.equal(d.getElementById('btnUpload').disabled,true,'Failed import must not unlock uploads');
- assert.equal(d.getElementById('btnLoadSavedDb').disabled,true);failImport=false;
+ assert.ok(d.getElementById('btnUpload').classList.contains('workbook-locked'),'Failed import keeps the locked hint');
+ assert.ok(d.getElementById('btnLoadSavedDb').classList.contains('workbook-locked'));failImport=false;
 
  for(const fn of intervals)fn();await tick();
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Autosave must not save a reference');

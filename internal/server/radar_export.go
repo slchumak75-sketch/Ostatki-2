@@ -56,5 +56,5 @@ func (s *AppServer) handleExportRadar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Не удалось сформировать Excel радара: "+err.Error())
 		return
 	}
-	sendXLSXAttachment(w, "Радар неликвидов, "+time.Now().Format("02.01.2006")+".xlsx", raw)
+	sendXLSXAttachment(w, "Неликвиды, "+time.Now().Format("02.01.2006")+".xlsx", raw)
 }

@@ -38,14 +38,14 @@
         },
         "info": {
           "0419": {
-            "Comments": "Система расчёта закупок и анализа остатков 1С (Сборка Вариант 6)",
+            "Comments": "Система расчёта закупок и анализа остатков 1С (Сборка Вариант 7)",
             "CompanyName": "Ostatki 2 SCM",
-            "FileDescription": "Остатки 2 (Вариант 6) — Управление закупками",
+            "FileDescription": "Остатки 2 (Вариант 7) — Управление закупками",
             "FileVersion": "6.0.0.0",
-            "InternalName": "OstatkiZakupki_Variant_6",
+            "InternalName": "OstatkiZakupki_Variant_7",
             "LegalCopyright": "Copyright (C) 2026 Ostatki 2",
-            "OriginalFilename": "OstatkiZakupki_Variant_6.exe",
-            "ProductName": "Остатки 2 — Вариант 6",
+            "OriginalFilename": "OstatkiZakupki_Variant_7.exe",
+            "ProductName": "Остатки 2 — Вариант 7",
             "ProductVersion": "6.0.0.0"
           }
         }
