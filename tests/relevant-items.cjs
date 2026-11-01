@@ -43,5 +43,30 @@ const tick=()=>new Promise(r=>setTimeout(r,40));
  for(const timer of intervals.filter(t=>t.ms===180000))timer.cb();
  await tick();
  assert.equal(calls.filter(c=>c.path==='api/properties' && c.body.save).length,0,'No periodic property saves');
+ // Переключение «Актуально» не должно разъезжать столбцы: фактические ширины
+ // видимых столбцов переносятся на новую раскладку, меняется только узкий «+».
+ const ths=[...d.querySelectorAll('#itemsTable thead th')];
+ const plusIdx=ths.findIndex(th=>th.classList.contains('plus-col'));
+ assert.ok(plusIdx>=0,'Plus column exists in the header');
+ const dataIdxs=ths.map((th,i)=>i).filter(i=>i!==plusIdx);
+ const fakeW=new Map(dataIdxs.map((i,k)=>[i,80+k*7]));fakeW.set(plusIdx,32);
+ ths.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW.get(i),top:0,left:0,right:0,bottom:0});});
+ const colWidths=()=>[...d.querySelectorAll('#itemsTable > colgroup > col')].map(c=>c.style.width);
+ const dataMeasured=dataIdxs.map(i=>fakeW.get(i));
+ const sum=dataMeasured.reduce((a,b)=>a+b,0);
+ const hiddenExpected=dataMeasured.map(w=>`${w*100/sum}%`);
+ const sumPlus=sum+32;
+ const shownExpected=dataMeasured.map(w=>`${w*100/sumPlus}%`);
+ relevant.click(); // один клик снова включает «Актуально» — столбец «+» скрыт
+ assert.equal(colWidths().length,ths.length-1,'Hidden plus: colgroup covers data columns only');
+ assert.deepEqual(colWidths(),hiddenExpected,'Data columns keep their measured widths with plus hidden');
+ for(let i=0;i<4;i++)relevant.click(); // четвёртым нажатием выключаем — «+» появляется
+ const widths=colWidths();
+ assert.equal(widths.length,ths.length,'Shown plus: colgroup covers all columns');
+ assert.ok(Math.abs(parseFloat(widths[plusIdx])-32*100/sumPlus)<1e-9,'Plus column keeps its narrow slot');
+ assert.deepEqual(widths.filter((_,i)=>i!==plusIdx),shownExpected,'Data columns unchanged when plus appears');
+ relevant.click(); // снова включено
+ assert.deepEqual(colWidths(),hiddenExpected,'Data columns unchanged when plus hides again');
+ for(const th of ths)delete th.getBoundingClientRect;
  console.log('Full-base and optional sales/unmarked filter tests passed');w.close();
 })().catch(err=>{console.error(err);w.close();process.exitCode=1;});
