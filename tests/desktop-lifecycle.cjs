@@ -27,12 +27,21 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,40));
   assert.ok(!d.getElementById('btnCloseApp'),'In-app exit button must stay removed');
   w.__lifecycle.openCloseConfirmModal();d.getElementById('btnCloseSaveNo').click();await tick();
   assert.ok(calls.includes('api/shutdown'),'Confirmed in-app exit must still terminate server');
-  for(let i=0;i<4;i++)d.getElementById('btnConfigurePanel').click();
-  assert.ok(!d.getElementById('paramsPanel').classList.contains('hidden'),'Configuration button opens the planning panel');
-  assert.equal(d.getElementById('btnConfigurePanel').getAttribute('aria-expanded'),'true');
-  assert.ok(d.getElementById('btnConfigurePanel').classList.contains('btn-active-toggle'));
-  d.getElementById('btnConfigurePanel').click();
-  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'),'Configuration button hides the planning panel again');
+  // «Конфигурация» lives beside «Сохранить поля» and toggles only the planning-mode body.
+  const config=d.getElementById('btnConfigurePanel');
+  assert.equal(config.previousElementSibling.id,'btnSaveFields','Configuration button sits on the fields toolbar');
+  assert.ok(config.closest('#paramsPanel').classList.contains('hidden'),'Panel itself starts collapsed');
+  config.click();
+  assert.ok(!d.getElementById('paramsBody').classList.contains('hidden'),'Configuration reveals the planning-mode body');
+  assert.equal(config.getAttribute('aria-expanded'),'true');
+  assert.ok(config.classList.contains('btn-active-toggle'));
+  config.click();
+  assert.ok(d.getElementById('paramsBody').classList.contains('hidden'),'Configuration hides only the planning-mode body');
+  for(let i=0;i<4;i++)d.getElementById('btnToggleAdvanced').click(); // historical 4-click gate for «Параметры»
+  assert.ok(!d.getElementById('paramsPanel').classList.contains('hidden'),'Параметры still opens the whole panel');
+  assert.ok(d.getElementById('paramsBody').classList.contains('hidden'),'Configuration-left hidden body survives panel reopening');
+  d.getElementById('btnToggleAdvanced').click();
+  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'),'Параметры collapses the whole panel');
   console.log('Desktop reload/resume/explicit-exit lifecycle tests passed');
  } finally {closeWindow();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

@@ -65,7 +65,6 @@
         <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать автозаказ</button>
         <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
-        <button class="btn btn-ghost" id="btnConfigurePanel" type="button" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
       </div>
     </header>
 
@@ -82,6 +81,7 @@
             <button type="button" class="btn btn-beige" id="btnCompareEtalon" aria-pressed="false">Сравнить с эталоном</button>
             <button type="button" class="btn btn-beige" id="btnBackupEtalon">Резервная копия свойств (JSON) для эталона</button>
             <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
+            <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
           </div>
           <div class="presets-bar">
  <button type="button" class="btn btn-beige" id="btnReferenceHistory">История эталонов</button>
@@ -96,16 +96,15 @@
         <div class="presets-bar">
           <button class="btn btn-beige" id="btnExportRadar" type="button" title="Выгрузить отобранные позиции радара неликвидов в Excel">Выгрузить неликвиды в Excel</button>
         </div>
-        <div class="params-header">
-          <div class="presets-bar">
-            <span class="presets-title">Режим планирования:</span>
-            <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
-            <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
-            <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
-          </div>
-        </div>
-
         <div class="params-body hidden" id="paramsBody">
+          <div class="params-header" style="grid-column:1/-1">
+            <div class="presets-bar">
+              <span class="presets-title">Режим планирования:</span>
+              <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
+              <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
+              <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
+            </div>
+          </div>
           <div class="param-field" title="Горизонт обеспеченности запасом в днях">
             <label for="inpHorizon">Покрытие запаса (дней)</label>
             <input type="number" id="inpHorizon" min="1" max="365" step="1" value="30" />
