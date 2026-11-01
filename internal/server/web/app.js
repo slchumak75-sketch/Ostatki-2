@@ -2712,9 +2712,16 @@
     state.staryoMode = !state.unmarkedOnly;
     const table=el('itemsTable');
     if(table && table.classList.contains('show-plus-col')!==state.staryoMode){
+      // Столбцы не должны «разъезжаться» при появлении/скрытии столбца «+» («Актуально»):
+      // фиксируем фактические ширины видимых столбцов и переносим их на новую раскладку,
+      // иначе браузер заново автораспределит всю таблицу и поля сдвинутся.
+      const liveWidths=[...table.querySelectorAll('thead tr th')]
+        .filter(th=>!th.classList.contains('plus-col'))
+        .map(th=>Math.round(th.getBoundingClientRect().width));
+      const measured=liveWidths.length>0&&liveWidths.every(w=>w>0)?liveWidths:null;
       resetTableColumnWidths(table);
       table.classList.toggle('show-plus-col',state.staryoMode);
-      applyTableColumnWidths(table,savedColumnWidths.itemsTable);
+      applyTableColumnWidths(table,measured||savedColumnWidths.itemsTable);
     }
 
     for (const [id, active] of [['btnSales12', state.sales12Only], ['btnRelevant', state.unmarkedOnly]]) {
