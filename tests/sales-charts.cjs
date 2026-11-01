@@ -39,5 +39,7 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
  assert.ok(d.getElementById('view-charts').classList.contains('active'));
  assert.ok(!d.getElementById('view-table').classList.contains('active'));
  assert.ok(d.querySelector('#chartsContent svg'),'Charts include rows hidden by ordinary default table filters');
+ const css=fs.readFileSync('internal/server/web/styles.css','utf8');
+ assert.match(css,/\.charts-controls \{[^}]*position:sticky/,'Chart kind bar must stay pinned while scrolling');
  console.log('Five sales charts, prices, periods, warehouses, shares, empty states and read-only integration passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

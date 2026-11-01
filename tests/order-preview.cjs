@@ -9,7 +9,7 @@ w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/prope
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();', '  window.__scopeTest={state,renderKPIs}; bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
- await tick();assert.match(d.title,/Вариант 6/);
+ await tick();assert.match(d.title,/Вариант 7/);
  assert.equal(d.querySelector('[data-qty-row="8"]').value,'','Calculated zero is blank');
  assert.equal(d.querySelector('[data-qty-row="9"]').value,'5');
  const zero=d.querySelector('[data-qty-row="8"]');zero.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));zero.value='0';zero.dispatchEvent(new w.Event('input',{bubbles:true}));zero.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.equal(zero.value,'','Typed zero is blank');assert.equal(items[0].finalOrderQty,0,'Calculation still has numeric zero');

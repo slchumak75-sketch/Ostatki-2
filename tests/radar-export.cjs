@@ -16,6 +16,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
  await tick();
  const button=d.getElementById('btnExportRadar');
+ assert.equal(button.textContent,'Выгрузить неликвиды в Excel','Liquidation export must be named plainly');
  assert.equal(button.closest('#paramsPanel').id,'paramsPanel');assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'),'Radar export is in the collapsed Parameters panel');
  assert.equal(d.querySelectorAll('#overstockTable tr[data-jump-row]').length,500);
  const before=JSON.stringify(items);button.click();await tick();

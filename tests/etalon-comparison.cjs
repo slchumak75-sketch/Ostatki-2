@@ -6,7 +6,7 @@ w.scrollTo=()=>{};w.setInterval=()=>1;
 const item=(row,stock,rating,sales)=>({excelRow:row,sku:'00'+row,name:'Товар '+row,warehouse:'Склад',group:'Группа',supplier:'Поставщик',closingStock:stock,salesSegment:rating,sumSalesLast12M:sales,monthlySales:[],finalOrderQty:1,purchasePrice:10});
 const items=[item(8,11,4,10),item(9,10,0,0),item(10,11,3,5),item(11,-1,2,0),item(12,10,2,0),item(13,10,4,0),item(14,999,4,0)];
 const props={};for(const row of [8,11,13,14])props[JSON.stringify(['sku','00'+row,'Склад'])]=true;
-const comparison=[{excelRow:8,etalonStock:10,etalonRating:4,currentRating:4},{excelRow:9,etalonStock:20,etalonRating:1,currentRating:0},{excelRow:10,etalonStock:10,etalonRating:3,currentRating:3},{excelRow:11,etalonStock:-2,etalonRating:5,currentRating:0},{excelRow:12,etalonStock:20,etalonRating:2,currentRating:0},{excelRow:13,etalonStock:10,etalonRating:0,currentRating:0}].map(row=>({...row,matches:[8,9,11,12].includes(row.excelRow)}));
+const comparison=[{excelRow:8,etalonStock:10,etalonRating:4,currentRating:4,stockIncreased:true,etalonChecked:true,reason:'Остаток вырос: 10 → 11'},{excelRow:9,etalonStock:20,etalonRating:1,currentRating:0,ratingDropped:true,etalonChecked:true,reason:'Рейтинг снизился: 1 → 0'},{excelRow:10,etalonStock:10,etalonRating:3,currentRating:3},{excelRow:11,etalonStock:-2,etalonRating:5,currentRating:0,stockIncreased:true,etalonChecked:true,ratingDropped:true,reason:'Остаток вырос: -2 → -1; Рейтинг снизился: 5 → 0'},{excelRow:12,etalonStock:20,etalonRating:2,currentRating:0,ratingDropped:true,etalonChecked:true,reason:'Рейтинг снизился: 2 → 0'},{excelRow:13,etalonStock:10,etalonRating:0,currentRating:0}].map(row=>({...row,matches:[8,9,11,12].includes(row.excelRow)}));
 comparison.push({excelRow:14,isNew:true,matches:true,currentRating:4,reason:'новый товар'});
 let deferred=null,fail=false;
 w.fetch=async(path,opts={})=>{
@@ -32,13 +32,35 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
  }
  const budget=d.getElementById('kpiOrderCost').textContent;
  const search=d.getElementById('inpSearch');search.value='нет совпадений';search.dispatchEvent(new w.Event('input',{bubbles:true}));
- compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12,14],'Union bypasses both protected filters and ordinary search');
+ compare.click();await tick();assert.deepEqual(rows(),[],'Name search narrows comparison results too');
+ search.value='Товар 9';search.dispatchEvent(new w.Event('input',{bubbles:true}));await tick();
+ assert.deepEqual(rows(),[9],'Search filters the comparison union');
+ search.value='';search.dispatchEvent(new w.Event('input',{bubbles:true}));await tick();
+ compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12,14],'Union bypasses both protected filters');
  assert.equal(compare.getAttribute('aria-pressed'),'true');
  assert.match(d.querySelector('tr[data-row="14"] .comparison-reason').textContent,/новый товар/);
  assert.equal(d.querySelector('#tableBody tr[data-row="9"] .seg-pill').textContent,'0','Comparison displays the current 0 rather than reference 1');
  assert.equal(d.getElementById('kpiOrderCost').textContent,budget,'Comparison must not alter the all-supplier budget');
- d.querySelector('.tab-btn[data-tab="table"]').click();assert.deepEqual(rows(),[],'Leaving comparison restores ordinary search');
- search.value='';search.dispatchEvent(new w.Event('input',{bubbles:true}));
+ // Column filters work over the comparison union; «Номенклатура» offers only comparison properties.
+ d.querySelector('[data-filter-col="name"]').click();
+ const nameOptions=[...d.querySelectorAll('#efOptionsList input[data-excel-value]')].map(input=>input.dataset.excelValue);
+ assert.deepEqual(nameOptions,['Новый товар','Остаток вырос','Рейтинг снизился'],'Name filter lists only comparison properties');
+ const optionRow=label=>[...d.querySelectorAll('#efOptionsList .ef-opt-row')].find(row=>row.textContent.includes(label));
+ assert.match(optionRow('Остаток вырос').textContent,/2/,'Count of stock-growth rows');
+ assert.match(optionRow('Рейтинг снизился').textContent,/3/,'Count of rating-drop rows');
+ const setOption=(label,checked)=>{const input=optionRow(label).querySelector('input');input.checked=checked;input.dispatchEvent(new w.Event('change',{bubbles:true}));};
+ // Each change re-renders the options, so rows are looked up freshly every time.
+ setOption('Новый товар',false);setOption('Рейтинг снизился',false);
+ d.getElementById('efBtnOk').click();await tick();
+ assert.deepEqual(rows(),[8,11],'Stock-growth property filters the comparison');
+ d.querySelector('[data-filter-col="salesSegment"]').click();
+ const ratingOptions=[...d.querySelectorAll('#efOptionsList input[data-excel-value]')].map(input=>input.dataset.excelValue).sort();
+ assert.deepEqual(ratingOptions,['0','4'],'Other column filters count comparison rows with the displayed rating');
+ setOption('4',false);
+ d.getElementById('efBtnOk').click();await tick();
+ assert.deepEqual(rows(),[11],'Rating filter combines with the property filter');
+ d.querySelector('.tab-btn[data-tab="table"]').click();assert.deepEqual(rows(),[],'Leaving comparison restores ordinary search and drops property filters');
+ d.getElementById('btnClearAllExcelFilters').click();await tick(); // ordinary filters persist after exit; clear them for the next section
  for(const tab of ['table','suppliers','overstock','charts']){
   compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12,14]);
   d.querySelector(`.tab-btn[data-tab="${tab}"]`).click();

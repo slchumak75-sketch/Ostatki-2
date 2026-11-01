@@ -128,16 +128,17 @@
   function syncWorkbookGate() {
     if(referenceApprovedDay!==null && referenceApprovedDay!==localCalendarDay())referenceApprovedDay=null;
     const ready=canLoadWorkbook();
+    // Buttons stay usable without a loaded reference; colours only hint at freshness.
     for(const id of ['btnUpload','btnLoadSavedDb']){
-      const button=el(id);button.disabled=!ready;
+      const button=el(id);button.disabled=false;button.setAttribute('aria-disabled','false');
       button.classList.toggle('workbook-ready',ready);button.classList.toggle('workbook-locked',!ready);
-      button.setAttribute('aria-disabled',String(!ready));
-      button.title=ready?'Эталон загружен в этом запуске сегодня. Можно загрузить ведомость.':'Сначала загрузите эталон заново в этом запуске и за текущую дату.';
+      button.title=ready?'Эталон загружен в этом запуске сегодня.':'Эталон за сегодня не загружен. Новая ведомость будет загружена без сравнения с эталоном.';
     }
     return ready;
   }
   function approveReferenceLoad(){referenceApprovedDay=localCalendarDay();syncWorkbookGate();}
   let etalonLoaded = false;
+  let pendingWorkbookAfterEtalon = false;
   function updateEtalon(data) {
     resetActionHistory();
     etalonLoaded = Boolean(data.etalonLoaded);
@@ -250,6 +251,8 @@
     const wasActive=Boolean(state.comparison);
     if(wasActive)hideRatingChartPopover();
     state.comparison=null;
+    // Property labels are meaningful only while comparing; keep ordinary filters clean.
+    if (Object.hasOwn(state.colFilters,'name') && state.colFilters.name.every(value => COMPARISON_PROPERTY_LABELS.includes(value))) delete state.colFilters.name;
     el('comparisonHint')?.classList.add('hidden');
     el('btnCompareEtalon')?.setAttribute('aria-pressed','false');
     el('btnCompareEtalon')?.classList.remove('property-filter-active');
@@ -772,9 +775,22 @@
 
   const COLUMN_WIDTHS_KEY = 'ostatki.savedColumnWidths.v1';
   let savedColumnWidths = {};
+  let legacyWidthMigrationDone = false;
   function restoreSavedFields() {
     try {
       const saved = savedColumnWidths;
+      const itemsWidths = saved.itemsTable;
+      if (Array.isArray(itemsWidths) && itemsWidths.every(n => Number.isFinite(n) && n > 0)) {
+        const count = el('itemsTable')?.querySelector('thead tr')?.querySelectorAll('th').length || 0;
+        // Widths saved before the «Запас» column was removed hold one extra entry: drop its slot (7th column).
+        if (count && itemsWidths.length === count + 1) {
+          saved.itemsTable = itemsWidths.filter((_, i) => i !== 6);
+          if (!legacyWidthMigrationDone) {
+            legacyWidthMigrationDone = true;
+            apiPost('api/column-widths', {widths:saved}).catch(() => {});
+          }
+        }
+      }
       for (const id of ['itemsTable','suppliersTable']) {
         const widths = saved[id];
         if (Array.isArray(widths) && widths.every(n => Number.isFinite(n) && n > 0)) applyTableColumnWidths(el(id), widths);
@@ -1592,15 +1608,24 @@
     const src = state.report.items;
     const list = [];
     for (let i = 0; i < src.length; i++) {
-      const it = src[i];
-      if(state.comparison) {const match=comparisonItem(it);if(match)list.push(match);continue;}
-      if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
+      let it = src[i];
+      if (state.comparison) {
+        const row = state.comparison.get(it.excelRow);
+        if (!row || !row.matches) continue;
+        // Protected working filters stay bypassed; column filters and the name search narrow the union.
+        it = {...it, salesSegment: row.currentRating};
+      } else {
+        if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
+        if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
+      }
       if (whSet.size > 0 && !whSet.has(it.warehouse)) continue;
       if (grpSet.size > 0 && !grpSet.has(it.group)) continue;
       if (skuSet.size > 0 && !skuSet.has(String(it.sku || '').trim())) continue;
 
-      if (nomSet.size > 0) {
+      if (state.comparison) {
+        if (nomSet.size > 0 && ![...nomSet].some(label => comparisonHasProperty(it, label))) continue;
+        if (qName && !(it._nameLC ?? String(it.name || '').toLowerCase()).includes(qName)) continue;
+      } else if (nomSet.size > 0) {
         const nameKey = String(it.name || '').trim();
         if (!qName || anyCheckedMatchesSearch) {
           if (!nomSet.has(nameKey)) continue;
@@ -1664,7 +1689,7 @@
       return ruCollator.compare(String(va ?? ''), String(vb ?? '')) * mult;
     });
 
-    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Новая номенклатура ИЛИ галочка в эталоне + рост остатка ИЛИ рейтинг 1–5 → 0. Обычные фильтры временно не применяются. Для выхода нажмите любую вкладку.`;
+    if(state.comparison) el('comparisonHint').textContent=`Сравнение с эталоном: ${list.length} позиций. Новая номенклатура ИЛИ галочка в эталоне + рост остатка ИЛИ рейтинг 1–5 → 0. Фильтры столбцов и поиск работают по результатам сравнения; в фильтре «Номенклатура» — только свойства сравнения. Для выхода нажмите любую вкладку.`;
     state.filteredItems = list;
     state.vStart = 0;
     state.vEnd = 0;
@@ -2515,7 +2540,6 @@
   }
 
   async function openSavedDbModal() {
-    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     const modal = el('savedDbModal');
     const listEl = el('savedDbList');
     const hintEl = el('savedDbFolderHint');
@@ -2558,10 +2582,8 @@
   }
 
   async function loadSavedDatabaseByName(fileName) {
-    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     if (!fileName) return;
     try {if(!await inspectWorkbook(null,fileName))return;}catch(err){showToast(err.message);return;}
-    if(!syncWorkbookGate()){showToast('Дата изменилась. Загрузите эталон заново.');return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
@@ -2578,10 +2600,8 @@
   }
 
   async function uploadSavedDatabaseFile(file) {
-    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     if (!file) return;
     try {if(!await inspectWorkbook(file))return;}catch(err){showToast(err.message);return;}
-    if(!syncWorkbookGate()){showToast('Дата изменилась. Загрузите эталон заново.');return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     closeSavedDbModal();
@@ -2651,10 +2671,8 @@
   }
 
   async function uploadExcelFile(file) {
-    if(!syncWorkbookGate()){showToast('Сначала загрузите эталон заново за текущую дату');return;}
     if (!file) return;
     try {if(!await inspectWorkbook(file))return;}catch(err){showToast(err.message);return;}
-    if(!syncWorkbookGate()){showToast('Дата изменилась. Загрузите эталон заново.');return;}
     const reqEpoch = ++state.clientEpoch;
     abortActiveRequests();
     const ctrl = new AbortController();
@@ -2836,6 +2854,7 @@
         if(epoch===state.clientEpoch && data.state)applyEnvelope(data.state);
         applyNomenclatureProperties();
         storageStatus('etalonStorageHint',data.fileName || file.name,data.savedAt);
+        if(pendingWorkbookAfterEtalon){pendingWorkbookAfterEtalon=false;el('fileInput').click();return;}
         showToast('Эталон загружен в программу. Рейтинг и остаток эталона сохранены; рабочие остатки 1С не изменены.');
       } catch(err) {showToast(`Ошибка загрузки эталона: ${err.message}`);}
       finally {e.target.value='';button.disabled=false;}
@@ -2846,16 +2865,16 @@
         if(!state.report)throw new Error('Сначала загрузите ведомость');
         renderOverstockView(state.report);
         const excelRows=state.overstockExportRows||[];
-        if(!excelRows.length)throw new Error('В текущей выборке радара нет позиций');
+        if(!excelRows.length)throw new Error('В текущей выборке нет неликвидов');
         const res=await fetch('api/export/radar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({excelRows})});
         if(!res.ok){const data=await res.json();throw new Error(data.error||'Не удалось выгрузить радар');}
         const url=URL.createObjectURL(await res.blob()),link=document.createElement('a');
         const disposition=res.headers?.get('Content-Disposition')||'';
         const match=disposition.match(/filename\*=UTF-8''([^;]+)/i);
-        link.href=url;link.download=match?decodeURIComponent(match[1]):`Радар неликвидов, ${new Date().toLocaleDateString('ru-RU')}.xlsx`;
+        link.href=url;link.download=match?decodeURIComponent(match[1]):`Неликвиды, ${new Date().toLocaleDateString('ru-RU')}.xlsx`;
         isDownloadingFile=true;document.body.appendChild(link);link.click();link.remove();
         setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
-        showToast(`Радар выгружен: ${excelRows.length} позиций`);
+        showToast(`Неликвиды выгружены: ${excelRows.length} позиций`);
       }catch(err){showToast(`Ошибка выгрузки радара: ${err.message}`);}
       finally{button.disabled=false;}
     });
@@ -3051,8 +3070,7 @@
       if (state.report) renderOverstockView(state.report);
     });
 
-    el('btnToggleAdvanced').addEventListener('click', () => {
-      const opening = el('paramsPanel').classList.contains('hidden');
+    function setParamsPanelVisible(opening) {
       if (opening && ++paramsClicks < 4) return;
       paramsClicks = 0;
       if (opening) {
@@ -3067,7 +3085,11 @@
       if (state.report) state.hasUnsavedChanges = true;
       el('btnToggleAdvanced').setAttribute('aria-expanded', String(!isHidden));
       el('btnToggleAdvanced').textContent = isHidden ? 'Параметры ▸' : 'Параметры ▾';
-    });
+      el('btnConfigurePanel').setAttribute('aria-expanded', String(!isHidden));
+      el('btnConfigurePanel').classList.toggle('btn-active-toggle', !isHidden);
+    }
+    el('btnToggleAdvanced').addEventListener('click', () => setParamsPanelVisible(el('paramsPanel').classList.contains('hidden')));
+    el('btnConfigurePanel').addEventListener('click', () => setParamsPanelVisible(el('paramsPanel').classList.contains('hidden')));
 
     [
       'inpHorizon', 'inpLeadTime', 'inpSafety',
@@ -3772,7 +3794,16 @@
     el('orderPreviewModal').addEventListener('click',e=>{if(e.target===el('orderPreviewModal'))closeOrderPreview();});
     el('orderPreviewModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeOrderPreview();}if(e.key==='Tab'){e.preventDefault();el('btnCloseOrderPreview').focus();}});
 
-    el('btnUpload').addEventListener('click', () => el('fileInput').click());
+    el('btnUpload').addEventListener('click', () => {
+      if(canLoadWorkbook()){el('fileInput').click();return;}
+      const epoch=state.clientEpoch;
+      safetyDialog('Загрузить эталон?','Перед новой ведомостью рекомендуется свежий эталон за сегодня: он задаёт рабочие галочки, рейтинг и остаток для сравнения.\n\nЗагрузить эталон перед загрузкой ведомости?').then(yes=>{
+        if(epoch!==state.clientEpoch)return;
+        if(yes){pendingWorkbookAfterEtalon=true;el('etalonFileInput').click();}
+        else el('fileInput').click();
+      });
+    });
+    el('etalonFileInput').addEventListener('cancel',()=>{pendingWorkbookAfterEtalon=false;});
     el('fileInput').addEventListener('change', (e) => {
       uploadExcelFile(e.target.files?.[0]);
       e.target.value = '';
@@ -3879,10 +3910,6 @@
           window.resizeTo(screen.availWidth, screen.availHeight);
         });
       }
-    });
-
-    el('btnCloseApp').addEventListener('click', () => {
-      openCloseConfirmModal();
     });
 
     el('btnCloseSaveCancel').addEventListener('click', () => {
@@ -4168,8 +4195,22 @@
     if (key === 'supplier') return normalizeSupName(it.supplier);
     return String(it[key] ?? '');
   }
+  // In comparison mode the «Номенклатура» column filter holds comparison properties.
+  const COMPARISON_PROPERTY_LABELS = ['Новый товар', 'Остаток вырос', 'Рейтинг снизился'];
+  function comparisonHasProperty(it, label) {
+    const row = state.comparison?.get(it.excelRow);
+    if (!row) return false;
+    if (label === 'Новый товар') return Boolean(row.isNew);
+    if (label === 'Остаток вырос') return Boolean(row.stockIncreased && row.etalonChecked);
+    if (label === 'Рейтинг снизился') return Boolean(row.ratingDropped);
+    return false;
+  }
   function matchesExcelFilters(it, except = '') {
-    return Object.entries(state.colFilters).every(([key, values]) => key === except || values.includes(excelValue(it, key)));
+    return Object.entries(state.colFilters).every(([key, values]) => {
+      if (key === except) return true;
+      if (key === 'name' && state.comparison) return values.some(value => comparisonHasProperty(it, value));
+      return values.includes(excelValue(it, key));
+    });
   }
   function syncExcelHeaders() {
     document.querySelectorAll('[data-filter-col]').forEach(btn => {
@@ -4234,18 +4275,37 @@
   }
   function openExcelFilter(anchor) {
     if (!state.report) return;
-    if(state.comparison){showToast('Для обычных фильтров выйдите из сравнения нажатием вкладки');return;}
     const key = anchor.dataset.filterCol;
     if (excelMenu?.key === key) { closeExcelFilter(); return; }
-    const counts = new Map();
-    for (const it of state.report.items) {
-      if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
-      if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
-      if (!matchesExcelFilters(it, key)) continue;
-      const value = excelValue(it, key);
-      counts.set(value, (counts.get(value) || 0) + 1);
+    let options;
+    if (state.comparison && key === 'name') {
+      const counts = new Map(COMPARISON_PROPERTY_LABELS.map(label => [label, 0]));
+      for (const it of state.report.items) {
+        const row = state.comparison.get(it.excelRow);
+        if (!row || !row.matches || !matchesExcelFilters(it, 'name')) continue;
+        for (const label of COMPARISON_PROPERTY_LABELS) if (comparisonHasProperty(it, label)) counts.set(label, counts.get(label) + 1);
+      }
+      options = COMPARISON_PROPERTY_LABELS.map(label => ({value:label, count:counts.get(label), label}));
+    } else {
+      const counts = new Map();
+      for (const it of state.report.items) {
+        if (state.comparison) {
+          const row = state.comparison.get(it.excelRow);
+          if (!row || !row.matches || !matchesExcelFilters(it, key)) continue;
+          // Column values follow the displayed comparison overlay, not the raw row.
+          const value = excelValue({...it, salesSegment: row.currentRating}, key);
+          counts.set(value, (counts.get(value) || 0) + 1);
+          continue;
+        } else {
+          if (state.sales12Only && !(Number(it.sumSalesLast12M) > 0)) continue;
+          if (state.unmarkedOnly && state.staryoRows.has(it.excelRow)) continue;
+          if (!matchesExcelFilters(it, key)) continue;
+        }
+        const value = excelValue(it, key);
+        counts.set(value, (counts.get(value) || 0) + 1);
+      }
+      options = [...counts].map(([value,count]) => ({value,count,label:value || '(Пустые)'})).sort((a,b) => ruCollator.compare(a.value,b.value));
     }
-    const options = [...counts].map(([value,count]) => ({value,count,label:value || '(Пустые)'})).sort((a,b) => ruCollator.compare(a.value,b.value));
     const current = state.colFilters[key];
     excelMenu = {key, anchor, options, limit:500, draft:new Set(current ?? (key === 'supplier' && el('fltSupplier').value ? [el('fltSupplier').value] : options.map(o => o.value)))};
     const title = anchor.closest('th').querySelector('.th-excel-title').textContent;

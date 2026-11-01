@@ -2391,7 +2391,7 @@ body {
 .ef-opt-row > [data-excel-value] { flex:0 0 auto; }
 
 /* Full-width, read-only charts; table remains on its own tab. */
-.charts-controls { display:flex; flex-wrap:wrap; gap:10px; flex:0 0 auto; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:7px; }
+.charts-controls { display:flex; flex-wrap:wrap; gap:10px; flex:0 0 auto; padding:8px; background:var(--surface); border:1px solid var(--border); border-radius:7px; position:sticky; top:0; z-index:6; box-shadow:0 2px 6px rgba(0,0,0,.08); }
 .charts-controls label { display:flex; flex-direction:column; gap:4px; font-size:12px; min-width:130px; }
 .charts-controls label:first-child { flex:1 1 260px; }
 .charts-controls select { max-width:100%; min-height:30px; }

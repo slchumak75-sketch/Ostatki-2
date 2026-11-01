@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Остатки 2 (Вариант 6 PRO) — Управление закупками • Рейтинг • SBA</title>
+  <title>Остатки 2 (Вариант 7 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=1" />
   <link rel="stylesheet" href="styles.css?v=4.16" />
 </head>
@@ -32,7 +32,7 @@
         <div>
           <div class="brand-title-row">
             <h1>Остатки 2</h1>
-            <span class="badge badge-v2">Сборка: Вариант 6 • PRO SCM</span>
+            <span class="badge badge-v2">Сборка: Вариант 7 • PRO SCM</span>
             <span class="badge badge-accent">Рейтинг 5..0 • SBA</span>
           </div>
           <div class="file-meta" id="fileMetaLine">Загрузка ведомости…</div>
@@ -47,10 +47,10 @@
         <form id="staryoExportForm" method="POST" action="api/export/staryo" class="hidden">
           <input type="hidden" name="rows" id="staryoExportRows" value="" />
         </form>
-        <button class="btn btn-beige workbook-locked" id="btnUpload" disabled title="Открыть новый файл Ведомости (.xlsx)">
+        <button class="btn btn-beige" id="btnUpload" title="Открыть новый файл Ведомости (.xlsx). Если эталон за сегодня не загружен, программа предложит загрузить его">
           Загрузить новую ведомость
         </button>
-        <button class="btn btn-beige workbook-locked" id="btnLoadSavedDb" disabled type="button" title="Загрузить ранее сохранённую ведомость со всем её текущим состоянием">
+        <button class="btn btn-beige" id="btnLoadSavedDb" type="button" title="Загрузить ранее сохранённую ведомость со всем её текущим состоянием">
           Загрузить сохраненную ведомость
         </button>
         <button class="btn btn-beige" id="btnClearDatabase" type="button" title="Очистить загруженную ведомость ведомости">
@@ -65,13 +65,14 @@
         <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать автозаказ</button>
         <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
+        <button class="btn btn-ghost" id="btnConfigurePanel" type="button" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
       </div>
     </header>
 
     <div class="header-controls-strip">
       <div id="safetyStatus" class="field-hint" role="status" aria-live="polite"></div>
       <div id="comparisonHint" class="comparison-hint hidden" role="status"></div>
-      <!-- Панель параметров сезонного алгоритма Вариант 6 -->
+      <!-- Панель параметров сезонного алгоритма Вариант 7 -->
       <section class="params-panel hidden" id="paramsPanel">
         <div id="staryoActions" class="nomenclature-actions">
           <span class="field-hint hidden" id="propertiesStorageHint">Свойства ещё не сохранены</span>
@@ -93,7 +94,7 @@
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
         </div>
         <div class="presets-bar">
-          <button class="btn btn-beige" id="btnExportRadar" type="button">Выгрузить радар в Excel</button>
+          <button class="btn btn-beige" id="btnExportRadar" type="button" title="Выгрузить отобранные позиции радара неликвидов в Excel">Выгрузить неликвиды в Excel</button>
         </div>
         <div class="params-header">
           <div class="presets-bar">
@@ -102,7 +103,6 @@
             <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
             <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
           </div>
-          <button class="btn btn-ghost" id="btnCloseApp" type="button">Закрыть программу</button>
         </div>
 
         <div class="params-body hidden" id="paramsBody">

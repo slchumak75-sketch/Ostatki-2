@@ -323,7 +323,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<input type="number" id="inpHorizon"`,
 		`<div class="params-body hidden" id="paramsBody">`,
 		`id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры`,
-		`id="btnUpload" disabled`,
+		`id="btnUpload"`,
 		`Загрузить новую ведомость`,
 		`id="btnLoadSavedDb"`,
 		`Загрузить сохраненную ведомость`,
@@ -627,8 +627,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 	if strings.Contains(winSrc, "--start-fullscreen") {
 		t.Fatal("fullscreen launch restores unwanted browser controls")
 	}
-	if !strings.Contains(htmlBody, `id="btnCloseApp"`) {
-		t.Fatalf("HTML missing fullscreen/close window controls")
+	if !strings.Contains(htmlBody, `id="btnConfigurePanel"`) {
+		t.Fatalf("HTML missing configuration toggle")
+	}
+	if strings.Contains(htmlBody, `Закрыть программу`) {
+		t.Fatalf("in-app exit button must stay removed")
+	}
+	if !strings.Contains(htmlBody, `id="btnUpload"`) || strings.Contains(htmlBody, `id="btnUpload" disabled`) {
+		t.Fatalf("workbook buttons must be available without a reference")
 	}
 }
 
