@@ -89,11 +89,18 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  await tick();
  assert.equal(d.getElementById('btnSaveProperties'),null,'Manual properties save was removed');
  assert.ok(d.getElementById('btnSaveFields').closest('#paramsPanel'));
+ assert.ok(d.getElementById('btnConfigurePanel').closest('#etalonActions'),'Configuration sits on the fields toolbar');
  assert.equal(d.getElementById('paramsPanel').classList.contains('hidden'),false);
  assert.equal(d.getElementById('paramsBody').classList.contains('hidden'),false);
  paramsButton.click();
  assert.equal(paramsButton.getAttribute('aria-expanded'),'false','One click closes the open panel');
  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));
+ assert.ok(d.getElementById('paramsBody').classList.contains('hidden'));
+ // «Конфигурация» toggles only the planning-mode body while the whole panel stays collapsed.
+ d.getElementById('btnConfigurePanel').click();
+ assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'),'Panel itself stays hidden');
+ assert.equal(d.getElementById('paramsBody').classList.contains('hidden'),false,'Only the planning body is revealed');
+ d.getElementById('btnConfigurePanel').click();
  assert.ok(d.getElementById('paramsBody').classList.contains('hidden'));
  for(let i=0;i<3;i++) {
   paramsButton.click();

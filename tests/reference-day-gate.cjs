@@ -10,7 +10,7 @@ async function run(){
  const reference={etalonLoaded:true,etalonProperties:{},etalonSavedAt:'2026-10-25T12:00:00Z',etalonFileName:'Эталон.xlsx',properties:{}};
  w.fetch=async(path,options={})=>{calls.push(path);if(path==='api/etalon/import')return {ok:!fail,json:async()=>fail?{error:'Ошибка файла'}:reference};if(path==='api/properties')return {ok:true,json:async()=>reference};if(path==='api/workbook/check')return {ok:true,json:async()=>({fileName:'Ведомость.xlsx',first:'01.01.2026',last:'31.12.2026',items:2,warehouses:['Склад'],duplicates:0,noPrices:0})};return {ok:true,json:async()=>({hasWorkbook:false})};};
  w.eval(js);
- const locked=()=>{for(const id of ['btnUpload','btnLoadSavedDb']){const b=d.getElementById(id);assert.equal(b.disabled,false,'Buttons must open without a reference');assert.equal(b.classList.contains('workbook-ready'),false);assert.equal(b.classList.contains('workbook-locked'),true);}};
+ const locked=()=>{for(const id of ['btnUpload','btnLoadSavedDb']){const b=d.getElementById(id);assert.equal(b.disabled,false,'Buttons must open without a reference');assert.equal(b.classList.contains('workbook-ready'),true,'Buttons stay green without a fresh reference');assert.equal(b.classList.contains('workbook-locked'),false);}};
  const ready=()=>{for(const id of ['btnUpload','btnLoadSavedDb']){const b=d.getElementById(id);assert.equal(b.disabled,false);assert.equal(b.classList.contains('workbook-ready'),true);assert.equal(b.classList.contains('workbook-locked'),false);}};
  const dialogVisible=()=>!d.getElementById('safetyDialog').classList.contains('hidden');
  const confirmDialog=async yes=>{assert.ok(dialogVisible(),'Confirmation dialog must be visible');d.getElementById(yes?'safetyDialogYes':'safetyDialogNo').click();await tick();};

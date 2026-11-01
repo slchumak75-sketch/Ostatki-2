@@ -44,8 +44,8 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(calls.filter(c=>c.path==='api/upload').length,0,'Unverified file still cannot reach the upload endpoint');
  const failedInput=d.getElementById('etalonFileInput');failImport=true;
  Object.defineProperty(failedInput,'files',{value:[new w.File(['bad'],'bad.xlsx')],configurable:true});failedInput.dispatchEvent(new w.Event('change'));await tick();
- assert.ok(d.getElementById('btnUpload').classList.contains('workbook-locked'),'Failed import keeps the locked hint');
- assert.ok(d.getElementById('btnLoadSavedDb').classList.contains('workbook-locked'));failImport=false;
+ assert.ok(d.getElementById('btnUpload').classList.contains('workbook-ready') && !d.getElementById('btnUpload').disabled,'Failed import keeps buttons usable and green');
+ assert.ok(d.getElementById('btnLoadSavedDb').classList.contains('workbook-ready') && !d.getElementById('btnLoadSavedDb').disabled);failImport=false;
 
  for(const fn of intervals)fn();await tick();
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Autosave must not save a reference');

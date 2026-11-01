@@ -121,6 +121,17 @@
     setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
   }
   let referenceApprovedDay = null;
+  // «Конфигурация» (btnConfigurePanel) управляет телом планирования независимо от «Параметров»:
+  // после её использования повторное открытие панели не должно принудительно показывать тело.
+  let paramsBodyUserManaged = false;
+  function syncPlanningChrome(panelOpen, bodyOpen) {
+    el('paramsPanel').classList.toggle('hidden', !panelOpen);
+    el('paramsBody').classList.toggle('hidden', !bodyOpen);
+    el('btnToggleAdvanced')?.setAttribute('aria-expanded', String(panelOpen));
+    if (el('btnToggleAdvanced')) el('btnToggleAdvanced').textContent = panelOpen ? 'Параметры ▾' : 'Параметры ▸';
+    el('btnConfigurePanel')?.setAttribute('aria-expanded', String(bodyOpen));
+    el('btnConfigurePanel')?.classList.toggle('btn-active-toggle', bodyOpen);
+  }
   function localCalendarDay() {
     const now=new Date();return `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
   }
@@ -131,7 +142,7 @@
     // Buttons stay usable without a loaded reference; colours only hint at freshness.
     for(const id of ['btnUpload','btnLoadSavedDb']){
       const button=el(id);button.disabled=false;button.setAttribute('aria-disabled','false');
-      button.classList.toggle('workbook-ready',ready);button.classList.toggle('workbook-locked',!ready);
+      button.classList.add('workbook-ready');
       button.title=ready?'Эталон загружен в этом запуске сегодня.':'Эталон за сегодня не загружен. Новая ведомость будет загружена без сравнения с эталоном.';
     }
     return ready;
@@ -1106,14 +1117,9 @@
         c.classList.toggle('active', c.dataset.preset === activePreset);
       });
       const paramsBody = el('paramsBody');
-      const expanded = false;
       if (paramsBody) {
-        paramsBody.classList.toggle('hidden', !expanded);
-        el('paramsPanel').classList.toggle('hidden', !expanded);
-        el('btnToggleAdvanced')?.setAttribute('aria-expanded', String(expanded));
-        if (el('btnToggleAdvanced')) {
-          el('btnToggleAdvanced').textContent = expanded ? 'Параметры ▾' : 'Параметры ▸';
-        }
+        paramsBodyUserManaged = false;
+        syncPlanningChrome(false, false);
       }
 
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
@@ -3078,18 +3084,18 @@
         el('adminNoticeModal').classList.remove('hidden');
         el('btnAdminNoticeOk').focus();
       }
-      const body = el('paramsBody');
-      const isHidden = !opening;
-      body.classList.toggle('hidden', isHidden);
-      el('paramsPanel').classList.toggle('hidden', isHidden);
+      // «Параметры» владеет только плашкой. Закрытие сворачивает и тело, но открытие
+      // показывает тело лишь пока «Конфигурация» не управляла им самостоятельно.
+      const bodyOpen = opening ? (!paramsBodyUserManaged || !el('paramsBody').classList.contains('hidden')) : false;
+      syncPlanningChrome(opening, bodyOpen);
       if (state.report) state.hasUnsavedChanges = true;
-      el('btnToggleAdvanced').setAttribute('aria-expanded', String(!isHidden));
-      el('btnToggleAdvanced').textContent = isHidden ? 'Параметры ▸' : 'Параметры ▾';
-      el('btnConfigurePanel').setAttribute('aria-expanded', String(!isHidden));
-      el('btnConfigurePanel').classList.toggle('btn-active-toggle', !isHidden);
+    }
+    function setPlanningBodyVisible(opening) {
+      paramsBodyUserManaged = true;
+      syncPlanningChrome(!el('paramsPanel').classList.contains('hidden'), opening);
     }
     el('btnToggleAdvanced').addEventListener('click', () => setParamsPanelVisible(el('paramsPanel').classList.contains('hidden')));
-    el('btnConfigurePanel').addEventListener('click', () => setParamsPanelVisible(el('paramsPanel').classList.contains('hidden')));
+    el('btnConfigurePanel').addEventListener('click', () => setPlanningBodyVisible(el('paramsBody').classList.contains('hidden')));
 
     [
       'inpHorizon', 'inpLeadTime', 'inpSafety',
@@ -4493,7 +4499,7 @@
     state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);
     state.comparison=view.comparison?new Map(view.comparison):null;
     syncPropertyFilters();switchTabUI(ui.activeTab||'table');
-    el('paramsBody').classList.toggle('hidden',!ui.paramsExpanded);el('paramsPanel').classList.toggle('hidden',!ui.paramsExpanded);el('btnToggleAdvanced').textContent=ui.paramsExpanded?'Параметры ▾':'Параметры ▸';el('btnToggleAdvanced').setAttribute('aria-expanded',String(ui.paramsExpanded));
+    paramsBodyUserManaged=false;syncPlanningChrome(ui.paramsExpanded,ui.paramsExpanded);
     document.querySelectorAll('.preset-chip').forEach(button=>button.classList.toggle('active',button.dataset.preset===ui.activePreset));
     populateFilterDropdowns(state.report);el('fltSupplier').value=ui.fltSupplier||'';recomputeFilteredList();renderKPIs(state.report);renderTable();renderSuppliersView(state.report);renderOverstockView(state.report);
     for(const [id,key] of [['ovFltWarehouse','ovFltWarehouse'],['ovFltName','ovFltName'],['ovFltRating','ovFltRating'],['ovFltSupplier','ovFltSupplier'],['ovInpSearch','ovSearch']])el(id).value=ui[key]||'';
