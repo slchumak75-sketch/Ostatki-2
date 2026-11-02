@@ -778,11 +778,79 @@
   // Нормализуем также ширины из старых ведомостей: ни один colgroup не расширяет таблицу.
   function fitTableToViewport(table) {
     const cols = [...table.querySelectorAll(':scope > colgroup > col')];
+    // Уже нормированный (все в процентах) colgroup не пересчитывается: parseFloat
+    // не отличает '%' от 'px', и повторный прогон искажал бы пропорции столбцов.
+    if (cols.length && cols.every(col => col.style.width.endsWith('%'))) {
+      table.querySelectorAll('thead th').forEach(th => { th.style.width = ''; });
+      table.style.width = '100%';
+      return;
+    }
     const widths = cols.map(col => parseFloat(col.style.width) || 1);
     const total = widths.reduce((sum, width) => sum + width, 0);
     cols.forEach((col, idx) => { col.style.width = `${widths[idx] * 100 / total}%`; });
+    try { table.dataset.pxBase = JSON.stringify(widths); } catch (_) {}
     table.querySelectorAll('thead th').forEach(th => { th.style.width = ''; });
     table.style.width = '100%';
+  }
+
+  // Появление/скрытие столбца «+» («Актуально») без разрушения раскладки:
+  // в живом colgroup добавляется/убирается только узкий col «+» (32px), ширины
+  // столбцов данных не меняются — таблица ни на один кадр не остаётся без
+  // colgroup, поэтому нет ни «разлёта» столбцов, ни сброса прокрутки.
+  function syncPlusColumn(table) {
+    if (!table || table.id!=='itemsTable') return;
+    const allThs=[...table.querySelectorAll('thead tr th')];
+    const plusIndex=allThs.findIndex(h=>h.classList.contains('plus-col'));
+    if(plusIndex<0) return;
+    const hasPlus=table.classList.contains('show-plus-col');
+    const thPlus=allThs[plusIndex];
+    thPlus.style.width=hasPlus?'32px':'';
+    let colgroup=table.querySelector(':scope > colgroup');
+    let cols=colgroup?[...colgroup.querySelectorAll('col')]:[];
+    const expected=hasPlus?allThs.length:allThs.length-1;
+    if(colgroup && cols.length!==expected){
+      if(!hasPlus && cols.length===expected+1){
+        // Скрываем «+»: в colgroup ровно один лишний col — плюс.
+        cols[plusIndex]?.remove();cols.splice(plusIndex,1);
+      } else if(hasPlus && cols.length===expected-1){
+        // Показываем «+»: вставляем узкий col на своё место. Если colgroup уже
+        // нормирован в процентах, ширину «+» считаем от исходного px-базиса —
+        // смешивать '%' и 'px' нельзя, это искажало бы пропорции столбцов.
+        let plusWidth='32px';
+        const styles=cols.map(c=>c.style.width);
+        if(styles.every(v=>v.endsWith('%'))){
+          try{
+            let base=JSON.parse(table.dataset.pxBase||'[]');
+            if(Array.isArray(base)&&base.length===cols.length+1)base=base.filter((_,i)=>i!==plusIndex);
+            if(Array.isArray(base)&&base.length===cols.length){
+              const sumPlus=base.reduce((a,b)=>a+b,0)+32;
+              plusWidth=`${32*100/sumPlus}%`;
+            }
+          }catch(_){/* нет базиса — остаёмся в пикселях */}
+        }
+        const col=document.createElement('col');col.style.width=plusWidth;
+        colgroup.insertBefore(col,cols[plusIndex]||null);cols.splice(plusIndex,0,col);
+      } else {
+        colgroup.remove();colgroup=null;cols=[];
+      }
+    }
+    if(!colgroup){
+      // Раскладки ещё нет — собираем по фактическим ширинам заголовков.
+      // Без измеримых ширин (скрытая/нулевая таблица) раскладку не навязываем.
+      const sources=hasPlus?allThs:allThs.filter((_,i)=>i!==plusIndex);
+      const widths=sources.map(th=>parseFloat(th.style.width)||Math.round(th.getBoundingClientRect().width)||0);
+      if(!widths.some(w=>w>0))return;
+      colgroup=document.createElement('colgroup');
+      widths.forEach((w)=>{
+        const col=document.createElement('col');
+        if(w>0)col.style.width=`${w}px`;
+        colgroup.appendChild(col);
+      });
+      table.insertBefore(colgroup,table.firstChild);
+      table.classList.add('table-manual-cols');
+      cols=[...colgroup.querySelectorAll('col')];
+    }
+    fitTableToViewport(table);
   }
 
   function applyTableColumnWidths(table, widths) {
@@ -790,6 +858,8 @@
     const headRow = table.querySelector('thead tr');
     if (!headRow) return;
     const allThs = [...headRow.querySelectorAll('th')];
+    // Считаем целевые столбцы ДО удаления colgroup: при несоответствии длины ширин
+    // существующая раскладка сохраняется, таблица не остаётся без colgroup.
     const targetThs = table.id === 'itemsTable' && !state.staryoMode
       ? allThs.filter((h) => !h.classList.contains('plus-col'))
       : allThs;
@@ -832,6 +902,10 @@
       }
       for (const id of ['itemsTable','suppliersTable']) {
         const widths = saved[id];
+        // Живую раскладку itemsTable не перезаписываем: сохранённые ширины применяются
+        // только при её отсутствии (первая загрузка/сброс), иначе ответы сервера
+        // возвращали бы старые ширины поверх текущних.
+        if (id==='itemsTable' && el(id)?.querySelector(':scope > colgroup')) continue;
         if (Array.isArray(widths) && widths.every(n => Number.isFinite(n) && n > 0)) applyTableColumnWidths(el(id), widths);
       }
     } catch (_) { /* Отсутствие настроек не мешает загрузке ведомости. */ }
@@ -2804,16 +2878,11 @@
     state.staryoMode = !state.unmarkedOnly;
     const table=el('itemsTable');
     if(table && table.classList.contains('show-plus-col')!==state.staryoMode){
-      // Столбцы не должны «разъезжаться» при появлении/скрытии столбца «+» («Актуально»):
-      // фиксируем фактические ширины видимых столбцов и переносим их на новую раскладку,
-      // иначе браузер заново автораспределит всю таблицу и поля сдвинутся.
-      const liveWidths=[...table.querySelectorAll('thead tr th')]
-        .filter(th=>!th.classList.contains('plus-col'))
-        .map(th=>Math.round(th.getBoundingClientRect().width));
-      const measured=liveWidths.length>0&&liveWidths.every(w=>w>0)?liveWidths:null;
-      resetTableColumnWidths(table);
+      // Столбцы не должны «разъезжаться», а прокрутка — сбрасываться при появлении/скрытии
+      // столбца «+» («Актуально»). Colgroup больше не сносится: ширины данных столбцов
+      // остаются в нём без изменений, добавляется или убирается только узкий col «+».
       table.classList.toggle('show-plus-col',state.staryoMode);
-      applyTableColumnWidths(table,measured||savedColumnWidths.itemsTable);
+      syncPlusColumn(table);
     }
 
     for (const [id, active] of [['btnSales12', state.sales12Only], ['btnRelevant', state.unmarkedOnly]]) {

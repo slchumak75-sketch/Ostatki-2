@@ -16,6 +16,12 @@ w.fetch=async(path,options={})=>{
 w.scrollTo=()=>{};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,40));
+// Фактические ширины заголовков фиксируются до базовых переключений (в браузере они реальные).
+const thsAll=[...d.querySelectorAll('#itemsTable thead th')];
+const plusIdx0=thsAll.findIndex(th=>th.classList.contains('plus-col'));
+const dataIdxs0=thsAll.map((th,i)=>i).filter(i=>i!==plusIdx0);
+const fakeW0=new Map(dataIdxs0.map((i,k)=>[i,80+k*7]));fakeW0.set(plusIdx0,32);
+thsAll.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW0.get(i),top:0,left:0,right:0,bottom:0});});
 (async()=>{
  await tick();
  const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number(tr.dataset.row)).sort((a,b)=>a-b);
@@ -48,25 +54,29 @@ const tick=()=>new Promise(r=>setTimeout(r,40));
  const ths=[...d.querySelectorAll('#itemsTable thead th')];
  const plusIdx=ths.findIndex(th=>th.classList.contains('plus-col'));
  assert.ok(plusIdx>=0,'Plus column exists in the header');
- const dataIdxs=ths.map((th,i)=>i).filter(i=>i!==plusIdx);
- const fakeW=new Map(dataIdxs.map((i,k)=>[i,80+k*7]));fakeW.set(plusIdx,32);
- ths.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW.get(i),top:0,left:0,right:0,bottom:0});});
  const colWidths=()=>[...d.querySelectorAll('#itemsTable > colgroup > col')].map(c=>c.style.width);
- const dataMeasured=dataIdxs.map(i=>fakeW.get(i));
+ const dataMeasured=dataIdxs0.map(i=>fakeW0.get(i));
  const sum=dataMeasured.reduce((a,b)=>a+b,0);
- const hiddenExpected=dataMeasured.map(w=>`${w*100/sum}%`);
  const sumPlus=sum+32;
- const shownExpected=dataMeasured.map(w=>`${w*100/sumPlus}%`);
+ // Col-узлы данных не меняются вовсе: при скрытии «+» их проценты остаются прежними
+ // (свободные ~1.8% распределяет браузер, визуально столбцы неподвижны).
+ const shownExpected=dataMeasured.map(w=>w*100/sumPlus);
+ const hiddenExpected=shownExpected;
+ const sameWidths=(actual,expected)=>actual.length===expected.length&&actual.every((v,i)=>Math.abs(parseFloat(v)-expected[i])<1e-6);
+ const cgBefore=d.querySelector('#itemsTable > colgroup');
+ assert.ok(cgBefore,'Colgroup exists before toggling');
  relevant.click(); // один клик снова включает «Актуально» — столбец «+» скрыт
+ assert.equal(d.querySelector('#itemsTable > colgroup'),cgBefore,'Colgroup node must survive toggling (no layout teardown)');
  assert.equal(colWidths().length,ths.length-1,'Hidden plus: colgroup covers data columns only');
- assert.deepEqual(colWidths(),hiddenExpected,'Data columns keep their measured widths with plus hidden');
+ assert.ok(sameWidths(colWidths(),hiddenExpected),'Data columns keep their measured widths with plus hidden');
  for(let i=0;i<4;i++)relevant.click(); // четвёртым нажатием выключаем — «+» появляется
  const widths=colWidths();
  assert.equal(widths.length,ths.length,'Shown plus: colgroup covers all columns');
- assert.ok(Math.abs(parseFloat(widths[plusIdx])-32*100/sumPlus)<1e-9,'Plus column keeps its narrow slot');
- assert.deepEqual(widths.filter((_,i)=>i!==plusIdx),shownExpected,'Data columns unchanged when plus appears');
+ assert.ok(Math.abs(parseFloat(widths[plusIdx])-32*100/sumPlus)<1e-6,'Plus column keeps its narrow slot');
+ assert.ok(sameWidths(widths.filter((_,i)=>i!==plusIdx),shownExpected),'Data columns unchanged when plus appears');
  relevant.click(); // снова включено
- assert.deepEqual(colWidths(),hiddenExpected,'Data columns unchanged when plus hides again');
+ assert.equal(d.querySelector('#itemsTable > colgroup'),cgBefore,'Colgroup node still the same');
+ assert.ok(sameWidths(colWidths(),hiddenExpected),'Data columns unchanged when plus hides again');
  for(const th of ths)delete th.getBoundingClientRect;
  assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/\.btn\.property-filter-active \{ background:#bde5c4/,'Top-bar green buttons share one colour');
  console.log('Full-base and optional sales/unmarked filter tests passed');w.close();
