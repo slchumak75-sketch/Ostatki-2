@@ -22,8 +22,8 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const before=JSON.stringify(items),beforeBudget=d.getElementById('kpiOrderCost').textContent,beforeCalls=calls.length;
  highlight.click();assert.equal(JSON.stringify(items),before,'Highlight must never write quantities, even when all are blank');assert.equal(calls.length,beforeCalls);assert.equal(d.getElementById('kpiOrderCost').textContent,beforeBudget);
- assert.equal(d.querySelector('[data-qty-row="8"]').value,'');assert.ok(d.querySelector('[data-qty-row="8"]').classList.contains('order-highlighted'));assert.ok(!d.querySelector('[data-qty-row="9"]').classList.contains('order-highlighted'));assert.deepEqual([...state.highlightedOrderRows],[8]);assert.equal(d.querySelector('#tableBody tr[data-row]').dataset.row,'8');
- d.querySelector('[data-filter-col="finalOrderQty"]').click();assert.ok(d.querySelector('[data-excel-only="Рекомендовано"]'));d.querySelector('[data-excel-only="Рекомендовано"]').click();assert.deepEqual([...state.filteredItems].map(it=>it.excelRow),[8]);
+ assert.equal(d.querySelector('[data-qty-row="8"]').value,'');assert.ok(d.querySelector('[data-qty-row="8"]').classList.contains('order-highlighted'));assert.ok(!d.querySelector('[data-qty-row="9"]').classList.contains('order-highlighted'));assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,14],'Rated(3+) zero-stock rows are recommended too');assert.equal(d.querySelector('#tableBody tr[data-row]').dataset.row,'8');
+ d.querySelector('[data-filter-col="finalOrderQty"]').click();assert.ok(d.querySelector('[data-excel-only="Рекомендовано"]'));d.querySelector('[data-excel-only="Рекомендовано"]').click();assert.deepEqual([...state.filteredItems].map(it=>it.excelRow),[8,14],'Recommendations filter includes rated zero-stock rows');
  delete state.colFilters.finalOrderQty;refreshExcelTable();
  const name=d.querySelector('[data-stock-row="8"]');name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const pop=d.getElementById('warehouseStockPopover');assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('99'));assert.equal(pop.querySelector('пример'),null,'Product names are escaped');assert.ok(pop.textContent.includes('0,00 шт'),'Other-warehouse hints keep zero-stock rows');d.getElementById('btnStockSearchMode').click();name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/3,00 шт/);assert.ok(!pop.textContent.includes('0,00 шт'),'Similar mode must hide zero-stock rows');d.getElementById('btnStockSearchMode').click();d.dispatchEvent(new w.Event('scroll'));assert.ok(pop.classList.contains('hidden'));
  const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
@@ -32,7 +32,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.ok(!qty.classList.contains('is-manual'));assert.ok(state.highlightedOrderRows.has(8),'Highlight set retains the edited row');
  const star=d.querySelector('[data-qty-row="9"]');star.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));star.value='*';star.dispatchEvent(new w.Event('input',{bubbles:true}));star.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.equal(star.value,'пер');assert.equal(items[1].finalOrderQty,0);assert.ok(state.orderTransferRows.has(9));assert.deepEqual([...collectUIState().orderTransferRows],[9]);
  highlight.click();assert.equal(state.highlightedOrderRows.size,0,'Toggle removes the still-highlighted row');
- highlight.click();const saved=collectUIState();assert.deepEqual([...saved.highlightedOrderRows],[8]);applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.ok(state.highlightedOrderRows.has(8));
+ highlight.click();const saved=collectUIState();assert.deepEqual([...saved.highlightedOrderRows].sort((a,b)=>a-b),[8,14]);applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.ok(state.highlightedOrderRows.has(8));
  // Restore explicit scope after the saved-state replay.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const outside=items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty);
@@ -53,18 +53,27 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  state.colFilters={warehouse:['Мир']};state.filledOrderScopes.clear();state.highlightedOrderRows.clear();refreshExcelTable();
  d.querySelector('[data-filter-col="supplier"]').click();const selectAll=d.getElementById('efSelectAllChk');selectAll.checked=true;selectAll.dispatchEvent(new w.Event('change',{bubbles:true}));d.getElementById('efBtnOk').click();assert.equal(state.colFilters.supplier.length,2,'Selecting all suppliers explicitly must retain the scope');
  assert.equal(fill.textContent,'Сделать автозаказ');const differentWarehouse=items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty);
- highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,11]);
+ highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,11,14]);
  fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.equal(items[3].finalOrderQty,9);const multi=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(multi.suppliers.length,2);assert.equal(multi.warehouse,'Мир');assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
  fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(items[3].finalOrderQty,0);assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
  // «Подсветить заказ» допускает несколько поставщиков и несколько складов; ничего не выбрано — все.
  state.colFilters={};state.highlightedOrderRows.clear();refreshExcelTable();
- highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,11,12,13],'No filters: recommendations across all suppliers and warehouses');
+ highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,11,12,13,14,15],'No filters: recommendations across all suppliers and warehouses, incl. rated zero-stock');
  assert.equal(highlight.getAttribute('aria-pressed'),'true','Highlight button reads as active for the whole base');
  highlight.click();assert.equal(state.highlightedOrderRows.size,0,'Repeat click removes only the highlighted scope');
  state.colFilters={warehouse:['Мир','Другой'],supplier:['Поставщик']};refreshExcelTable();
- highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,12,13],'Several warehouses at once, one supplier');
+ highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,12,13,14,15],'Several warehouses at once, one supplier');
  assert.equal(highlight.getAttribute('aria-pressed'),'true');
  highlight.click();assert.equal(state.highlightedOrderRows.size,0,'Toggle off spans every selected warehouse');
+ // Столбец «Склад» таблицы Номенклатуры: Мир — светло-зелёный, Кореличи — бежевый.
+ assert.ok(d.querySelector('#tableBody tr[data-row="8"] td.wh-cell').classList.contains('wh-mir'),'Mir warehouse cells are tinted light green');
+ assert.ok(!d.querySelector('#tableBody tr[data-row="8"] td.wh-cell').classList.contains('wh-korelichi'));
+ state.colFilters={};refreshExcelTable();
+ items[7].warehouse='Склад Кореличи';refreshExcelTable();
+ const korCell=d.querySelector('#tableBody tr[data-row="15"] td.wh-cell');
+ assert.ok(korCell.classList.contains('wh-korelichi'),'Korelichi warehouse cells are tinted beige');
+ assert.ok(!korCell.classList.contains('wh-mir'));
+ items[7].warehouse='Другой';refreshExcelTable();
  // Restore the pre-existing scope for the following parameter-change scenario.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик','Другой']};state.highlightedOrderRows.clear();refreshExcelTable();
  // Changing calculation parameters turns the next click into recalculation, not cancellation.
