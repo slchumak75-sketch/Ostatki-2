@@ -386,9 +386,21 @@
   function scopeSuppliers(scope){return scope.suppliers || [scope.supplier];}
   function orderScopeKeys(scope){return scopeSuppliers(scope).map(supplier=>JSON.stringify([supplier,scope.warehouse]));}
   function scopeItems(scope){return (state.report?.items||[]).filter(it=>(it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier)));}
+  // «Подсветить заказ» — свободный скоуп: допускает несколько поставщиков и несколько складов.
+  // Пустой фильтр означает «все поставщики / все склады»; действие только подсвечивает строки.
+  function highlightScope() {
+    if (!state.report || state.activeTab!=='table' || state.comparison) throw new Error('Откройте обычную ведомость и выберите поставщика и склад');
+    const supplier=el('fltSupplier')?.value;
+    const suppliers=supplier ? new Set([supplier]) : (Object.hasOwn(state.colFilters,'supplier') ? new Set(state.colFilters.supplier) : null);
+    return {suppliers,warehouses:activeWarehouseSet()};
+  }
+  function highlightMatches(it,suppliers,warehouses){
+    return (!suppliers || suppliers.has(normalizeSupName(it.supplier))) && (!warehouses || warehouses.has(it.warehouse||''));
+  }
   function renderOrderActionButtons(){
     let filled=false,highlighted=false;
-    try{const scope=orderScope();filled=orderScopeKeys(scope).every(key=>state.filledOrderScopes.has(key));highlighted=scopeItems(scope).some(it=>state.highlightedOrderRows.has(it.excelRow));}catch(_){}
+    try{const scope=orderScope();filled=orderScopeKeys(scope).every(key=>state.filledOrderScopes.has(key));}catch(_){}
+    try{const scope=highlightScope();highlighted=(state.report.items||[]).filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses)).some(it=>state.highlightedOrderRows.has(it.excelRow));}catch(_){}
     for(const [id,active] of [['btnFillOrder',filled],['btnHighlightOrder',highlighted]]){const button=el(id);button.setAttribute('aria-pressed',String(active));button.classList.toggle('btn-active-toggle',active);}
   }
 
@@ -3125,14 +3137,14 @@
 
     function highlightOrder(scope) {
       for(const it of state.report.items){
-        if((it.warehouse||'')!==scope.warehouse || !scopeSuppliers(scope).includes(normalizeSupName(it.supplier)))continue;
+        if(!highlightMatches(it,scope.suppliers,scope.warehouses))continue;
         if(Number(it.autoOrderQty)>0 && !state.staryoRows.has(it.excelRow) && !state.orderTransferRows.has(it.excelRow))state.highlightedOrderRows.add(it.excelRow);else state.highlightedOrderRows.delete(it.excelRow);
       }
       state.sortKey='finalOrderQty';state.sortDir='desc';
       refreshExcelTable();
     }
     el('btnHighlightOrder').addEventListener('click',()=>{
-      try {const scope=orderScope();const rows=scopeItems(scope);if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
+      try {const scope=highlightScope();const rows=state.report.items.filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses));if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
     el('btnFillOrder').addEventListener('click',async()=>{
       const button=el('btnFillOrder');
