@@ -18,7 +18,7 @@ w.fetch=async(path,opts={})=>{
  let body={};if(typeof opts.body==='string')body=JSON.parse(opts.body);calls.push({path,body});
  if(path==='api/properties') {Object.assign(props,body.properties||{});return {ok:true,json:async()=>({properties:props,persisted:true,markedCount:1,directory:'test',nomenclature:{},etalonFileName:'Эталон, 24.10.2026.xlsx'})};}
  if(path==='api/etalon/preview')return {ok:true,json:async()=>({token:'preview',source:'old.xlsx',newSource:'new.xlsx',total:2,marks:1,stocks:1,ratings:0,added:0})};
- if(path==='api/etalon/save-confirmed')return {ok:true,json:async()=>({fileName:'Эталон, 24.10.2026.xlsx',directory:'test',savedAt:'2026-10-24T10:20:30+03:00'})};
+ if(path==='api/etalon/save-confirmed')return {ok:true,json:async()=>({fileName:'Эталон, 24.10.2026.xlsx',directory:'test',savedAt:'2026-10-24T10:20:30+03:00',etalonLoaded:true})};
  if(path==='api/etalon/export'||path==='api/properties/export')return {ok:true,headers:{get:()=>"attachment; filename*=UTF-8''"+encodeURIComponent('Эталон, 20.10.2026.xlsx')},blob:async()=>new w.Blob(['xlsx'])};
  if(path==='api/etalon/backup')return {ok:true,blob:async()=>new w.Blob([JSON.stringify({version:2,properties:props,nomenclature:{}})],{type:'application/json'})};
  if(path==='api/etalon/import' && failImport)return {ok:false,json:async()=>({error:'Повреждённый эталон'})};
@@ -51,10 +51,10 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Autosave must not save a reference');
  d.getElementById('btnSaveEtalon').click();await tick();
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Only an explicit click creates a reference');
- assert.ok(d.getElementById('etalonStorageHint').textContent.includes('Эталон, 24.10.2026.xlsx'));
+ assert.equal(d.getElementById('etalonStorageHint'),null,'Duplicated etalon info line under the buttons is removed');
  assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,0,'Saving in the program must not download a file');
- assert.match(d.getElementById('etalonStorageHint').textContent,/Эталон, 24.10.2026.xlsx.*24.10.2026.*\d{2}:\d{2}:\d{2}/);
- assert.ok(!d.getElementById('etalonStorageHint').textContent.includes('test/'),'No directory in the storage status');
+ assert.match(d.getElementById('safetyStatus').textContent,/Эталон: Эталон, 24\.10\.2026\.xlsx.*24\.10\.2026.*\d{2}:\d{2}:\d{2}/,'Etalon info lives in the top status line');
+ assert.ok(!d.getElementById('safetyStatus').textContent.includes('test/'),'No directory in the status line');
  assert.equal(blobs.length,0,'Saving in the program must not create a download blob');
  assert.equal(downloads.length,0,'Saving in the program must not initiate a download');
  d.getElementById('btnExportEtalon').click();await tick();

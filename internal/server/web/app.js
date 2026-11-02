@@ -250,10 +250,13 @@
     }
   }
 
-  function storageStatus(id,name,savedAt) {
+  function formatStorageStatus(name,savedAt) {
     const date=new Date(savedAt);
     const stamp=savedAt && !Number.isNaN(date.getTime()) ? date.toLocaleString('ru-RU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}) : 'дата сохранения неизвестна';
-    el(id).textContent=name ? `${String(name).split(/[\\/]/).pop()} • ${stamp}` : 'Ещё не сохранено';
+    return name ? `${String(name).split(/[\\/]/).pop()} • ${stamp}` : 'Ещё не сохранено';
+  }
+  function storageStatus(id,name,savedAt) {
+    el(id).textContent=formatStorageStatus(name,savedAt);
     el(id).removeAttribute('title');
   }
   let comparisonGeneration=0;
@@ -2778,7 +2781,7 @@
         const preview=await apiGet('api/etalon/preview');
         const fields=`<label>Версия: <select id="historyChoice">${data.entries.map(e=>`<option value="${esc(e.id)}">${esc(e.savedAt||e.id)} • ${esc(e.source||'источник неизвестен')} • ${e.items} поз.</option>`).join('')}</select></label>`;
         if(!await safetyDialog('Восстановить предыдущий эталон?','Будет заменён только эталон. Текущая ведомость и рабочие отметки не изменятся. Действующий эталон останется в истории.',fields))return;
-        const result=await apiPost('api/etalon/history',{id:el('historyChoice').value,token:preview.token});updateEtalon(result);exitComparison(true);storageStatus('etalonStorageHint',result.fileName,result.savedAt);showToast('Эталон восстановлен');
+        const result=await apiPost('api/etalon/history',{id:el('historyChoice').value,token:preview.token});updateEtalon(result);exitComparison(true);showToast('Эталон восстановлен');
       }catch(err){showToast(err.message);}
     });
     el('btnCompareExport').addEventListener('click',async()=>{try{await downloadSafetyFile('api/etalon/compare/export','Сравнение с эталоном.xlsx');}catch(err){showToast(err.message);}});
@@ -2833,8 +2836,7 @@
         if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
         updateEtalon(result);
         exitComparison(true);
-        storageStatus('etalonStorageHint',result.fileName,result.savedAt);
-        showToast(el('etalonStorageHint').textContent);
+        showToast(`Эталон сохранён: ${formatStorageStatus(result.fileName,result.savedAt)}`);
       } catch(err) {showToast(`Ошибка сохранения эталона: ${err.message}`);}
       finally {button.disabled=false;}
     });
@@ -2866,7 +2868,6 @@
         exitComparison();
         if(epoch===state.clientEpoch && data.state)applyEnvelope(data.state);
         applyNomenclatureProperties();
-        storageStatus('etalonStorageHint',data.fileName || file.name,data.savedAt);
         if(pendingWorkbookAfterEtalon){pendingWorkbookAfterEtalon=false;el('fileInput').click();return;}
         showToast('Эталон загружен в программу. Рейтинг и остаток эталона сохранены; рабочие остатки 1С не изменены.');
       } catch(err) {showToast(`Ошибка загрузки эталона: ${err.message}`);}
@@ -4532,7 +4533,6 @@
   }
   function initActionHistory(){
     historyStarted=true;
-    el('btnUndoAction').addEventListener('click',()=>replayActionHistory(-1));el('btnRedoAction').addEventListener('click',()=>replayActionHistory(1));
     for(const type of ['click','input','change'])document.addEventListener(type,event=>{
       if(event.target.closest('#btnUndoAction,#btnRedoAction,.toolbar-layout-menu,.toolbar-edit-layer'))return;
       scheduleActionHistory();
@@ -4558,13 +4558,14 @@
       updateEtalon(properties);
       nomenclatureProperties = properties.properties || {};
       nomenclatureRecords = properties.nomenclature || {};
-      if (properties.etalonLoaded) storageStatus('etalonStorageHint',properties.etalonFileName,properties.etalonSavedAt);
       storageStatus('propertiesStorageHint',properties.lastFileName,properties.savedAt);
       acknowledgedProperties = {...nomenclatureProperties};
       const fields = await apiGet('api/column-widths');
       savedColumnWidths = fields.widths || {};
       const env = await apiGet('api/state');
       applyEnvelope(env, { initialBoot: true });
+      // «Режим планирования» при загрузке программы всегда свёрнут.
+      paramsBodyUserManaged = false;syncPlanningChrome(false, false);
       if (state.report) {await syncProperties().catch(err=>showToast(err.message));clearTimeout(historyTimer);await recordActionHistory();}
     } catch (err) {
       el('fileMetaLine').textContent = 'Откройте или перетащите файл Ведомости (.xlsx) для начала работы';

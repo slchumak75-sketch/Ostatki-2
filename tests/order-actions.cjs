@@ -92,5 +92,6 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.equal(fill.getAttribute('aria-pressed'),'true','Fill button activates for a single-warehouse supplier without an explicit warehouse filter');
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(!css.includes('.qty-input.is-manual'));
+ assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/#btnFillOrder, #btnHighlightOrder \{background:#fde047/,'Auto-order buttons are yellow');
  console.log('Scoped order actions, blank recommendation highlighting, filters/sorting, manual edit styling, persistence and other-warehouse stock tooltip passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

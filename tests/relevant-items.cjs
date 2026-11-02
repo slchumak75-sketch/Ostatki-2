@@ -68,5 +68,6 @@ const tick=()=>new Promise(r=>setTimeout(r,40));
  relevant.click(); // снова включено
  assert.deepEqual(colWidths(),hiddenExpected,'Data columns unchanged when plus hides again');
  for(const th of ths)delete th.getBoundingClientRect;
+ assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/\.btn\.property-filter-active \{ background:#bde5c4/,'Top-bar green buttons share one colour');
  console.log('Full-base and optional sales/unmarked filter tests passed');w.close();
 })().catch(err=>{console.error(err);w.close();process.exitCode=1;});

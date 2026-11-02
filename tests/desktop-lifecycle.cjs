@@ -28,6 +28,12 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,40));
   w.__lifecycle.openCloseConfirmModal();d.getElementById('btnCloseSaveNo').click();await tick();
   assert.ok(calls.includes('api/shutdown'),'Confirmed in-app exit must still terminate server');
   // «Конфигурация» lives beside «Сохранить поля» and toggles only the planning-mode body.
+  assert.equal(d.getElementById('btnUndoAction'),null,'Undo arrow is removed from the top bar');
+  assert.equal(d.getElementById('btnRedoAction'),null,'Redo arrow is removed from the top bar');
+  assert.ok(d.getElementById('safetyStatus').closest('.topbar'),'Etalon/workbook status line lives on the top bar');
+  assert.ok(d.getElementById('fileMetaLine').parentElement.contains(d.getElementById('safetyStatus')),'Status shares the workbook info line');
+  assert.equal(d.getElementById('etalonStorageHint'),null,'Duplicated etalon info line is removed');
+  assert.ok(d.getElementById('paramsBody').classList.contains('hidden'),'Planning mode starts collapsed at program load');
   const config=d.getElementById('btnConfigurePanel');
   assert.equal(config.previousElementSibling.id,'btnSaveFields','Configuration button sits on the fields toolbar');
   assert.ok(config.closest('#paramsPanel').classList.contains('hidden'),'Panel itself starts collapsed');

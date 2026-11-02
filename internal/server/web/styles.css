@@ -2339,7 +2339,8 @@ body.col-resize-active * {
 .row-number-cell, .row-number-col { text-align:center !important; color:var(--text-muted); }
 #itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }
 
-.btn.property-filter-active { background:#16a34a; border-color:#15803d; color:#fff; }
+.btn.property-filter-active { background:#bde5c4; border-color:#438955; color:#164d25; }
+.btn.property-filter-active:hover { background:#a8dcb2; }
 
 input[type="checkbox"] { accent-color: #dc2626; }
 
@@ -2433,7 +2434,11 @@ body {
 /* Export remains visible directly below Parameters, outside its hidden panel. */
 
 .comparison-reason {font-size:11px;color:#7a4512;white-space:normal;margin-top:3px;}
-#safetyStatus {padding:4px 12px;white-space:normal;}
+#safetyStatus {margin-left:10px;padding:0;white-space:normal;}
+
+/* «Сделать автозаказ» и «Подсветить заказ» — жёлтые кнопки верхней плашки. */
+#btnFillOrder, #btnHighlightOrder {background:#fde047;border-color:#ca8a04;color:#713f12;}
+#btnFillOrder:hover, #btnHighlightOrder:hover {background:#facc15;}
 
 /* Workbook buttons stay enabled and green: a stale reference only changes the hint. */
 #btnUpload.workbook-ready, #btnLoadSavedDb.workbook-ready {background:#bde5c4;color:#164d25;border-color:#438955;opacity:1;}
@@ -2484,7 +2489,6 @@ body {
 .stock-match-note {font-size:10px;color:var(--text-muted);margin-top:4px;}
 
 /* Bold history arrows; preserve the existing button height and accessible labels. */
-#btnUndoAction, #btnRedoAction {font-weight:900;font-size:18px;line-height:1;-webkit-text-stroke:0.25px currentColor;}
 
 .stock-mode-switch {display:inline-flex;align-items:center;gap:0;}
 .stock-mode-switch > #btnStockSearchMode {border-radius:6px 0 0 6px;}

@@ -27,7 +27,8 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
  const compare=d.getElementById('btnCompareEtalon');
  assert.deepEqual(rows(),[10],'Both protected filters start enabled');
  assert.equal(d.getElementById('propertiesActions'),null);
- for(const id of ['etalonStorageHint','propertiesStorageHint']){
+ assert.equal(d.getElementById('etalonStorageHint'),null,'Duplicated etalon info line is removed');
+ for(const id of ['propertiesStorageHint']){
   const text=d.getElementById(id).textContent;assert.match(text,/\.\w+.*\d{2}\.\d{2}\.\d{4}.*\d{2}:\d{2}:\d{2}/);assert.ok(!text.includes('Users')&&!text.includes('Папка'));
  }
  const budget=d.getElementById('kpiOrderCost').textContent;
