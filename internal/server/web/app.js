@@ -860,6 +860,7 @@
     if(nextTab === 'charts') window.SalesCharts?.update(state.report);
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
+    if(nextTab==='suppliers' && state.pendingSuppliersRender && state.report){state.pendingSuppliersRender=false;renderSuppliersView(state.report);}
   }
 
   function collectPendingOverridesSnapshot() {
@@ -1611,7 +1612,10 @@
     const readyRows = rep.suppliers.filter((s) => s.orderItems > 0 && warehouseIsActive(s.warehouse) && isSupplierChecked(s.supplier));
     el('cntTabSuppliers').textContent = readyRows.length;
     el('cntTabOverstock').textContent = rep.overstockItemsCount;
-    renderSuppliersView(rep);
+    // Скрытая вкладка «Поставщики» не перестраивается на каждый пересчёт KPI —
+    // откладываем до её открытия (переключатель догоняет по флагу).
+    if (state.activeTab==='suppliers')renderSuppliersView(rep);
+    else state.pendingSuppliersRender=true;
   }
 
   function recomputeFilteredList() {
@@ -2011,6 +2015,7 @@
     el('tableScrollContainer').scrollTop = prevScrollY;
   }
 
+  let chartHtmlCache=new Map();
   let activePopoverRow = null;
 
   function renderThreeYearSalesChart(rep, it) {
@@ -2198,7 +2203,13 @@
     if (!item) return;
 
     if (activePopoverRow !== excelRow) {
-      pop.innerHTML = renderThreeYearSalesChart(state.report, item);
+      let cached = chartHtmlCache.get(excelRow);
+      if (!cached || cached.item !== item) {
+        cached = { item, html: renderThreeYearSalesChart(state.report, item) };
+        if (chartHtmlCache.size > 6) chartHtmlCache.delete(chartHtmlCache.keys().next().value);
+        chartHtmlCache.set(excelRow, cached);
+      }
+      pop.innerHTML = cached.html;
       activePopoverRow = excelRow;
     }
     pop.classList.remove('hidden');
@@ -2233,6 +2244,7 @@
   }
 
   function renderSuppliersView(rep) {
+    state.pendingSuppliersRender=false;
     // Считаем сводки по складам строго по поставщикам с установленной галочкой
     const whCheckedStats = new Map();
     for (const w of rep.warehouses) {
@@ -3641,11 +3653,9 @@
                 }
               }
             }
-            recomputeReportSummaries(state.report);
-            populateFilterDropdowns(state.report);
-            renderKPIs(state.report);
-            renderTableFooter();
-            renderSuppliersView(state.report);
+            // Тихий коммит не гоняет пять тяжёлых проходов синхронно —
+            // сводки/KPI/подвал/поставщики обновляются отложенно.
+            scheduleRowSummaryRefresh();
           }
         } else {
           applyEnvelope(env);
@@ -3690,7 +3700,6 @@
         populateFilterDropdowns(state.report);
         renderKPIs(state.report);
         renderTableFooter();
-        renderSuppliersView(state.report);
       }, 250);
     }
 

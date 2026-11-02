@@ -113,5 +113,12 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(!css.includes('.qty-input.is-manual'));
  assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/#btnFillOrder, #btnHighlightOrder \{background:#fde047/,'Auto-order buttons are yellow');
+ // Скрытая вкладка «Поставщики» не перестраивается при наборе заказа: рендер откладывается до открытия.
+ d.getElementById('warehousesContainer').innerHTML='<div id="staleMarker"></div>';
+ const qtyCell=d.querySelector('[data-qty-row="8"]');qtyCell.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qtyCell.value='2';qtyCell.dispatchEvent(new w.Event('input',{bubbles:true}));qtyCell.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));
+ await tick();await new Promise(r=>setTimeout(r,320));
+ assert.ok(d.getElementById('staleMarker'),'Hidden suppliers tab must not rebuild while typing');
+ d.querySelector('[data-tab="suppliers"]').click();
+ assert.ok(!d.getElementById('staleMarker'),'Opening the suppliers tab must apply the deferred render');
  console.log('Scoped order actions, blank recommendation highlighting, filters/sorting, manual edit styling, persistence and other-warehouse stock tooltip passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
