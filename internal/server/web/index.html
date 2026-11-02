@@ -35,13 +35,11 @@
             <span class="badge badge-v2">Сборка: Вариант 7 • PRO SCM</span>
             <span class="badge badge-accent">Рейтинг 5..0 • SBA</span>
           </div>
-          <div class="file-meta" id="fileMetaLine">Загрузка ведомости…</div>
+          <div class="file-meta"><span id="fileMetaLine">Загрузка ведомости…</span><span id="safetyStatus" role="status" aria-live="polite"></span></div>
         </div>
       </div>
 
       <div class="topbar-actions">
-        <button type="button" class="btn btn-beige" id="btnUndoAction" title="Отменить действие" aria-label="Отменить действие" disabled>←</button>
-        <button type="button" class="btn btn-beige" id="btnRedoAction" title="Повторить действие" aria-label="Повторить действие" disabled>→</button>
         <input type="file" id="fileInput" accept=".xlsx" class="hidden" />
         <input type="file" id="savedDbFileInput" accept=".xlsx" class="hidden" />
         <form id="staryoExportForm" method="POST" action="api/export/staryo" class="hidden">
@@ -69,7 +67,6 @@
     </header>
 
     <div class="header-controls-strip">
-      <div id="safetyStatus" class="field-hint" role="status" aria-live="polite"></div>
       <div id="comparisonHint" class="comparison-hint hidden" role="status"></div>
       <!-- Панель параметров сезонного алгоритма Вариант 7 -->
       <section class="params-panel hidden" id="paramsPanel">
@@ -90,7 +87,6 @@
  <button type="button" class="btn btn-beige" id="btnFullRestore">Восстановить из ZIP</button>
  <input type="file" id="fullRestoreInput" accept=".zip" hidden>
  </div>
- <span class="field-hint" id="etalonStorageHint">Эталон ещё не сохранён</span>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
         </div>
         <div class="presets-bar">
