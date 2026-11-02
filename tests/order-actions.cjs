@@ -12,6 +12,11 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
  await tick();const {state,refreshExcelTable,collectUIState,applyEnvelope}=w.__actions;
  const fill=d.getElementById('btnFillOrder'),highlight=d.getElementById('btnHighlightOrder');
+ // Квадратик «×» по умолчанию зелёный (подсказки выключены); включаем для сценариев ниже.
+ assert.equal(state.stockHintsDisabled,true,'Stock hints must start disabled (green square)');
+ assert.ok(d.getElementById('btnStockSearchMode').disabled,'Mode button is disabled while hints are off');
+ d.getElementById('btnStockHintsOff').click();
+ assert.equal(state.stockHintsDisabled,false);
  assert.equal(fill.nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnToggleAdvanced');
  const beforeInvalid=calls.length;fill.click();await tick();assert.equal(calls.length,beforeInvalid,'Ambiguous selection must not call fill endpoint');
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
@@ -21,8 +26,12 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  d.querySelector('[data-filter-col="finalOrderQty"]').click();assert.ok(d.querySelector('[data-excel-only="Рекомендовано"]'));d.querySelector('[data-excel-only="Рекомендовано"]').click();assert.deepEqual([...state.filteredItems].map(it=>it.excelRow),[8]);
  delete state.colFilters.finalOrderQty;refreshExcelTable();
  const name=d.querySelector('[data-stock-row="8"]');name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const pop=d.getElementById('warehouseStockPopover');assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('99'));assert.equal(pop.querySelector('пример'),null,'Product names are escaped');assert.ok(pop.textContent.includes('0,00 шт'),'Other-warehouse hints keep zero-stock rows');d.getElementById('btnStockSearchMode').click();name.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));assert.ok(!pop.classList.contains('hidden'));assert.match(pop.textContent,/3,00 шт/);assert.ok(!pop.textContent.includes('0,00 шт'),'Similar mode must hide zero-stock rows');d.getElementById('btnStockSearchMode').click();d.dispatchEvent(new w.Event('scroll'));assert.ok(pop.classList.contains('hidden'));
- const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.ok(!qty.classList.contains('order-highlighted'));assert.ok(!qty.classList.contains('is-manual'));assert.ok(!state.highlightedOrderRows.has(8));
+ const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
+ // Заказ, проставленный в подсвеченной ячейке, не снимает подсветку.
+ assert.ok(qty.classList.contains('order-highlighted'),'Typing an order must keep the highlight');
+ assert.ok(!qty.classList.contains('is-manual'));assert.ok(state.highlightedOrderRows.has(8),'Highlight set retains the edited row');
  const star=d.querySelector('[data-qty-row="9"]');star.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));star.value='*';star.dispatchEvent(new w.Event('input',{bubbles:true}));star.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();assert.equal(star.value,'пер');assert.equal(items[1].finalOrderQty,0);assert.ok(state.orderTransferRows.has(9));assert.deepEqual([...collectUIState().orderTransferRows],[9]);
+ highlight.click();assert.equal(state.highlightedOrderRows.size,0,'Toggle removes the still-highlighted row');
  highlight.click();const saved=collectUIState();assert.deepEqual([...saved.highlightedOrderRows],[8]);applyEnvelope({report,uiState:saved,savedFileName:'Тест'},{restoreSaved:true});assert.ok(state.highlightedOrderRows.has(8));
  // Restore explicit scope after the saved-state replay.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();

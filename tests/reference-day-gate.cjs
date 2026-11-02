@@ -55,6 +55,19 @@ async function run(){
   d.getElementById('btnUpload').click();await tick();await confirmDialog(true);assert.equal(etalonDialogs,2);
   d.getElementById('etalonFileInput').dispatchEvent(new w.Event('cancel'));await tick();
   assert.equal(fileDialogs,3,'Cancelling the reference picker must not open the workbook picker');
+  // «Отмена»/Esc на вопросе об эталоне отменяет всё: ни одного окна, ни одной проверки.
+  const callsBeforeCancel=calls.length;
+  d.getElementById('btnUpload').click();await tick();assert.ok(dialogVisible());
+  assert.match(d.getElementById('safetyDialog').textContent,/Отмена/,'A real cancel button is present');
+  d.getElementById('safetyDialog').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await tick();
+  assert.ok(!dialogVisible(),'Escape closes the dialog');
+  assert.equal(fileDialogs,3,'Cancel must not open the workbook picker');
+  assert.equal(etalonDialogs,2,'Cancel must not open the reference picker');
+  assert.equal(calls.length,callsBeforeCancel,'Cancel must not probe the workbook');
+  d.getElementById('btnUpload').click();await tick();
+  d.getElementById('safetyDialogCancel').click();await tick();
+  assert.ok(!dialogVisible());assert.equal(fileDialogs,3);assert.equal(etalonDialogs,2);
+  assert.equal(calls.length,callsBeforeCancel,'Cancel button must not probe the workbook either');
  }finally{w.close();}
 }
 (async()=>{await run();await run();console.log('New-session, failed import, successful import, midnight, clock rollback and always-available workbook gate passed');})().catch(e=>{console.error(e);process.exitCode=1;});

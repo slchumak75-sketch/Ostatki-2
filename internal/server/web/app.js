@@ -22,7 +22,9 @@
     stockSearchProducts: [],
     stockSimilarityPercent: 80,
     stockSearchMode: 'other',
-    stockHintsDisabled: false,
+    // Квадратик «×» по умолчанию выключен (зелёный): подсказки «Другой склад»
+    // включаются только явным нажатием квадрата.
+    stockHintsDisabled: true,
     canSaveInPlace: false,
     desktopMode: false,
     sourceFileName: '',
@@ -96,15 +98,22 @@
     const stamp=state.lastSavedAt ? (/^\d{2}\.\d{2}\.\d{4}/.test(state.lastSavedAt)?state.lastSavedAt:new Date(state.lastSavedAt).toLocaleString('ru-RU')) : 'ещё не сохранено';
     target.textContent=`Эталон: ${referenceName || 'не загружен'}${referenceDate?' • '+new Date(referenceDate).toLocaleString('ru-RU'):''} | Ведомость: ${state.report?.fileName || 'не загружена'} | Сохранение: ${state.isSavingDb?'запись…':stamp}${state.report && state.hasUnsavedChanges?' • Есть несохранённые изменения':''}`;
   }
-  function safetyDialog(title,lines,fields='',validate=null) {
+  function safetyDialog(title,lines,fields='',validate=null,opts={}) {
     if(dialogBusy)return Promise.resolve(false);
     dialogBusy=true;const box=el('safetyDialog'),before=document.activeElement;
     el('safetyDialogTitle').textContent=title;el('safetyDialogText').textContent=lines;
     el('safetyDialogFields').innerHTML=fields;box.classList.remove('hidden');el('safetyDialogNo').focus();
+    // opts.cancel добавляет настоящую «Отмену» (Esc тоже отменяет), «Нет» остаётся явным отказом.
+    let cancelBtn=null;
+    if(opts.cancel){
+      el('safetyDialogNo').textContent='Нет';
+      cancelBtn=document.createElement('button');cancelBtn.type='button';cancelBtn.className='btn btn-ghost';cancelBtn.id='safetyDialogCancel';cancelBtn.textContent='Отмена';
+      el('safetyDialogNo').before(cancelBtn);
+    } else el('safetyDialogNo').textContent='Отмена';
     return new Promise(resolve=>{
-      const finish=value=>{if(value && validate && !validate())return;box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;box.removeEventListener('keydown',key);before?.focus();resolve(value);};
-      const key=e=>{if(e.key==='Escape'){e.stopPropagation();finish(false);}if(e.key==='Tab'){const controls=[...box.querySelectorAll('button,input,select')].filter(x=>!x.disabled);if(e.shiftKey&&document.activeElement===controls[0]){e.preventDefault();controls.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===controls.at(-1)){e.preventDefault();controls[0].focus();}}};
-      box.addEventListener('keydown',key);el('safetyDialogYes').onclick=()=>finish(true);el('safetyDialogNo').onclick=()=>finish(false);
+      const finish=value=>{if(value===true && validate && !validate())return;box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;cancelBtn?.remove();box.removeEventListener('keydown',key);before?.focus();resolve(value);};
+      const key=e=>{if(e.key==='Escape'){e.stopPropagation();finish(opts.cancel?-1:false);}if(e.key==='Tab'){const controls=[...box.querySelectorAll('button,input,select')].filter(x=>!x.disabled);if(e.shiftKey&&document.activeElement===controls[0]){e.preventDefault();controls.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===controls.at(-1)){e.preventDefault();controls[0].focus();}}};
+      box.addEventListener('keydown',key);el('safetyDialogYes').onclick=()=>finish(true);el('safetyDialogNo').onclick=()=>finish(false);if(cancelBtn)cancelBtn.onclick=()=>finish(-1);
     });
   }
   async function inspectWorkbook(file,fileName){
@@ -136,9 +145,13 @@
     const now=new Date();return `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
   }
   function canLoadWorkbook() {return etalonLoaded && referenceApprovedDay===localCalendarDay();}
+  let lastWorkbookReady = null;
   function syncWorkbookGate() {
     if(referenceApprovedDay!==null && referenceApprovedDay!==localCalendarDay())referenceApprovedDay=null;
     const ready=canLoadWorkbook();
+    // Секундный таймер не должен переписывать DOM без изменений состояния.
+    if(ready===lastWorkbookReady)return ready;
+    lastWorkbookReady=ready;
     // Buttons stay usable without a loaded reference; colours only hint at freshness.
     for(const id of ['btnUpload','btnLoadSavedDb']){
       const button=el(id);button.disabled=false;button.setAttribute('aria-disabled','false');
@@ -1800,6 +1813,55 @@
     </tr>`;
   }
 
+  function virtualSpacerHTML(heightPx, colspan) {
+    return `<tr class="virtual-spacer" aria-hidden="true"><td colspan="${colspan}" style="height:${heightPx}px"></td></tr>`;
+  }
+
+  // Плавная прокрутка: вместо пересборки всего tbody (парсинг ~110 строк на каждый
+  // выход за окно — источник рывков и «разъезжания») дописываем и удаляем только
+  // «дельту» строк. Распорки пересчитываются в том же кадре: суммарная высота
+  // всегда равна total*VIRTUAL_ROW_HEIGHT. Большой прыжок без перекрытия окон
+  // и повреждённая структура уходят в полную перерисовку (force-путь).
+  function patchVirtualWindow(tbody, slice, start, end) {
+    const rows = [...tbody.querySelectorAll('tr[data-row]')];
+    const oldStart = state.vStart, oldEnd = state.vEnd;
+    if (rows.length !== oldEnd - oldStart || rows.length === 0) return false;
+    if (slice[oldStart]?.excelRow !== Number(rows[0]?.dataset.row)) return false;
+    if (slice[oldEnd - 1]?.excelRow !== Number(rows[rows.length - 1]?.dataset.row)) return false;
+    if (start >= oldEnd || end <= oldStart) return false; // нет перекрытия — полная перерисовка
+    const rowH = VIRTUAL_ROW_HEIGHT, total = slice.length;
+    const headRemove = Math.max(0, Math.min(start, oldEnd) - oldStart);
+    const tailRemove = Math.max(0, oldEnd - Math.max(end, oldStart));
+    rows.slice(0, headRemove).forEach(row => row.remove());
+    if (tailRemove) rows.slice(rows.length - tailRemove).forEach(row => row.remove());
+    const headAddEnd = Math.min(oldStart, end);
+    if (headAddEnd > start) {
+      const html = [];
+      for (let i = start; i < headAddEnd; i++) html.push(buildTableRowHTML(slice[i], i));
+      rows[headRemove].insertAdjacentHTML('beforebegin', html.join(''));
+    }
+    const tailAddStart = Math.max(oldEnd, start);
+    if (end > tailAddStart) {
+      const html = [];
+      for (let i = tailAddStart; i < end; i++) html.push(buildTableRowHTML(slice[i], i));
+      rows[rows.length - tailRemove - 1].insertAdjacentHTML('afterend', html.join(''));
+    }
+    state.vStart = start; state.vEnd = end;
+    const colspan = state.staryoMode ? 16 : 15;
+    const topPx = Math.round(start * rowH), bottomPx = Math.round((total - end) * rowH);
+    let topSpacer = tbody.firstElementChild?.classList.contains('virtual-spacer') ? tbody.firstElementChild : null;
+    let bottomSpacer = tbody.lastElementChild?.classList.contains('virtual-spacer') && tbody.lastElementChild !== topSpacer ? tbody.lastElementChild : null;
+    if (topPx > 0) {
+      if (topSpacer) topSpacer.firstElementChild.style.height = `${topPx}px`;
+      else tbody.insertAdjacentHTML('afterbegin', virtualSpacerHTML(topPx, colspan));
+    } else topSpacer?.remove();
+    if (bottomPx > 0) {
+      if (bottomSpacer) bottomSpacer.firstElementChild.style.height = `${bottomPx}px`;
+      else tbody.insertAdjacentHTML('beforeend', virtualSpacerHTML(bottomPx, colspan));
+    } else bottomSpacer?.remove();
+    return true;
+  }
+
   function computeVirtualRange(total) {
     if (total <= VIRTUAL_THRESHOLD) {
       return { start: 0, end: total };
@@ -1847,6 +1909,9 @@
       if (!force && start >= state.vStart && end <= state.vEnd) {
         return;
       }
+      // Smooth wheel scrolling: splice only the delta rows when the rendered
+      // structure is intact; fall back to the full rebuild otherwise.
+      if (!force && patchVirtualWindow(tbody, slice, start, end)) return;
       // Repaint whenever the requested range extends outside the rendered one.
       // A small upward movement can expose missing rows, especially at scrollTop=0.
       state.vStart = start;
@@ -3598,7 +3663,7 @@
       const it = state.rowMap.get(rowNum) || state.report.items.find((x) => x.excelRow === rowNum);
       if (!it) return;
       const lineSum = calcLineSum(qty, it.purchasePrice);
-      state.highlightedOrderRows.delete(rowNum);
+      // Подсветка ячейки остаётся при проставлении заказа вручную.
       it.finalOrderQty = qty;
       it.orderCost = lineSum;
 
@@ -3609,16 +3674,24 @@
         sumCell.style.fontWeight = lineSum > 0 ? '700' : '400';
       }
       const inp = tbody?.querySelector(`input[data-qty-row="${rowNum}"]`);
-      if (inp) {
-        inp.classList.remove('order-highlighted');
-        inp.classList.toggle('has-order', qty > 0);
-      }
+      if (inp) inp.classList.toggle('has-order', qty > 0);
 
-      recomputeReportSummaries(state.report);
-      populateFilterDropdowns(state.report);
-      renderKPIs(state.report);
-      renderTableFooter();
-      renderSuppliersView(state.report);
+      scheduleRowSummaryRefresh();
+    }
+    // Тяжёлые пересчёты (своды, дропдауны, KPI, подвал, поставщики) — с дебаунсом:
+    // по каждому нажатию клавиши они тормозили ввод при большой ведомости.
+    let rowSummaryTimer = null;
+    function scheduleRowSummaryRefresh() {
+      if (rowSummaryTimer) return;
+      rowSummaryTimer = setTimeout(() => {
+        rowSummaryTimer = null;
+        if (!state.report) return;
+        recomputeReportSummaries(state.report);
+        populateFilterDropdowns(state.report);
+        renderKPIs(state.report);
+        renderTableFooter();
+        renderSuppliersView(state.report);
+      }, 250);
     }
 
     async function commitQtyOverride(inp) {
@@ -3632,8 +3705,7 @@
       renderCurrentSupplier();
       const useFastSilent = (Number(state.report?.params?.budgetCap) || 0) <= 0;
       if (useFastSilent) {
-        state.highlightedOrderRows.delete(rowNum);
-        inp.classList.remove('order-highlighted');
+        // Подсветка остаётся и после подтверждения заказа.
         await pushOverrideToServer(rowNum, val, true);
         showToast(`Заказ обновлён: ${fmtInt(val)}`);
       } else {
@@ -3823,10 +3895,13 @@
     el('btnUpload').addEventListener('click', () => {
       if(canLoadWorkbook()){el('fileInput').click();return;}
       const epoch=state.clientEpoch;
-      safetyDialog('Загрузить эталон?','Перед новой ведомостью рекомендуется свежий эталон за сегодня: он задаёт рабочие галочки, рейтинг и остаток для сравнения.\n\nЗагрузить эталон перед загрузкой ведомости?').then(yes=>{
+      // Застрявший флаг прежней цепочки не должен открывать окно ведомости сам.
+      pendingWorkbookAfterEtalon=false;
+      safetyDialog('Загрузить эталон?','Перед новой ведомостью рекомендуется свежий эталон за сегодня: он задаёт рабочие галочки, рейтинг и остаток для сравнения.\n\nЗагрузить эталон перед загрузкой ведомости?','',null,{cancel:true}).then(answer=>{
         if(epoch!==state.clientEpoch)return;
-        if(yes){pendingWorkbookAfterEtalon=true;el('etalonFileInput').click();}
-        else el('fileInput').click();
+        if(answer===true){pendingWorkbookAfterEtalon=true;el('etalonFileInput').click();}
+        else if(answer===false)el('fileInput').click();
+        // «Отмена»/Esc: ничего не открываем и не проверяем — ошибки загрузки нет.
       });
     });
     el('etalonFileInput').addEventListener('cancel',()=>{pendingWorkbookAfterEtalon=false;});

@@ -8,6 +8,12 @@ const tick=()=>new Promise(r=>setTimeout(r,50));
 (async()=>{try{
  await tick();assert.equal(d.querySelector('[data-tab="liquidity"]'),null);assert.equal(d.querySelector('#view-liquidity'),null);assert.equal(d.querySelector('[data-tab="charts"]').nextElementSibling.querySelector('input').id,'stockSimilarityPercent');
  const {state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore}=w.__similar;const percent=d.getElementById('stockSimilarityPercent'),toggle=d.getElementById('btnStockSearchMode'),pop=d.getElementById('warehouseStockPopover');
+ // Квадратик «×» по умолчанию зелёный: подсказки выключены, включаем для сценариев ниже.
+ assert.equal(state.stockHintsDisabled,true,'Stock hints must start disabled (green square)');
+ assert.ok(d.getElementById('btnStockSearchMode').disabled,'Mode button is disabled while hints are off');
+ assert.ok(d.querySelector('.stock-mode-switch').classList.contains('stock-hints-disabled'),'Square renders green by default');
+ d.getElementById('btnStockHintsOff').click();
+ assert.equal(state.stockHintsDisabled,false);
  const hover=()=>d.querySelector('[data-stock-row="8"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const rows=()=>[...pop.querySelectorAll('tbody tr')];const setPercent=value=>{percent.value=value;percent.dispatchEvent(new w.Event('input',{bubbles:true}));};
  const snapshot=JSON.stringify(items),writes=calls.filter(c=>c.options?.method==='POST').length;
  setPercent(100);hover();assert.equal(toggle.textContent,'Другой склад');assert.equal(rows().length,1,'Same SKU split into lines must aggregate');assert.match(rows()[0].textContent,/6,00 шт/);assert.ok(!pop.textContent.includes('%'));assert.ok(!pop.textContent.includes('Товар / склад'));assert.ok(!rows()[0].textContent.includes('B'));
