@@ -1850,6 +1850,15 @@
     }
   }
 
+  // Подсветка ячеек только столбца «Склад» таблицы Номенклатуры:
+  // «Склад Мир» — светло-зелёный, «Склад Кореличи» — бежевый.
+  function whCellTintClass(warehouse) {
+    const wh=String(warehouse||'').toLowerCase();
+    if(wh.includes('корел'))return ' wh-korelichi';
+    if(wh.includes('мир'))return ' wh-mir';
+    return '';
+  }
+
   function buildTableRowHTML(it, index) {
     const isSelected = it.excelRow === state.selectedExcelRow;
     const hasAutoOrder = it.autoOrderQty > 0;
@@ -1870,7 +1879,7 @@
 
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
       <td class="row-number-cell">${index + 1}</td>
-      <td class="wh-cell" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
+      <td class="wh-cell${whCellTintClass(it.warehouse)}" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
       <td class="sku-cell">${esc(it.sku)}</td>
       <td class="name-cell" data-stock-row="${it.excelRow}" tabindex="0" aria-describedby="warehouseStockPopover">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
@@ -3281,10 +3290,12 @@
       }
     });
 
+    // Рекомендуемая строка: есть расчётный заказ, либо рейтинг 3+ при нулевом остатке.
+    const isRecommendedRow=(it)=>Number(it.autoOrderQty)>0||(Number(it.salesSegment)>=3&&Number(it.closingStock)<=0);
     function highlightOrder(scope) {
       for(const it of state.report.items){
         if(!highlightMatches(it,scope.suppliers,scope.warehouses))continue;
-        if(Number(it.autoOrderQty)>0 && !state.staryoRows.has(it.excelRow) && !state.orderTransferRows.has(it.excelRow))state.highlightedOrderRows.add(it.excelRow);else state.highlightedOrderRows.delete(it.excelRow);
+        if(isRecommendedRow(it) && !state.staryoRows.has(it.excelRow) && !state.orderTransferRows.has(it.excelRow))state.highlightedOrderRows.add(it.excelRow);else state.highlightedOrderRows.delete(it.excelRow);
       }
       state.sortKey='finalOrderQty';state.sortDir='desc';
       refreshExcelTable();

@@ -2436,6 +2436,12 @@ body {
 .comparison-reason {font-size:11px;color:#7a4512;white-space:normal;margin-top:3px;}
 #safetyStatus {margin-left:10px;padding:0;white-space:normal;}
 
+/* Подсветка столбца «Склад» таблицы Номенклатуры: Мир — светло-зелёный, Кореличи — бежевый. */
+#itemsTable td.wh-cell.wh-mir { background:#d1fae5; }
+#itemsTable td.wh-cell.wh-korelichi { background:#f5ead6; }
+.data-table tbody tr:hover td.wh-cell.wh-mir,
+.data-table tbody tr:hover td.wh-cell.wh-korelichi { background:var(--surface-hover); }
+
 /* «Сделать автозаказ» и «Подсветить заказ» — жёлтые кнопки верхней плашки. */
 #btnFillOrder, #btnHighlightOrder {background:#fde047;border-color:#ca8a04;color:#713f12;}
 #btnFillOrder:hover, #btnHighlightOrder:hover {background:#facc15;}

@@ -102,7 +102,7 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 		calculated := forecast.Calculate(s.wb, params, calculationOverrides, excluded)
 		for _, it := range calculated.Items {
 			if rows[it.ExcelRow] && !excluded[it.ExcelRow] {
-				overrides[it.ExcelRow] = it.FinalOrderQty
+				overrides[it.ExcelRow] = ratedZeroStockMinimum(it, it.FinalOrderQty)
 			}
 		}
 	}
@@ -111,4 +111,13 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 	s.overrides = overrides
 	s.report = rep
 	writeJSONForRequest(w, r, http.StatusOK, s.buildStateEnvelopeLocked())
+}
+
+// ratedZeroStockMinimum keeps rated items (sales rating 3+) in the order even when
+// the algorithm yields zero for an out-of-stock row: they get at least one unit.
+func ratedZeroStockMinimum(it model.CalculatedItem, qty int) int {
+	if qty <= 0 && it.SalesSegment >= 3 && it.ClosingStock <= 0 {
+		return 1
+	}
+	return qty
 }
