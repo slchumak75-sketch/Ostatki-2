@@ -47,6 +47,17 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,11]);
  fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.equal(items[3].finalOrderQty,9);const multi=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(multi.suppliers.length,2);assert.equal(multi.warehouse,'Мир');assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
  fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(items[3].finalOrderQty,0);assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
+ // «Подсветить заказ» допускает несколько поставщиков и несколько складов; ничего не выбрано — все.
+ state.colFilters={};state.highlightedOrderRows.clear();refreshExcelTable();
+ highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,11,12,13],'No filters: recommendations across all suppliers and warehouses');
+ assert.equal(highlight.getAttribute('aria-pressed'),'true','Highlight button reads as active for the whole base');
+ highlight.click();assert.equal(state.highlightedOrderRows.size,0,'Repeat click removes only the highlighted scope');
+ state.colFilters={warehouse:['Мир','Другой'],supplier:['Поставщик']};refreshExcelTable();
+ highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,12,13],'Several warehouses at once, one supplier');
+ assert.equal(highlight.getAttribute('aria-pressed'),'true');
+ highlight.click();assert.equal(state.highlightedOrderRows.size,0,'Toggle off spans every selected warehouse');
+ // Restore the pre-existing scope for the following parameter-change scenario.
+ state.colFilters={warehouse:['Мир'],supplier:['Поставщик','Другой']};state.highlightedOrderRows.clear();refreshExcelTable();
  // Changing calculation parameters turns the next click into recalculation, not cancellation.
  state.filledOrderScopes.add(JSON.stringify(['Поставщик','Мир']));
  for(const [id,value] of [['inpHorizon','90'],['inpLeadTime','22'],['inpSafety','35']]){d.getElementById(id).value=value;d.getElementById(id).dispatchEvent(new w.Event('change'));}
