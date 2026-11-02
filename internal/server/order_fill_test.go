@@ -222,6 +222,10 @@ func TestFillOrderUsesSubmittedSeasonalParameters(t *testing.T) {
 		app.overrides = map[int]int{}
 		app.report = forecast.CalculateExplicit(app.wb, base, app.overrides)
 		expected := forecast.Calculate(app.wb, params, nil)
+		// Fill применяет правило «рейтинг 2+ при нулевом остатке — минимум 1 упаковку».
+		for j := range expected.Items {
+			expected.Items[j].FinalOrderQty = ratedZeroStockMinimum(expected.Items[j], expected.Items[j].FinalOrderQty)
+		}
 		body, _ := json.Marshal(map[string]any{"supplier": target.Supplier, "warehouse": target.Warehouse, "params": params})
 		rec := httptest.NewRecorder()
 		app.handleFillOrder(rec, httptest.NewRequest(http.MethodPost, "/api/orders/fill", bytes.NewReader(body)))

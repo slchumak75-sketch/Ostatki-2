@@ -44,6 +44,7 @@ type AppServer struct {
 	rawXLSX                 []byte
 	params                  model.ForecastParams
 	overrides               map[int]int
+	supplierOriginals       map[int]string
 	selectedSuppliers       map[string]bool
 	supplierSelectionActive bool
 	sourceFileName          string
@@ -73,6 +74,7 @@ type stateEnvelope struct {
 	SavedFileName           string                   `json:"savedFileName,omitempty"`
 	LastSavedAt             string                   `json:"lastSavedAt,omitempty"`
 	Overrides               map[int]int              `json:"overrides,omitempty"`
+	SupplierOriginals       map[int]string           `json:"supplierOriginals,omitempty"`
 	SupplierSelectionActive bool                     `json:"supplierSelectionActive"`
 	SelectedSuppliers       []string                 `json:"selectedSuppliers,omitempty"`
 	UIState                 model.SavedUIState       `json:"uiState"`
@@ -107,6 +109,7 @@ func (s *AppServer) buildStateEnvelopeLocked() stateEnvelope {
 		SavedFileName:           s.savedDBName,
 		LastSavedAt:             s.lastSavedAt,
 		Overrides:               overridesCopy,
+		SupplierOriginals:       s.supplierOriginalsCopyLocked(),
 		SupplierSelectionActive: s.supplierSelectionActive,
 		SelectedSuppliers:       s.sortedSelectedSuppliersLocked(),
 		UIState:                 s.uiState,
@@ -145,6 +148,7 @@ func (s *AppServer) LoadWorkbookFromPath(filePath string) error {
 	s.wb = wb
 	s.rawXLSX = raw
 	s.overrides = make(map[int]int)
+	s.supplierOriginals = make(map[int]string)
 	s.selectedSuppliers = make(map[string]bool)
 	s.supplierSelectionActive = false
 	s.uiState = defaultSavedUIState()
@@ -185,7 +189,8 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	s.historyWorkbookID.Add(1)
 	s.wb = wb
 	s.rawXLSX = raw
-	s.overrides = emptyOverrides
+	s.overrides = make(map[int]int)
+	s.supplierOriginals = make(map[int]string)
 	s.selectedSuppliers = make(map[string]bool)
 	s.supplierSelectionActive = false
 	s.uiState = defaultSavedUIState()
@@ -208,6 +213,7 @@ func (s *AppServer) ClearDatabase() {
 	s.wb = nil
 	s.rawXLSX = nil
 	s.overrides = make(map[int]int)
+	s.supplierOriginals = make(map[int]string)
 	s.selectedSuppliers = make(map[string]bool)
 	s.supplierSelectionActive = false
 	s.uiState = defaultSavedUIState()
@@ -310,6 +316,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
 	mux.HandleFunc("/api/orders/fill", s.handleFillOrder)
+	mux.HandleFunc("/api/supplier-override", s.handleSupplierOverride)
 	mux.HandleFunc("/api/selected-suppliers", s.handleSelectedSuppliers)
 	mux.HandleFunc("/api/upload", s.handleUpload)
 	mux.HandleFunc("/api/clear", s.handleClearDatabase)

@@ -43,6 +43,7 @@
     debounceTimer: null,
     searchDebounceTimer: null,
     pendingOverrides: new Map(),
+    supplierOriginals: {},
     filledOrderScopes: new Set(),
     autoFilledQuantities: {},
     highlightedOrderRows: new Set(),
@@ -1112,6 +1113,7 @@
     state.savedFileName = env.savedFileName || '';
     state.lastSavedAt = env.lastSavedAt || '';
     state.report = env.report || null;
+    state.supplierOriginals = env.supplierOriginals || {};
     window.SalesCharts?.update(state.report);
 
     el('btnSaveInPlace')?.classList.toggle('hidden', !state.canSaveInPlace);
@@ -1896,7 +1898,7 @@
       <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
       <td class="num-col">${fmtRetail(it)}</td>
       <td class="num-col" data-sum-row="${it.excelRow}" style="font-weight:${lineSum > 0 ? '700' : '400'}">${fmtMoney(lineSum)}</td>
-      <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
+      <td class="sup-cell" title="${esc(it.supplier)}"><span class="sup-name">${esc(it.supplier || '')}</span><button type="button" class="sup-swap-btn" data-supswap-row="${it.excelRow}" title="Заменить поставщика в строке" aria-label="Заменить поставщика в строке">+</button></td>
     </tr>`;
   }
 
@@ -3300,7 +3302,7 @@
     });
 
     // Рекомендуемая строка: есть расчётный заказ, либо рейтинг 3+ при нулевом остатке.
-    const isRecommendedRow=(it)=>Number(it.autoOrderQty)>0||(Number(it.salesSegment)>=3&&Number(it.closingStock)<=0);
+    const isRecommendedRow=(it)=>Number(it.autoOrderQty)>0||(Number(it.salesSegment)>=2&&Number(it.closingStock)<=0);
     function highlightOrder(scope) {
       for(const it of state.report.items){
         if(!highlightMatches(it,scope.suppliers,scope.warehouses))continue;
@@ -3780,6 +3782,74 @@
       }
     }
     qtyEditsFlusher = flushQtyEdits;
+
+    // Подмена поставщика в отдельной строке: «+» в ячейке «Поставщик» открывает
+    // простой перечень поставщиков ведомости (только имена, без сумм и галочек).
+    let supplierSwapRow = null;
+    let supplierSwapNames = [];
+    function hideSupplierSwapPopover() {
+      supplierSwapRow = null;
+      const pop = el('supplierSwapPopover');
+      pop.classList.add('hidden');
+      pop.setAttribute('aria-hidden', 'true');
+    }
+    function renderSupplierSwapList() {
+      const q = el('supplierSwapSearch').value.trim().toLowerCase();
+      const current = supplierSwapRow !== null ? (state.rowMap.get(supplierSwapRow)?.supplier ?? state.report?.items?.find((it) => it.excelRow === supplierSwapRow)?.supplier ?? '') : '';
+      const filtered = supplierSwapNames.filter((n) => n.toLowerCase() !== String(current || '').trim().toLowerCase() && (!q || n.toLowerCase().includes(q)));
+      const list = el('supplierSwapList');
+      list.innerHTML = filtered.length
+        ? filtered.map((n) => `<button type="button" class="ssp-item" role="option" data-ssp-supplier="${esc(n)}" title="${esc(n)}">${esc(n)}</button>`).join('')
+        : '<div class="ssp-empty">Поставщик не найден</div>';
+    }
+    function openSupplierSwapPopover(row, anchor) {
+      const items = state.report?.items || [];
+      supplierSwapNames = [...new Set([...items.map((it) => String(it.supplier || '').trim()).filter(Boolean), ...Object.values(state.supplierOriginals || {}).map((n) => String(n || '').trim()).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'ru'));
+      supplierSwapRow = row;
+      el('supplierSwapSearch').value = '';
+      renderSupplierSwapList();
+      const pop = el('supplierSwapPopover');
+      pop.classList.remove('hidden');
+      pop.setAttribute('aria-hidden', 'false');
+      const rect = anchor.getBoundingClientRect();
+      const width = 280, margin = 8, maxH = 320;
+      let left = rect.right + margin;
+      if (left + width > window.innerWidth - margin) left = Math.max(margin, rect.left - width - margin);
+      let top = rect.bottom + 4;
+      if (top + maxH > window.innerHeight - margin) top = Math.max(margin, Math.max(0, rect.top - maxH - 4));
+      pop.style.left = `${Math.round(left)}px`;
+      pop.style.top = `${Math.round(top)}px`;
+      el('supplierSwapList').style.maxHeight = `${Math.max(120, Math.min(260, window.innerHeight - top - 70))}px`;
+      el('supplierSwapSearch').focus();
+    }
+    el('tableBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-supswap-row]');
+      if (!btn) return;
+      const row = Number(btn.dataset.supswapRow);
+      if (supplierSwapRow === row) hideSupplierSwapPopover();
+      else openSupplierSwapPopover(row, btn);
+    });
+    el('supplierSwapSearch').addEventListener('input', renderSupplierSwapList);
+    el('supplierSwapList').addEventListener('click', async (e) => {
+      const item = e.target.closest('[data-ssp-supplier]');
+      if (!item || supplierSwapRow === null) return;
+      const row = supplierSwapRow, supplier = item.dataset.sspSupplier, epoch = state.clientEpoch;
+      try {
+        const env = await apiPost('api/supplier-override', { excelRow: row, supplier });
+        if (epoch !== state.clientEpoch) return;
+        hideSupplierSwapPopover();
+        applyEnvelope(env);
+        refreshExcelTable();
+        showToast(`Поставщик заменён: ${supplier}`);
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+    document.addEventListener('click', (e) => {
+      if (supplierSwapRow !== null && !e.target.closest('#supplierSwapPopover') && !e.target.closest('[data-supswap-row]')) hideSupplierSwapPopover();
+    });
+    document.addEventListener('scroll', hideSupplierSwapPopover, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && supplierSwapRow !== null) { hideSupplierSwapPopover(); } });
 
     function updateRowSumLive(rowNum, qty) {
       delete state.autoFilledQuantities[rowNum];
