@@ -1246,6 +1246,72 @@ body.col-resize-active * {
   white-space: nowrap;
 }
 
+/* Кнопка «+» подмены поставщика в строке (только таблица Номенклатуры). */
+.sup-cell .sup-name { display: inline; }
+.sup-swap-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: 600 11px/1 inherit;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.sup-swap-btn:hover { background: var(--surface-hover); color: var(--text); border-color: #4a6d8c; }
+.supplier-swap-popover {
+  position: fixed;
+  z-index: 160;
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 24px #0002;
+  font-size: 12px;
+}
+.supplier-swap-popover.hidden { display: none; }
+.ssp-head { font-weight: 700; }
+.ssp-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.ssp-list { overflow-y: auto; }
+.ssp-item {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ssp-item:hover { background: var(--surface-hover); }
+.ssp-empty { padding: 8px; color: var(--text-muted); text-align: center; }
+
 .data-table thead th.wh-col,
 .data-table thead th.grp-col {
   width: 1%;

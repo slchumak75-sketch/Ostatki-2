@@ -7,13 +7,19 @@ import (
 	"net/http"
 )
 
+type supplierSubstitution struct {
+	Original string `json:"original"`
+	Current  string `json:"current"`
+}
+
 type actionHistorySnapshot struct {
-	WorkbookID      uint64               `json:"workbookId"`
-	Params          model.ForecastParams `json:"params"`
-	Overrides       map[int]int          `json:"overrides"`
-	Properties      map[string]bool      `json:"properties"`
-	Suppliers       []string             `json:"suppliers"`
-	SelectionActive bool                 `json:"selectionActive"`
+	WorkbookID      uint64                       `json:"workbookId"`
+	Params          model.ForecastParams         `json:"params"`
+	Overrides       map[int]int                  `json:"overrides"`
+	Properties      map[string]bool              `json:"properties"`
+	Suppliers       []string                     `json:"suppliers"`
+	SelectionActive bool                         `json:"selectionActive"`
+	SupplierSubs    map[int]supplierSubstitution `json:"supplierSubs,omitempty"`
 }
 
 // History restores working data only, never the frozen reference or workbook.
@@ -37,7 +43,13 @@ func (s *AppServer) handleActionHistory(w http.ResponseWriter, r *http.Request) 
 	}
 	if r.Method == http.MethodGet {
 		props := s.catalogLocked().Properties
-		writeJSON(w, 200, actionHistorySnapshot{WorkbookID: s.historyWorkbookID.Load(), Params: s.params, Overrides: s.overrides, Properties: props, Suppliers: s.sortedSelectedSuppliersLocked(), SelectionActive: s.supplierSelectionActive})
+		subs := make(map[int]supplierSubstitution, len(s.supplierOriginals))
+		for row, original := range s.supplierOriginals {
+			if idx := s.indexOfExcelRowLocked(row); idx >= 0 {
+				subs[row] = supplierSubstitution{Original: original, Current: s.wb.Items[idx].Supplier}
+			}
+		}
+		writeJSON(w, 200, actionHistorySnapshot{WorkbookID: s.historyWorkbookID.Load(), Params: s.params, Overrides: s.overrides, Properties: props, Suppliers: s.sortedSelectedSuppliersLocked(), SelectionActive: s.supplierSelectionActive, SupplierSubs: subs})
 		return
 	}
 	if snap.WorkbookID != s.historyWorkbookID.Load() {
@@ -58,7 +70,26 @@ func (s *AppServer) handleActionHistory(w http.ResponseWriter, r *http.Request) 
 		writeError(w, 400, "неполное состояние действия")
 		return
 	}
+	for row := range snap.SupplierSubs {
+		if !valid[row] {
+			writeError(w, 400, "неверная строка подмены поставщика")
+			return
+		}
+	}
 	oldProps, oldRecords, oldReport := s.properties, s.nomenclature, s.report
+	oldSubs := make(map[int]supplierSubstitution, len(s.supplierOriginals))
+	for row, original := range s.supplierOriginals {
+		if idx := s.indexOfExcelRowLocked(row); idx >= 0 {
+			oldSubs[row] = supplierSubstitution{Original: original, Current: s.wb.Items[idx].Supplier}
+		}
+	}
+	if len(snap.SupplierSubs) > 0 || len(oldSubs) > 0 {
+		if !s.applySupplierSubstitutionsLocked(snap.SupplierSubs) {
+			s.applySupplierSubstitutionsLocked(oldSubs)
+			writeError(w, 400, "неверная строка подмены поставщика")
+			return
+		}
+	}
 	records := make(map[string]model.NomenclatureRecord, len(s.nomenclature))
 	for key, value := range s.nomenclature {
 		value.Checked = snap.Properties[key]
@@ -83,6 +114,9 @@ func (s *AppServer) handleActionHistory(w http.ResponseWriter, r *http.Request) 
 		s.properties = oldProps
 		s.nomenclature = oldRecords
 		s.report = oldReport
+		if len(oldSubs) > 0 || len(s.supplierOriginals) > 0 {
+			s.applySupplierSubstitutionsLocked(oldSubs)
+		}
 		writeError(w, 500, "не удалось сохранить отмену действия: "+err.Error())
 		return
 	}

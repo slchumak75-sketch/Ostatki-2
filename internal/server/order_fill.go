@@ -116,7 +116,7 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 // ratedZeroStockMinimum keeps rated items (sales rating 3+) in the order even when
 // the algorithm yields zero for an out-of-stock row: they get at least one unit.
 func ratedZeroStockMinimum(it model.CalculatedItem, qty int) int {
-	if qty <= 0 && it.SalesSegment >= 3 && it.ClosingStock <= 0 {
+	if qty <= 0 && it.SalesSegment >= 2 && it.ClosingStock <= 0 {
 		return 1
 	}
 	return qty

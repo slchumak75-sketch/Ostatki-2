@@ -665,6 +665,11 @@
 
   <div id="warehouseStockPopover" class="warehouse-stock-popover hidden" role="tooltip" aria-hidden="true"></div>
   <div id="ratingChartPopover" class="rating-chart-popover hidden" role="tooltip" aria-hidden="true"></div>
+  <div id="supplierSwapPopover" class="supplier-swap-popover hidden" role="dialog" aria-label="Замена поставщика в строке" aria-hidden="true">
+    <div class="ssp-head">Заменить поставщика</div>
+    <input type="text" id="supplierSwapSearch" class="ssp-search" placeholder="Поиск поставщика" autocomplete="off" />
+    <div id="supplierSwapList" class="ssp-list" role="listbox" aria-label="Поставщики"></div>
+  </div>
   <div id="safetyDialog" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="safetyDialogTitle">
  <div class="v4-modal-card v4-modal-confirm">
  <h3 id="safetyDialogTitle"></h3><p id="safetyDialogText" style="white-space:pre-wrap;max-height:45vh;overflow:auto"></p>
