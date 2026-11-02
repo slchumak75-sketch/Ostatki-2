@@ -2636,6 +2636,14 @@
   }
 
   let paramsInFlight=Promise.resolve(),paramsRevision=0;
+  // Флаш несохранённых количеств перед автоматическими действиями. Реальная реализация
+  // объявлена ниже, рядом с обработкой колонки «Заказ», и регистрируется в qtyEditsFlusher;
+  // обёртка ниже доступна всем обработчикам (включая очистку заказа у поставщика).
+  let qtyEditsFlusher = null;
+  async function flushQtyEdits(budgetMs = 5000) {
+    if (qtyEditsFlusher) return qtyEditsFlusher(budgetMs);
+    return !state.pendingOverrides.size && !document.querySelector('input[data-qty-row][data-dirty="1"]');
+  }
   function scheduleRecalculate() {
     if (isClearingDatabase || !state.report) return;
     clearTimeout(state.debounceTimer);
@@ -3104,6 +3112,7 @@
     });
 
     let liveOverrideTimer = null;
+    let overrideInFlight = Promise.resolve();
 
     const btnClear = el('btnClearDatabase');
     let clearConfirmBusy = false;
@@ -3307,8 +3316,11 @@
       const button=el('btnFillOrder');
       try {
         const scope=orderScope();
-        // A just-blurred quantity may still be in flight. Do not overwrite it.
-        if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
+        // A just-blurred quantity may still be in flight. Do not overwrite it:
+        // wait briefly for pending api/override saves instead of failing immediately.
+        if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]')){
+          if(!await flushQtyEdits())throw new Error('Дождитесь сохранения введённого количества и повторите');
+        }
         button.disabled=true;
         const epoch=state.clientEpoch;
         const keys=orderScopeKeys(scope),cancel=keys.every(key=>state.filledOrderScopes.has(key));
@@ -3711,15 +3723,18 @@
     window.addEventListener('resize', onVirtualScroll, { passive: true });
 
     async function pushOverrideToServer(rowNum, val, silent = false) {
-      if (isClearingDatabase || !state.report) return;
+      if (isClearingDatabase || !state.report) { state.pendingOverrides.delete(rowNum); return; }
       const reqEpoch = state.clientEpoch;
       state.pendingOverrides.set(rowNum, val);
+      const done = (async () => {
       try {
-        const env = await apiPost('api/override', { excelRow: rowNum, value: val });
-        if (reqEpoch !== state.clientEpoch) return;
+        // Неабортируемо: сброс активных запросов (загрузка ведомости/эталона) не должен
+        // оставлять количество несохранённым — иначе блокируются «Сделать автозаказ» и «Очистить».
+        const env = await apiPost('api/override', { excelRow: rowNum, value: val }, { unabortable: true });
         if (state.pendingOverrides.get(rowNum) === val) {
           state.pendingOverrides.delete(rowNum);
         }
+        if (reqEpoch !== state.clientEpoch) return;
         if (silent) {
           if (env.report) {
             state.report = env.report;
@@ -3742,10 +3757,29 @@
           showToast(`Заказ обновлён: ${fmtInt(val)}`);
         }
       } catch (err) {
+        if (state.pendingOverrides.get(rowNum) === val) state.pendingOverrides.delete(rowNum);
         if (err?.name === 'AbortError' || reqEpoch !== state.clientEpoch) return;
         showToast(err.message);
       }
+      })();
+      overrideInFlight = done;
+      try { await done; } finally { if (overrideInFlight === done) overrideInFlight = Promise.resolve(); }
     }
+
+    // Перед автоматическими действиями («Сделать автозаказ», «Очистить» у поставщика)
+    // даём введённому количеству сохраниться: ждём завершения отложенных запросов
+    // api/override в пределах короткого бюджета, вместо мгновенной блокировки кнопки.
+    async function flushQtyEdits(budgetMs = 5000) {
+      const deadline = Date.now() + budgetMs;
+      for (;;) {
+        const dirtyInp = document.querySelector('input[data-qty-row][data-dirty="1"]');
+        if (dirtyInp) { clearTimeout(liveOverrideTimer); commitQtyOverride(dirtyInp).catch(() => {}); }
+        if (!state.pendingOverrides.size && !document.querySelector('input[data-qty-row][data-dirty="1"]')) return true;
+        if (Date.now() > deadline) return false;
+        await Promise.race([overrideInFlight.catch(() => {}), new Promise((r) => setTimeout(r, 100))]);
+      }
+    }
+    qtyEditsFlusher = flushQtyEdits;
 
     function updateRowSumLive(rowNum, qty) {
       delete state.autoFilledQuantities[rowNum];
@@ -4583,7 +4617,9 @@
             warehouse=warehouses[Number(select.value)];return warehouse!==undefined;
           }))return;
           if(epoch!==state.clientEpoch)return;
-          if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]'))throw new Error('Дождитесь сохранения введённого количества и повторите');
+          if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]')){
+            if(!await flushQtyEdits())throw new Error('Дождитесь сохранения введённого количества и повторите');
+          }
           clear.disabled=true;
           await paramsInFlight.catch(()=>{});
           if(epoch!==state.clientEpoch)return;
