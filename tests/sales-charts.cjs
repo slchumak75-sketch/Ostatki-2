@@ -13,7 +13,7 @@ const rep={fileName:'test.xlsx',items,periods,warehouses:[],groups:[],suppliers:
 const before=JSON.stringify(rep);
 w.SalesCharts.update(rep);
 assert.equal(d.querySelector('[data-tab="overstock"]').nextElementSibling.dataset.tab,'charts');
-assert.equal(d.querySelectorAll('#chartKind option').length,10);
+assert.equal(d.querySelectorAll('#chartKind option').length,5);
 assert.ok(d.getElementById('chartTop'),'Top-10 selector exists');
 assert.ok(d.getElementById('chartUnit'),'Units selector exists');
 let data=w.SalesCharts.aggregate(rep,'groups','',0,2);
@@ -24,21 +24,18 @@ assert.ok(!d.querySelector('#chartsContent script'));
 change('chartWarehouse','B');assert.match(d.getElementById('chartsContent').textContent,/60,00/);
 change('chartFrom','1');change('chartTo','1');assert.match(d.getElementById('chartsContent').textContent,/нет положительных продаж/);
 change('chartWarehouse','');change('chartFrom','0');change('chartTo','2');
-for(const kind of ['groups','suppliers','supplierShares','groupShares','monthly']){
+for(const kind of ['groups','suppliers','supplierShares','groupShares','monthlyGroups']){
  change('chartKind',kind);assert.ok(d.querySelector('#chartsContent svg'));assert.ok(d.querySelector('#chartsContent .chart-values.data-table'),'Exact chart values use statement table styling');
  assert.match(d.getElementById('chartsContent').textContent,/130,00/);
  if(kind.endsWith('Shares'))assert.match(d.getElementById('chartsContent').textContent,/%/);
 }
-assert.equal(d.querySelectorAll('#chartsContent polyline').length,5,'Monthly lines: warehouses + MA-3 + trend + cumulative');
+// Динамика по группам: гладкие кривые (по одной на группу) с точками-маркерами.
+change('chartKind','monthlyGroups');
+assert.equal(d.querySelectorAll('#chartsContent path').length,2,'One smooth curve per product group');
+assert.ok(d.querySelectorAll('#chartsContent circle').length>=6,'Marker dots on the curves');
+assert.match(d.querySelector('#chartsContent path title').textContent,/Группа/);
 change('chartFrom','2');change('chartTo','0');assert.match(d.getElementById('chartsContent').textContent,/Начало периода/);
 change('chartFrom','0');change('chartTo','2');
-// Новые виды: сезонность, покрытие запаса, бюджет, неликвиды, рейтинг.
-change('chartKind','seasonality');assert.ok(d.querySelector('#chartsContent svg'));assert.match(d.getElementById('chartsContent').textContent,/Январь/);assert.match(d.getElementById('chartsContent').textContent,/Среднее значение календарного месяца/);
-const season=w.SalesCharts.aggregate(rep,'seasonality','',0,2);assert.equal(season.rows.length,3);assert.ok(season.total>0);
-change('chartKind','stockCover');assert.ok(d.querySelector('#chartsContent svg'));assert.match(d.getElementById('chartsContent').textContent,/1–3 мес/);assert.match(d.getElementById('chartsContent').textContent,/SKU/);
-change('chartKind','budgetStructure');assert.match(d.getElementById('chartsContent').textContent,/Заказ по поставщикам/);assert.match(d.getElementById('chartsContent').textContent,/Остатки по складам/);assert.match(d.getElementById('chartsContent').textContent,/20,00/,'Stock section values stock × price (B: 1 × 20)');
-change('chartKind','nonliquid');assert.match(d.getElementById('chartsContent').textContent,/Нет позиций|заморожено/i);
-change('chartKind','ratings');assert.ok(d.querySelector('#chartsContent svg'));assert.match(d.getElementById('chartsContent').textContent,/Без продаж/);assert.match(d.getElementById('chartsContent').textContent,/Сегмент 1/);
 // Топ-10 + «Прочие» и единицы «шт.».
 change('chartKind','groups');change('chartTop','top10');assert.ok(d.querySelector('#chartsContent svg'),'Top-10 keeps small datasets intact');
 change('chartTop','all');change('chartUnit','units');assert.match(d.getElementById('chartsContent').textContent,/311/,'Units mode sums raw quantities');
@@ -46,6 +43,18 @@ const unitsData=w.SalesCharts.aggregate(rep,'groups','',0,2,{unit:'units'});asse
 change('chartUnit','money');
 // Подсказки столбцов содержат SKU и долю.
 change('chartKind','groups');assert.match(d.querySelector('#chartsContent rect title').textContent,/SKU: \d/);assert.match(d.querySelector('#chartsContent rect title').textContent,/% от итога/);
+// Топ-10 + «Прочие» на богатом наборе: 12 поставщиков → 10 + «Прочие (2)», итог сохраняется.
+const wideItems=Array.from({length:12},(_,i)=>({excelRow:100+i,warehouse:'A',group:`G${i+1}`,supplier:`S${i+1}`,purchasePrice:10,monthlySales:[10,10,10],sku:String(100+i),name:'Т',salesSegment:3,sumSalesLast12M:30,closingStock:5,finalOrderQty:0}));
+const wideRep={fileName:'wide.xlsx',items:wideItems,periods:[{year:2026,month:1,label:'Я'},{year:2026,month:2,label:'Ф'},{year:2026,month:3,label:'М'}],warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(wideRep);change('chartKind','suppliers');change('chartTop','top10');
+assert.match(d.getElementById('chartsContent').textContent,/Прочие \(2\)/);
+assert.equal(d.querySelectorAll('#chartsContent svg g').length,11,'Топ-10 плюс «Прочие» = 11 строк');
+const wideAgg=w.SalesCharts.aggregate(wideRep,'suppliers','',0,2);
+const wideTotal=wideAgg.rows.reduce((s,r)=>s+r.total,0);
+assert.match(d.getElementById('chartsContent').textContent,new RegExp(wideTotal.toLocaleString('ru-RU',{minimumFractionDigits:2}).replace(/\u00a0/g,'[\\u00a0 ]').replace('.',',')),'«Прочие» keeps the grand total');
+change('chartTop','all');
+// Возврат к основной фикстуре.
+w.SalesCharts.update(rep);change('chartKind','groups');
 w.SalesCharts.update(null);assert.match(d.getElementById('chartsContent').textContent,/Загрузите ведомость/);
 w.scrollTo=()=>{};w.setInterval=()=>1;
 w.fetch=async path=>({ok:true,json:async()=>path==='api/properties'?{properties:{}}:{report:rep}});
