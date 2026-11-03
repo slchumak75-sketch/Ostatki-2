@@ -23,8 +23,8 @@ func TestApplicationIconAssets(t *testing.T) {
 		t.Fatal("Windows master icon must be 256 square")
 	}
 	r, g, b, _ := im.At(128, 20).RGBA()
-	if r <= g*2 || r <= b*2 {
-		t.Fatal("expected red icon background")
+	if r >= g || r >= b {
+		t.Fatal("expected teal-green icon background")
 	}
 	raw, err := os.ReadFile(filepath.Join("..", "..", "cmd", "ostatki", "winres", "icon.ico"))
 	if err != nil {
