@@ -4441,10 +4441,22 @@
   }
   function renderCurrentSupplier() {
     const filtered = state.colFilters.supplier;
+    const nameEl = el('currentSupplierName');
+    // Несколько выбранных поставщиков: бейдж не должен приписывать их заказ
+    // поставщику из последней выделенной строки — показываем количество
+    // и суммарный заказ всех выбранных (совпадает с бюджетом закупки).
+    if (filtered?.length > 1) {
+      let total = 0;
+      for (const s of filtered) total += supplierOrderSum(s);
+      nameEl.textContent = `Выбрано поставщиков: ${filtered.length}`;
+      nameEl.title = filtered.join(', ');
+      el('currentSupplierSum').textContent = `${fmtMoney(Math.round(total * 100) / 100)} руб.`;
+      return;
+    }
     const row = state.rowMap.get(state.selectedExcelRow);
     const supplier = filtered?.length === 1 ? filtered[0] : (el('fltSupplier')?.value || (row ? normalizeSupName(row.supplier) : ''));
-    el('currentSupplierName').textContent = supplier || 'Поставщик не выбран';
-    el('currentSupplierName').title = supplier;
+    nameEl.textContent = supplier || 'Поставщик не выбран';
+    nameEl.title = supplier;
     el('currentSupplierSum').textContent = `${fmtMoney(supplier ? supplierOrderSum(supplier) : 0)} руб.`;
   }
   function refreshSupplierSelection() {
