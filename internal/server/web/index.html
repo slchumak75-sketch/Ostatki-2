@@ -357,12 +357,7 @@
           <option value="suppliers">Продажи по поставщикам</option>
           <option value="supplierShares">Удельный вес поставщиков в продажах</option>
           <option value="groupShares">Удельный вес товарных групп в продажах</option>
-          <option value="monthly">Динамика продаж по месяцам</option>
-          <option value="seasonality">Сезонность продаж (среднее по годам)</option>
-          <option value="stockCover">Покрытие запаса (SKU по месяцам запаса)</option>
-          <option value="budgetStructure">Структура бюджета закупки</option>
-          <option value="nonliquid">Неликвиды: заморожено сверх года</option>
-          <option value="ratings">Рейтинг продаж: SKU и продажи</option>
+          <option value="monthlyGroups">Динамика продаж по группам товаров</option>
         </select></label>
         <label>Топ<select id="chartTop"><option value="all">Все категории</option><option value="top10">Топ-10 + «Прочие»</option></select></label>
         <label>Единицы<select id="chartUnit"><option value="money">руб.</option><option value="units">шт.</option></select></label>
@@ -692,7 +687,7 @@
     </div>
   </div>
   <div id="toast" class="toast hidden"></div>
-  <script src="charts.js?v=2"></script>
+  <script src="charts.js?v=3"></script>
   <script src="app.js?v=4.18"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
