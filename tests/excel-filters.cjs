@@ -197,6 +197,15 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
  assert.equal(d.getElementById('currentSupplierName').textContent,'Второй');
  assert.match(d.getElementById('currentSupplierSum').textContent,/3,00/);
+ // Два поставщика в фильтре: бейдж показывает «Выбрано поставщиков: 2» и суммарный заказ
+ // выбранных, а не поставщика последней выделенной строки (регрессия: оставался прежний заказ).
+ const bState=w.__budget.state,bRender=w.__budget.renderKPIs;
+ bState.colFilters.supplier=['Первый','Второй'];bRender(bState.report);
+ assert.equal(d.getElementById('currentSupplierName').textContent,'Выбрано поставщиков: 2');
+ assert.match(d.getElementById('currentSupplierSum').textContent,/5,00/);
+ bState.colFilters.supplier=['Второй'];bRender(bState.report);
+ assert.equal(d.getElementById('currentSupplierName').textContent,'Второй');
+ assert.match(d.getElementById('currentSupplierSum').textContent,/3,00/);
  // Даже пустая выборка строк не влияет на бюджет.
  search.value='нет совпадений'; search.dispatchEvent(new w.Event('input'));
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,0);
