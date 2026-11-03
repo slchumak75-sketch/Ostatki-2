@@ -48,7 +48,12 @@
     }
     const sorted=[...rows.values()].filter(r=>monthlyGroups||r.total>0);
     if(!monthlyGroups)sorted.sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label,'ru'));
-    const seriesNames=monthlyGroups?[...new Set(sorted.flatMap(r=>[...r.values.keys()]))]:[...warehouses].sort((a,b)=>a.localeCompare(b,'ru'));
+    let seriesNames;
+    if(monthlyGroups) {
+      const totals=new Map();
+      for(const r of sorted)for(const [g,v] of r.values)totals.set(g,(totals.get(g)||0)+v);
+      seriesNames=[...totals.entries()].sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0]),'ru')).map(([g])=>g);
+    } else seriesNames=[...warehouses].sort((a,b)=>a.localeCompare(b,'ru'));
     return {rows:sorted,warehouses:seriesNames,total,unitsTotal:sorted.reduce((s,r)=>s+r.units,0),excluded,returns};
   }
 
@@ -85,34 +90,50 @@
     return `${legend}<svg class="sales-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(section.title)}"><title>${esc(section.title)}</title>${bars}</svg>${note?`<p class="charts-note">${esc(note)}</p>`:''}${table}`;
   }
 
-  // Динамика продаж по товарным группам: гладкие кривые по месяцам, топ-7 групп + «Прочие».
+  // Динамика продаж по товарным группам: тонкие гладкие кривые по месяцам,
+  // топ-15 групп; выбор групп галочками с автомасштабом по вертикали.
+  let groupSelection=new Set();
+  let groupCatalog=[]; // [{name,total}] по убыванию продаж
+  const TOP_GROUPS=15;
+  function displayedGroups() {
+    const picked=groupCatalog.filter(g=>groupSelection.has(g.name)).map(g=>g.name);
+    return picked.length?picked:groupCatalog.slice(0,TOP_GROUPS).map(g=>g.name);
+  }
   function monthlyGroupsSvg(data,title) {
     const mode=unitMode(),unit=unitWord(mode);
-    const seriesTotals=new Map();
-    for(const r of data.rows)for(const [g,v] of r.values)seriesTotals.set(g,(seriesTotals.get(g)||0)+v);
-    const allSeries=[...seriesTotals.entries()].sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0]),'ru')).map(([g])=>g);
-    const series=allSeries.slice(0,7),extra=allSeries.slice(7);
-    const otherLabel=extra.length?`Прочие (${extra.length})`:'';
-    const note=extra.length?`Показаны топ-7 товарных групп по продажам за период, остальные ${extra.length} свёрнуты в «Прочие».`:'';
-    const valueOf=(r,g)=>g==='__other__'?extra.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
+    const series=displayedGroups();
+    const valueOf=(r,g)=>r.values.get(g)||0;
     const h=440,x0=90,y0=350,pw=1020,ph=290;
-    const peak=Math.max(1,...data.rows.flatMap(r=>series.map(g=>valueOf(r,g)),extra.length?data.rows.map(r=>valueOf(r,'__other__')):0));
+    // Автомасштаб: вертикаль растягивается на максимум выбранных (или топ-15) групп.
+    const peak=Math.max(1,...data.rows.flatMap(r=>series.map(g=>valueOf(r,g))));
     const x=i=>x0+(data.rows.length===1?pw/2:i*pw/(data.rows.length-1));
     const y=v=>y0-ph*v/peak;
     const ticks=Array.from({length:5},(_,i)=>{const v=peak*i/4,yy=y(v);return `<line x1="${x0}" x2="${x0+pw}" y1="${yy}" y2="${yy}" stroke="#e2e8f0"/><text x="${x0-8}" y="${yy+4}" text-anchor="end">${fmtMetric(v,mode)}</text>`;}).join('');
+    // Вертикальная сетка и подпись каждого месяца горизонтальной шкалы.
+    const grid=data.rows.map((r,i)=>`<line x1="${x(i)}" x2="${x(i)}" y1="${y0-ph}" y2="${y0}" stroke="#eef2f7"/>`).join('');
     // Гладкая кривая через точки: кубические Безье с горизонтальными касательными.
     const smooth=pts=>{if(pts.length<2)return `M ${pts[0].x} ${pts[0].y}`;let d=`M ${pts[0].x} ${pts[0].y}`;for(let i=1;i<pts.length;i++){const p0=pts[i-1],p1=pts[i];const cx=(p0.x+p1.x)/2;d+=` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;}return d;};
     const paths=series.map((g,k)=>{
-      const name=g==='__other__'?otherLabel:g;
       const pts=data.rows.map((r,i)=>({x:x(i),y:y(valueOf(r,g))}));
-      const dots=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="5" fill="${colors[k%colors.length]}"><title>${esc(data.rows[i].label)} — ${esc(name)}: ${fmtMetric(valueOf(data.rows[i],g),mode)} ${unit}; ${pct(valueOf(data.rows[i],g),data.total)} от итога</title></circle>`).join('');
-      return `<path d="${smooth(pts)}" fill="none" stroke="${colors[k%colors.length]}" stroke-width="3.5" stroke-linecap="round"><title>${esc(name)}</title></path>${dots}`;
+      const dots=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="2.6" fill="${colors[k%colors.length]}"><title>${esc(data.rows[i].label)} — ${esc(g)}: ${fmtMetric(valueOf(data.rows[i],g),mode)} ${unit}; ${pct(valueOf(data.rows[i],g),data.total)} от итога</title></circle>`).join('');
+      return `<path d="${smooth(pts)}" fill="none" stroke="${colors[k%colors.length]}" stroke-width="1.3" stroke-linecap="round"><title>${esc(g)}</title></path>${dots}`;
     }).join('');
-    const step=Math.max(1,Math.ceil(data.rows.length/12));
-    const labels=data.rows.map((r,i)=>i%step===0||i===data.rows.length-1?`<text x="${x(i)}" y="375" text-anchor="end" transform="rotate(-25 ${x(i)} 375)">${esc(r.key)}</text>`:'').join('');
-    const svg=`<svg class="sales-chart" viewBox="0 0 1200 ${h}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><text x="${x0}" y="25">${unit}</text>${ticks}${paths}${labels}</svg>`;
-    const legend=`<div class="chart-legend">${series.map((g,k)=>`<span><i style="background:${colors[k%colors.length]}"></i>${esc(g==='__other__'?otherLabel:g)}</span>`).join('')}</div>`;
-    return legend+svg+(note?`<p class="charts-note">${esc(note)}</p>`:'');
+    const labels=data.rows.map((r,i)=>`<text x="${x(i)}" y="375" text-anchor="end" transform="rotate(-35 ${x(i)} 375)">${esc(r.key)}</text>`).join('');
+    const svg=`<svg class="sales-chart" viewBox="0 0 1200 ${h}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><text x="${x0}" y="25">${unit}</text>${ticks}${grid}${paths}${labels}</svg>`;
+    const legend=`<div class="chart-legend">${series.map((g,k)=>`<span><i style="background:${colors[k%colors.length]}"></i>${esc(g)}</span>`).join('')}</div>`;
+    return legend+svg;
+  }
+  function renderGroupList() {
+    const list=$('chartGroupList');if(!list)return;
+    const q=($('chartGroupSearch')?.value||'').trim().toLowerCase();
+    const rows=groupCatalog.filter(g=>!q||g.name.toLowerCase().includes(q));
+    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><input type="checkbox" data-cgp-group="${esc(g.name)}" ${groupSelection.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>42?g.name.slice(0,40)+'…':g.name)}</span><span class="cgp-total">${money(g.total)}</span></label>`).join(''):'<p class="muted" style="padding:8px">Группа не найдена</p>';
+    const hint=$('chartGroupHint');
+    if(hint)hint.textContent=groupSelection.size?`Отмечено групп: ${groupSelection.size} — вертикаль масштабируется по ним`:`Не отмечено — показаны топ-${TOP_GROUPS} групп`;
+  }
+  function syncGroupPicker() {
+    const picker=$('chartGroupPicker');if(!picker)return;
+    picker.classList.toggle('hidden',!report?.items?.length||$('chartKind')?.value!=='monthlyGroups');
   }
 
   function render() {
@@ -121,11 +142,19 @@
     const from=Number($('chartFrom').value),to=Number($('chartTo').value);
     if(from>to){$('chartsContent').innerHTML='<p class="charts-empty">Начало периода должно быть не позже окончания.</p>';return;}
     const kind=$('chartKind').value,title=$('chartKind').selectedOptions[0].textContent,wh=$('chartWarehouse').value,mode=unitMode();
+    syncGroupPicker();
     const data=aggregate(report,kind,wh,from,to,{unit:mode});
     const shares=kind.endsWith('Shares');
     if(!(data.total>0)){$('chartsContent').innerHTML=`<p class="charts-empty">За выбранный период нет положительных продаж${mode==='money'?' с заполненной ценой':''}. Строк без положительной цены: ${data.excluded}.</p>`;return;}
     const metric=unitWord(mode);
     if(kind==='monthlyGroups') {
+      // Каталог групп (по убыванию продаж) для панели галочек; выбор чистится от исчезнувших.
+      const totals=new Map();
+      for(const r of data.rows)for(const [g,v] of r.values)totals.set(g,(totals.get(g)||0)+v);
+      groupCatalog=[...totals.entries()].sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0]),'ru')).map(([name,total])=>({name,total}));
+      const names=new Set(groupCatalog.map(g=>g.name));
+      for(const g of [...groupSelection])if(!names.has(g))groupSelection.delete(g);
+      renderGroupList();
       $('chartsContent').innerHTML=`<h2>${esc(title)}</h2><p class="charts-summary">${esc(report.periods[from].label||monthKey(report.periods[from]))} — ${esc(report.periods[to].label||monthKey(report.periods[to]))} · Всего: <strong>${fmtMetric(data.total,mode)} ${metric}</strong>${mode==='money'?` · в штуках: ${qty(data.unitsTotal)}`:''}</p>${monthlyGroupsSvg(data,title)}<details><summary>Точные значения</summary><table class="chart-values data-table"><thead><tr><th>Месяц</th>${data.warehouses.map(g=>`<th>${esc(g)}, ${metric}</th>`).join('')}<th>Итого, ${metric}</th><th>Доля, %</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td>${esc(r.label)}</td>${data.warehouses.map(g=>`<td>${fmtMetric(r.values.get(g)||0,mode)}</td>`).join('')}<td>${fmtMetric(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),mode)}</td><td>${pct(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),data.total)}</td></tr>`).join('')}</tbody></table></details>`;
       return;
     }
@@ -149,6 +178,14 @@
     render();
   }
   for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit'])$(id)?.addEventListener('change',render);
+  $('chartGroupSearch')?.addEventListener('input',renderGroupList);
+  $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
+  $('chartGroupList')?.addEventListener('change',e=>{
+    const box=e.target.closest('[data-cgp-group]');
+    if(!box)return;
+    if(box.checked)groupSelection.add(box.dataset.cgpGroup);else groupSelection.delete(box.dataset.cgpGroup);
+    renderGroupList();render();
+  });
   window.SalesCharts={update,aggregate};
   update(null);
 })();
