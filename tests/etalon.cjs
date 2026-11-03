@@ -53,7 +53,7 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Only an explicit click creates a reference');
  assert.equal(d.getElementById('etalonStorageHint'),null,'Duplicated etalon info line under the buttons is removed');
  assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,0,'Saving in the program must not download a file');
- assert.match(d.getElementById('safetyStatus').textContent,/Эталон: Эталон, 24\.10\.2026\.xlsx.*24\.10\.2026.*\d{2}:\d{2}:\d{2}/,'Etalon info lives in the top status line');
+ assert.match(d.getElementById('safetyStatus').textContent,/Эталон сохранён.*24\.10\.2026.*\d{2}:\d{2}:\d{2}/,'Etalon info lives in the top status line');
  assert.ok(!d.getElementById('safetyStatus').textContent.includes('test/'),'No directory in the status line');
  assert.equal(blobs.length,0,'Saving in the program must not create a download blob');
  assert.equal(downloads.length,0,'Saving in the program must not initiate a download');
