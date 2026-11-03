@@ -25,7 +25,7 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,60));
 const count=path=>calls.filter(x=>x.path===path).length;
 const choose=yes=>d.getElementById(yes?'safetyDialogYes':'safetyDialogNo').click();
 (async()=>{try{
- await tick();assert.match(d.getElementById('safetyStatus').textContent,/25\.10\.2026 21:10:15/);assert.ok(!d.getElementById('safetyStatus').textContent.includes('Invalid Date'));
+ await tick();assert.match(d.getElementById('safetyStatus').textContent,/Эталон сохранён • 25\.10\.2026, 18:00:00/);assert.ok(!d.getElementById('safetyStatus').textContent.includes('Invalid Date'));
  let resolveSave;saveWait=new Promise(resolve=>{resolveSave=resolve;});timers.find(t=>t.ms===180000).cb();await tick();
  const search=d.getElementById('inpSearch');search.value='Товар';search.dispatchEvent(new w.Event('input',{bubbles:true}));resolveSave();await tick();saveWait=null;
  assert.match(d.getElementById('safetyStatus').textContent,/Есть несохранённые изменения/,'Changes arriving during a save must stay dirty');

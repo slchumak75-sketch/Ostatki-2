@@ -96,8 +96,8 @@
   let referenceDate='',referenceName='',dialogBusy=false,workRevision=0;
   function renderSafetyStatus(){
     const target=el('safetyStatus');if(!target)return;
-    const stamp=state.lastSavedAt ? (/^\d{2}\.\d{2}\.\d{4}/.test(state.lastSavedAt)?state.lastSavedAt:new Date(state.lastSavedAt).toLocaleString('ru-RU')) : 'ещё не сохранено';
-    target.textContent=`Эталон: ${referenceName || 'не загружен'}${referenceDate?' • '+new Date(referenceDate).toLocaleString('ru-RU'):''} | Ведомость: ${state.report?.fileName || 'не загружена'} | Сохранение: ${state.isSavingDb?'запись…':stamp}${state.report && state.hasUnsavedChanges?' • Есть несохранённые изменения':''}`;
+    const refPart=referenceName?`Эталон сохранён${referenceDate?' • '+new Date(referenceDate).toLocaleString('ru-RU'):''}`:'Эталон не загружен';
+    target.textContent=`${refPart}${state.isSavingDb?' • Сохранение…':''}${state.report && state.hasUnsavedChanges?' • Есть несохранённые изменения':''}`;
   }
   function safetyDialog(title,lines,fields='',validate=null,opts={}) {
     if(dialogBusy)return Promise.resolve(false);
@@ -1666,10 +1666,10 @@
     const firstP = rep.periods[0]?.label || '';
     const lastP = rep.periods[rep.periods.length - 1]?.label || '';
     const savedSuffix = state.savedFileName
-      ? ` • Сохранено: ${state.savedFileName}${state.lastSavedAt ? ` (${state.lastSavedAt.split(' ')[0]})` : ''}`
+      ? ` • ${state.savedFileName}`
       : '';
     el('fileMetaLine').textContent =
-      `Файл: ${rep.fileName} • Срез: ${rep.createdDate || 'н/д'} • Статистика: ${firstP} — ${lastP} (${rep.periods.length} мес.) • Позиций: ${fmtInt(rep.totalItems)} (к закупке: ${fmtInt(rep.orderItemsCount)} SKU / ${fmtInt(rep.totalOrderUnits)} ед.)${savedSuffix}`;
+      `${rep.fileName} • Период: ${firstP} — ${lastP}${savedSuffix}`;
 
     // Бюджет — заказы всех поставщиков выбранного склада, независимо от галочек и прочих фильтров.
     const sourceItems = rep.items || [];
@@ -2363,7 +2363,6 @@
           <div><span class="field-hint">Позиций к закупке</span><div style="font-size:18px;font-weight:700">${fmtInt(ws.orderItems)} SKU</div></div>
           <div><span class="field-hint">Единиц товара</span><div style="font-size:18px;font-weight:700;color:var(--primary)">${fmtInt(ws.totalOrderQty)} ед.</div></div>
           <div><span class="field-hint">Сумма закупки</span><div style="font-size:18px;font-weight:700">${fmtMoney(ws.totalOrderCost)} руб.</div></div>
-          <div><span class="field-hint">Оценка в рознице</span><div style="font-size:18px;font-weight:700;color:var(--success)">${fmtMoney(ws.totalRetailVal)} руб.</div></div>
         </div>
       </div>
     `;
@@ -2396,11 +2395,12 @@
         <td class="num-col">${fmtInt(s.orderItems)}</td>
         <td class="num-col" style="font-weight:700;color:var(--primary)">${fmtInt(s.totalOrderQty)}</td>
         <td class="num-col" style="font-weight:700">${fmtMoney(s.totalOrderCost)} руб.</td>
-        <td class="num-col">${fmtMoney(s.totalRetailVal)} руб.</td>
         <td class="center-col">${statusBadge}</td>
         <td class="right-col" style="white-space:nowrap">
           <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}" data-filter-wh="${esc(s.warehouse || '')}">Предварительный просмотр</button>
-          ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ .xlsx</a>` : ''}
+        </td>
+        <td class="right-col" style="white-space:nowrap">
+          ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ</a>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -2409,7 +2409,6 @@
     let sumSupOrderSKU = 0;
     let sumSupOrderUnits = 0;
     let sumSupOrderCost = 0;
-    let sumSupRetailVal = 0;
     for (const s of rep.suppliers) {
       if(!warehouseIsActive(s.warehouse))continue;
       sumSupTotalSKU += Number(s.totalItems) || 0;
@@ -2417,7 +2416,6 @@
       sumSupOrderSKU += Number(s.orderItems) || 0;
       sumSupOrderUnits += Number(s.totalOrderQty) || 0;
       sumSupOrderCost += Number(s.totalOrderCost) || 0;
-      sumSupRetailVal += Number(s.totalRetailVal) || 0;
     }
     const supFoot = el('suppliersFoot');
     if (supFoot) {
@@ -2427,8 +2425,7 @@
         <td class="num-col">${fmtInt(sumSupOrderSKU)}</td>
         <td class="num-col" style="color:var(--primary)">${fmtInt(sumSupOrderUnits)}</td>
         <td class="num-col">${fmtMoney(Math.round(sumSupOrderCost * 100) / 100)} руб.</td>
-        <td class="num-col">${fmtMoney(Math.round(sumSupRetailVal * 100) / 100)} руб.</td>
-        <td colspan="2"></td>
+        <td colspan="3"></td>
       </tr>`;
     }
   }
@@ -3234,7 +3231,7 @@
     document.addEventListener('click',e=>{const anchor=e.target.closest('[data-rating-row]');if(anchor)showRatingChartPopover(anchor,Number(anchor.dataset.ratingRow));});
     document.addEventListener('scroll',hideRatingChartPopover,true);
     window.addEventListener('resize',hideRatingChartPopover);
-    // Всплывающий над рейтингом график продаж за 3 года и сортировка по столбцам во вкладке «Радар неликвидов»
+    // Всплывающий над рейтингом график продаж за 3 года и сортировка по столбцам во вкладке «Неликвиды»
     el('overstockContainer').addEventListener('mouseover', (e) => {
       const target = e.target.closest('[data-rating-row]');
       if (!target) {
