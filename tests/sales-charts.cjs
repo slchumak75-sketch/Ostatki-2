@@ -29,11 +29,26 @@ for(const kind of ['groups','suppliers','supplierShares','groupShares','monthlyG
  assert.match(d.getElementById('chartsContent').textContent,/130,00/);
  if(kind.endsWith('Shares'))assert.match(d.getElementById('chartsContent').textContent,/%/);
 }
-// Динамика по группам: гладкие кривые (по одной на группу) с точками-маркерами.
+// Динамика по группам: тонкие гладкие кривые, шкала по каждому месяцу, панель выбора групп.
 change('chartKind','monthlyGroups');
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'One smooth curve per product group');
+assert.equal(d.querySelectorAll('#chartsContent path[stroke-width="1.3"]').length,2,'Very thin lines');
 assert.ok(d.querySelectorAll('#chartsContent circle').length>=6,'Marker dots on the curves');
 assert.match(d.querySelector('#chartsContent path title').textContent,/Группа/);
+assert.equal(d.querySelectorAll('#chartsContent svg text[transform^="rotate(-35"]').length,3,'Every month is labeled on the horizontal scale');
+assert.ok(!d.getElementById('chartGroupPicker').classList.contains('hidden'),'Group picker is visible for the dynamics chart');
+assert.equal(d.querySelectorAll('#chartGroupList input[data-cgp-group]').length,2,'Picker lists all groups');
+assert.match(d.querySelector('#chartsContent svg').textContent,/50,00/,'Default autoscale covers the strongest group');
+// Выбор одной группы галочкой: одна линия, вертикаль автомасштабируется под неё.
+const g2=[...d.querySelectorAll('#chartGroupList input[data-cgp-group]')].find(c=>c.dataset.cgpGroup==='Группа 2');
+g2.checked=true;g2.dispatchEvent(new w.Event('change',{bubbles:true}));
+assert.equal(d.querySelectorAll('#chartsContent path').length,1,'Only the checked group is drawn');
+assert.ok(!d.querySelector('#chartsContent svg').textContent.includes('50,00'),'Autoscale drops the unchecked peak');
+assert.match(d.querySelector('#chartsContent svg').textContent,/10,00/,'Scale fits the selected group');
+// Сброс выбора возвращает топ-15 (обе группы).
+d.getElementById('chartGroupReset').click();
+assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Reset restores the top groups');
+assert.equal(d.getElementById('chartGroupHint').textContent.includes('топ-15'),true,'Hint mentions the top-15 default');
 change('chartFrom','2');change('chartTo','0');assert.match(d.getElementById('chartsContent').textContent,/Начало периода/);
 change('chartFrom','0');change('chartTo','2');
 // Топ-10 + «Прочие» и единицы «шт.».
@@ -53,6 +68,10 @@ const wideAgg=w.SalesCharts.aggregate(wideRep,'suppliers','',0,2);
 const wideTotal=wideAgg.rows.reduce((s,r)=>s+r.total,0);
 assert.match(d.getElementById('chartsContent').textContent,new RegExp(wideTotal.toLocaleString('ru-RU',{minimumFractionDigits:2}).replace(/\u00a0/g,'[\\u00a0 ]').replace('.',',')),'«Прочие» keeps the grand total');
 change('chartTop','all');
+// Динамика по группам: до 15 групп рисуются целиком (12 ≤ 15), без «Прочие».
+change('chartKind','monthlyGroups');
+assert.equal(d.querySelectorAll('#chartsContent path').length,12,'All 12 groups fit the top-15 limit');
+assert.equal(d.querySelectorAll('#chartGroupList input[data-cgp-group]').length,12,'Picker lists all 12 groups');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);change('chartKind','groups');
 w.SalesCharts.update(null);assert.match(d.getElementById('chartsContent').textContent,/Загрузите ведомость/);

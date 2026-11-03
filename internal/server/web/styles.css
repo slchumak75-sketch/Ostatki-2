@@ -1312,6 +1312,49 @@ body.col-resize-active * {
 .ssp-item:hover { background: var(--surface-hover); }
 .ssp-empty { padding: 8px; color: var(--text-muted); text-align: center; }
 
+/* Панель выбора товарных групп для графика «Динамика продаж по группам товаров». */
+.chart-group-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.chart-group-picker.hidden { display: none; }
+.cgp-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cgp-search {
+  width: 240px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.cgp-hint { color: var(--text-muted); font-size: 12px; }
+.cgp-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 14px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.cgp-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.cgp-item:hover { background: var(--surface-hover); }
+.cgp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cgp-total { margin-left: auto; color: var(--text-muted); white-space: nowrap; }
+
 .data-table thead th.wh-col,
 .data-table thead th.grp-col {
   width: 1%;
