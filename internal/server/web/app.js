@@ -2142,6 +2142,34 @@
     });
 
     let yearLinesSVG = '';
+    // Разбивка по годам: чередующиеся фоновые полосы, чёткие разделители
+    // и подпись года по центру своего блока месяцев.
+    const yearBlocks = [];
+    slicePeriods.forEach((p, idx) => {
+      const last = yearBlocks[yearBlocks.length - 1];
+      if (last && last.year === p.year) last.end = idx;
+      else yearBlocks.push({ year: p.year, start: idx, end: idx });
+    });
+    yearBlocks.forEach((blk, k) => {
+      const bx0 = padL + blk.start * step;
+      const bx1 = padL + (blk.end + 1) * step;
+      if (k % 2 === 1) {
+        yearLinesSVG += `<rect class="rcp-yband" x="${bx0.toFixed(1)}" y="${padT}" width="${(bx1 - bx0).toFixed(1)}" height="${plotH}" />`;
+      }
+      if (k > 0) {
+        yearLinesSVG += `<line x1="${bx0.toFixed(1)}" y1="${padT - 12}" x2="${bx0.toFixed(1)}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1.4" />`;
+      }
+      const midX = Math.max(padL + 12, Math.min(W - padR - 12, (bx0 + bx1) / 2));
+      yearLinesSVG += `<text x="${midX.toFixed(1)}" y="${padT - 5}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text)">${blk.year}</text>`;
+    });
+
+    // Вертикальная линия для каждого месяца — шкала читается даже при 36 столбцах.
+    let monthLinesSVG = '';
+    slicePeriods.forEach((p, idx) => {
+      const cx = padL + idx * step + step / 2;
+      monthLinesSVG += `<line class="rcp-mline" x1="${cx.toFixed(1)}" y1="${padT}" x2="${cx.toFixed(1)}" y2="${padT + plotH}" />`;
+    });
+
     let barsSVG = '';
     slicePeriods.forEach((p, idx) => {
       const val = sliceSales[idx];
@@ -2149,14 +2177,6 @@
       const bx = cx - barW / 2;
       const bh = val > 0 ? Math.max(2.5, (val / yScaleMax) * plotH) : 0;
       const by = padT + plotH - bh;
-
-      if (idx === 0 || p.month === 1) {
-        const lx = (padL + idx * step).toFixed(1);
-        if (idx > 0) {
-          yearLinesSVG += `<line x1="${lx}" y1="${padT - 12}" x2="${lx}" y2="${padT + plotH}" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="2,2" />`;
-        }
-        yearLinesSVG += `<text x="${(Number(lx) + 3).toFixed(1)}" y="${padT - 5}" font-size="10" font-weight="700" fill="var(--text)">${p.year}</text>`;
-      }
 
       const barColor = idx >= n - 12 ? '#10b981' : (idx >= n - 24 ? '#3b82f6' : '#93c5fd');
       if (bh > 0) {
@@ -2194,6 +2214,7 @@
       <svg class="rcp-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
         ${gridSVG}
         ${yearLinesSVG}
+        ${monthLinesSVG}
         ${barsSVG}
         ${emptyNotice}
       </svg>
