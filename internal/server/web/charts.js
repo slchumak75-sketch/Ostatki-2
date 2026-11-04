@@ -138,13 +138,17 @@
     const x=i=>x0+(rows.length===1?pw/2:i*pw/(rows.length-1));
     const y=v=>y0-ph*v/peak;
     const ticks=Array.from({length:5},(_,i)=>{const v=peak*i/4,yy=y(v);return `<line x1="${x0}" x2="${x0+pw}" y1="${yy}" y2="${yy}" stroke="#e2e8f0"/><text x="${x0-8}" y="${yy+4}" text-anchor="end">${fmtMetric(v,mode)}</text>`;}).join('');
-    // Поквартальная раскраска: каждая четверть — светлая полоса своего цвета (4 тона по номеру квартала).
+    // Поквартальная раскраска: каждая четверть — светлая полоса своего цвета (4 тона по номеру квартала),
+    // над графиком — сумма квартала (руб. или шт.) по показанным группам.
     let qBands='',qLegend='';
     if(qMode) {
       const step=rows.length>1?pw/(rows.length-1):pw;
       qBands=rows.map((r,i)=>{
         const bx=Math.max(x0,x(i)-step/2),bx2=Math.min(x0+pw,x(i)+step/2);
-        return `<rect class="qband" x="${bx.toFixed(1)}" y="${y0-ph}" width="${(bx2-bx).toFixed(1)}" height="${ph}" fill="${qColors[(r.q||0)%4]}"/>`;
+        const qTotal=shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0);
+        const cx=(Math.max(x0,bx)+Math.min(x0+pw,bx2))/2;
+        return `<rect class="qband" x="${bx.toFixed(1)}" y="${y0-ph}" width="${(bx2-bx).toFixed(1)}" height="${ph}" fill="${qColors[(r.q||0)%4]}"/>`+
+          `<text class="qsum" x="${cx.toFixed(1)}" y="48" text-anchor="middle"><title>${esc(r.key)}: ${fmtMetric(qTotal,mode)} ${unit}</title>${fmtMetric(qTotal,mode)} ${unit}</text>`;
       }).join('');
       const present=[...new Set(rows.map(r=>r.q||0))].sort((a,b)=>a-b);
       qLegend=`<div class="chart-legend qlegend">${present.map(q=>`<span><i style="background:${qColors[q%4]}"></i>${q+1} кв.</span>`).join('')}</div>`;
@@ -165,12 +169,54 @@
     const legend=`<div class="chart-legend">${series.map(g=>`<span><i style="background:${seriesColor(g)}"></i>${esc(g==='__sum__'?sumLabel:g)}</span>`).join('')}</div>`;
     return legend+svg+qLegend+(qMode?'<p class="charts-note">Поквартальный режим: каждая точка — сумма за квартал, фон квартала подсвечен своим из 4 светлых цветов.</p>':'');
   }
+
+  // Аналитическая оценка тенденций продаж по данным показанного графика:
+  // первая половина периода против второй, пики, равномерность продаж.
+  function trendAnalysis(data,title) {
+    const mode=unitMode(),unit=unitWord(mode);
+    const shown=displayedGroups();
+    const sumMode=Boolean($('chartSumMode')?.checked);
+    const qMode=Boolean($('chartQuarterBands')?.checked);
+    const rows=qMode?toQuarterRows(data):data.rows;
+    const pointWord=qMode?'квартал':'месяц';
+    if(rows.length<2)return `<div class="chart-trends"><h3>Аналитика тенденций</h3><p class="charts-empty">Недостаточно точек (${rows.length}) для оценки тенденции — нужен период от двух ${pointWord}ов.</p></div>`;
+    const series=sumMode?['__sum__']:shown;
+    const valueOf=(r,g)=>sumMode?shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
+    const seriesColor=g=>sumMode?'#b45309':groupColor(g);
+    const half=Math.floor(rows.length/2);
+    const fmtPct=v=>(v>0?'+':'')+money(v)+'%';
+    const out=[];let grow=0,fall=0,flat=0;
+    for(const g of series) {
+      const name=g==='__sum__'?`Сумма (${shown.length})`:g;
+      const vals=rows.map(r=>valueOf(r,g));
+      const total=vals.reduce((a,b)=>a+b,0);
+      if(!(total>0)){out.push({name,color:seriesColor(g),direction:'нет продаж',text:`продаж за период нет`});continue;}
+      const h1=vals.slice(0,half).reduce((a,b)=>a+b,0);
+      const h2=vals.slice(half).reduce((a,b)=>a+b,0);
+      const change=h1>0?(h2-h1)/h1*100:null;
+      let direction,text;
+      if(change===null){direction='рост';text=`продажи появились во второй половине периода (+${fmtMetric(h2,mode)} ${unit})`;}
+      else if(change>10){direction='рост';text=`рост ${fmtPct(change)} — вторая половина периода против первой`;}
+      else if(change<-10){direction='падение';text=`падение ${fmtPct(change)} — вторая половина периода против первой`;}
+      else{direction='стабильно';text=`без выраженной тенденции (${fmtPct(change)})`;}
+      if(direction==='рост')grow++;else if(direction==='падение')fall++;else flat++;
+      const peakIdx=vals.indexOf(Math.max(...vals));
+      const nonZero=vals.filter(v=>v>0);
+      const uneven=nonZero.length>1&&Math.max(...nonZero)/Math.min(...nonZero)>=3;
+      text+=`. Пик: ${rows[peakIdx]?.label||'—'} (${fmtMetric(vals[peakIdx],mode)} ${unit})${uneven?' · продажи неравномерные':''}`;
+      out.push({name,color:seriesColor(g),direction,text});
+    }
+    const list=out.map(r=>`<li><i class="ct-dot" style="background:${r.color}"></i><strong>${esc(r.name)}</strong> — ${esc(r.direction)}. ${esc(r.text)}</li>`).join('');
+    const summary=sumMode?'':`<p class="ct-summary">Итог по ${shown.length} группам: тенденций роста — <strong>${grow}</strong>, падения — <strong>${fall}</strong>, стабильных — <strong>${flat}</strong>.</p>`;
+    const note=`<p class="charts-note">Тенденция сравнивает суммы ${qMode?'четвертей':'месяцев'} первой и второй половины показанного периода (порог ±10%). «Неравномерные» — максимум превышает минимум более чем втрое.</p>`;
+    return `<div class="chart-trends"><h3>Аналитика тенденций — ${esc(title)}</h3><ul>${list}</ul>${summary}${note}</div>`;
+  }
   function renderGroupList() {
     const list=$('chartGroupList');if(!list)return;
     const q=($('chartGroupSearch')?.value||'').trim().toLowerCase();
     // Перечень — по порядку: номер группы, затем алфавит (не по продажам).
     const rows=groupCatalog.filter(g=>!q||g.name.toLowerCase().includes(q)).sort(groupSort);
-    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><i class="cgp-dot" style="background:${groupColor(g.name)}"></i><input type="checkbox" data-cgp-group="${esc(g.name)}" ${groupSelection.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>42?g.name.slice(0,40)+'…':g.name)}</span><span class="cgp-total">${money(g.total)}</span></label>`).join(''):'<p class="muted" style="padding:8px">Группа не найдена</p>';
+    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><i class="cgp-dot" style="background:${groupColor(g.name)}"></i><input type="checkbox" data-cgp-group="${esc(g.name)}" ${groupSelection.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>48?g.name.slice(0,46)+'…':g.name)}</span></label>`).join(''):'<p class="muted" style="padding:8px">Группа не найдена</p>';
     const hint=$('chartGroupHint');
     if(hint)hint.textContent=groupSelection.size?`Отмечено групп: ${groupSelection.size} — вертикаль масштабируется по ним`:`Не отмечено — показаны топ-${TOP_GROUPS} групп`;
   }
@@ -198,7 +244,7 @@
       const names=new Set(groupCatalog.map(g=>g.name));
       for(const g of [...groupSelection])if(!names.has(g))groupSelection.delete(g);
       renderGroupList();
-      $('chartsContent').innerHTML=`<h2>${esc(title)}</h2><p class="charts-summary">${esc(report.periods[from].label||monthKey(report.periods[from]))} — ${esc(report.periods[to].label||monthKey(report.periods[to]))} · Всего: <strong>${fmtMetric(data.total,mode)} ${metric}</strong>${mode==='money'?` · в штуках: ${qty(data.unitsTotal)}`:''}</p>${monthlyGroupsSvg(data,title)}<details><summary>Точные значения</summary><table class="chart-values data-table"><thead><tr><th>Месяц</th>${data.warehouses.map(g=>`<th>${esc(g)}, ${metric}</th>`).join('')}<th>Итого, ${metric}</th><th>Доля, %</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td>${esc(r.label)}</td>${data.warehouses.map(g=>`<td>${fmtMetric(r.values.get(g)||0,mode)}</td>`).join('')}<td>${fmtMetric(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),mode)}</td><td>${pct(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),data.total)}</td></tr>`).join('')}</tbody></table></details>`;
+      $('chartsContent').innerHTML=`<h2>${esc(title)}</h2><p class="charts-summary">${esc(report.periods[from].label||monthKey(report.periods[from]))} — ${esc(report.periods[to].label||monthKey(report.periods[to]))} · Всего: <strong>${fmtMetric(data.total,mode)} ${metric}</strong>${mode==='money'?` · в штуках: ${qty(data.unitsTotal)}`:''}</p>${monthlyGroupsSvg(data,title)}${trendAnalysis(data,title)}<details><summary>Точные значения</summary><table class="chart-values data-table"><thead><tr><th>Месяц</th>${data.warehouses.map(g=>`<th>${esc(g)}, ${metric}</th>`).join('')}<th>Итого, ${metric}</th><th>Доля, %</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td>${esc(r.label)}</td>${data.warehouses.map(g=>`<td>${fmtMetric(r.values.get(g)||0,mode)}</td>`).join('')}<td>${fmtMetric(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),mode)}</td><td>${pct(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),data.total)}</td></tr>`).join('')}</tbody></table></details>`;
       return;
     }
     const {rows,note}=applyTop(data.rows,true);
