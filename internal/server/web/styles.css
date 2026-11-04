@@ -1384,14 +1384,15 @@ body.col-resize-active * {
 .ct-scroll { overflow-x: auto; }
 .chart-trends-table { width: 100%; font-size: 12.5px; }
 .chart-trends-table th, .chart-trends-table td { text-align: left; vertical-align: top; }
+.chart-trends-table th { white-space: nowrap; }
 .chart-trends-table th:nth-child(2), .chart-trends-table td:nth-child(2) { white-space: nowrap; }
 .ct-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
-.ct-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ct-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: help; }
 .ct-grow { background: #dcfce7; color: #166534; }
 .ct-fall { background: #fee2e2; color: #991b1b; }
 .ct-flat { background: #e5e7eb; color: #374151; }
 .ct-none { background: #f3f4f6; color: #6b7280; }
-.ct-q { display: block; }
+.ct-sum { font-weight: 600; white-space: nowrap; }
 .ct-summary { margin: 8px 0 0; font-size: 12.5px; }
 
 /* Поповер рейтинга: вертикальные линии месяцев и чередующиеся годовые полосы. */

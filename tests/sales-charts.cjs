@@ -70,38 +70,49 @@ assert.match(d.querySelector('#chartsContent circle title').textContent,/1 кв\
 d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Back to monthly per-group curves');
-// Аналитика тенденций: год к году + квартал к кварталу (одноимённые кварталы по годам).
+// Аналитика тенденций: окно — последние четыре полных квартала; тенденция — последний
+// полный квартал против одноимённого квартала предыдущего года (3 кв. 2026 к 3 кв. 2025).
 // Блок — отдельная раскрывающаяся плашка с таблицей под «Точными значениями», по умолчанию свёрнута.
 const tPlaque=d.querySelector('#chartsContent details.chart-trends');
 assert.ok(tPlaque,'Trends live on their own details plaque');
 assert.match(tPlaque.querySelector('summary').textContent,/Аналитика тенденций — Динамика продаж по группам товаров/,'Plaque summary carries the title');
 assert.ok(!tPlaque.open,'Trends plaque is collapsed by default');
 assert.equal(tPlaque.previousElementSibling.querySelector('summary').textContent,'Точные значения','Trends plaque sits directly below the exact-values table');
-assert.match(tPlaque.textContent,/нужен период, охватывающий хотя бы два года/,'Single-year period explains itself');
-// Двухлетний набор: Q1/Q2 двух лет; Q1 удвоился (+100%), Q2 обнулился (−100%), Z — стабильно.
+assert.match(tPlaque.textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Period with one full quarter explains itself');
+// Полтора года: окно = 3 кв. 2025 — 2 кв. 2026; тенденция — 2 кв. 2026 к 2 кв. 2025.
 const yItems=[
- {excelRow:400,warehouse:'A',group:'Y Группа',supplier:'SY',purchasePrice:10,monthlySales:[10,0,0,10,0,0,20,0,0,0,0,0],sku:'400',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0},
- {excelRow:401,warehouse:'A',group:'Z Группа',supplier:'SZ',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5],sku:'401',name:'Т',salesSegment:2,sumSalesLast12M:60,closingStock:1,finalOrderQty:0},
+ {excelRow:400,warehouse:'A',group:'Y Группа',supplier:'SY',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0],sku:'400',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0},
+ {excelRow:401,warehouse:'A',group:'Z Группа',supplier:'SZ',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'401',name:'Т',salesSegment:2,sumSalesLast12M:90,closingStock:1,finalOrderQty:0},
 ];
-const yPeriods=[...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2025,month:i+1,label:`${m} 25`})),...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))];
+const yPeriods=[
+ ...['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'].map((m,i)=>({year:2025,month:i+1,label:`${m} 25`})),
+ ...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))
+];
 const yRep={fileName:'yoy.xlsx',items:yItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(yRep);
 change('chartKind','monthlyGroups');
 const yTrends=d.querySelector('#chartsContent details.chart-trends');
-assert.ok(yTrends.open===false,'Two-year plaque also starts collapsed');
+assert.ok(yTrends.open===false,'Analysis plaque also starts collapsed');
 yTrends.open=true;
+const yHeads=[...yTrends.querySelectorAll('thead th')].map(e=>e.textContent);
+assert.deepEqual(yHeads,['Группа','Тенденция','3 кв. 2025','4 кв. 2025','1 кв. 2026','2 кв. 2026','Сумма за 4 кв.'],'Columns: group, trend, the four window quarters, total');
 const yRow=[...yTrends.querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('Y Группа'));
 assert.ok(yRow,'Every data group gets its own row');
-assert.equal(yRow.querySelectorAll('td').length,5,'Trend row: group, direction, YoY, QoQ, peak');
-assert.match(yRow.querySelector('.ct-badge').textContent,/стабильно/,'YoY direction badge');
-assert.match(yRow.textContent,/2026 против 2025: 200,00 против 200,00 руб\. \(0,00%\)/,'YoY absolutes and percent');
-assert.match(yRow.textContent,/1 кв\.: \+100,00% — рост/,'QoQ across years: Q1 doubled');
-assert.match(yRow.textContent,/2 кв\.: -100,00% — падение/,'QoQ across years: Q2 dropped to zero');
-assert.match(yRow.textContent,/Янв 26 \(200,00 руб\.\)/,'Peak cell');
+assert.equal(yRow.querySelectorAll('td').length,7,'Row: group, trend badge, four quarters, total');
+assert.match(yRow.querySelector('.ct-badge').textContent,/рост/,'Trend badge: Q2 2026 doubled Q2 2025');
+assert.match(yRow.querySelector('.ct-badge').getAttribute('title'),/2 кв\. 2026 против 2 кв\. 2025: 200,00 против 100,00 руб\. \(\+100,00%\)/,'Badge tooltip carries the comparison');
+const yCells=[...yRow.querySelectorAll('td')].map(e=>e.textContent.trim());
+assert.match(yCells[2],/^50,00 руб\.$/,'Q3 2025 cell');
+assert.match(yCells[3],/^50,00 руб\.$/,'Q4 2025 cell');
+assert.match(yCells[4],/^100,00 руб\.$/,'Q1 2026 cell');
+assert.match(yCells[5],/^200,00 руб\.$/,'Q2 2026 cell');
+assert.match(yCells[6],/^400,00 руб\.$/,'Window total cell');
 const zRow=[...yTrends.querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('Z Группа'));
-assert.match(zRow.textContent,/30,00 против 30,00/,'Second group is analysed too');
-assert.match(yTrends.textContent,/Итог по 2 группам \(год к году, 2026 против 2025\): тенденций роста — 0, падения — 0, стабильных — 2/);
-assert.match(yTrends.textContent,/1 кв\., 2 кв\.\): 2025 против 2026/,'Note lists the matched quarter pairs');
+assert.match(zRow.querySelector('.ct-badge').textContent,/стабильно/,'Flat group keeps its badge');
+assert.match(zRow.textContent,/60,00 руб\.$/m,'Second group is summed over the window too');
+assert.match(yTrends.textContent,/Итог по 2 группам \(2 кв\. 2026 против 2 кв\. 2025\): тенденций роста — 1, падения — 0, стабильных — 1/);
+assert.match(yTrends.textContent,/последние четыре полных квартала \(3 кв\. 2025 — 2 кв\. 2026\)/,'Note names the window');
+assert.match(yTrends.textContent,/2 кв\. 2026 против 2 кв\. 2025\)\. Порог тенденции ±10%/,'Note states the comparison');
 assert.ok(!yTrends.textContent.includes('неравномерн'),'Unevenness flag is not published');
 // Таблица считается по всем группам: группа, скрытая выбором другой, остаётся в тенденциях.
 const yBox=[...d.querySelectorAll('#chartGroupList input[data-cgp-group]')].find(c=>c.dataset.cgpGroup==='Y Группа');
@@ -110,6 +121,15 @@ const tHidden=d.querySelector('#chartsContent details.chart-trends');
 assert.ok(!d.querySelector('#chartsContent .sales-chart').textContent.includes('Z Группа'),'Group is hidden from the chart');
 assert.ok([...tHidden.querySelectorAll('tbody tr')].some(tr=>tr.textContent.includes('Z Группа')),'Hidden group is still analysed in the table');
 assert.match(tHidden.textContent,/Итог по 2 группам/,'Counters cover all groups, not only shown');
+// Полных кварталов четыре, но перед окном нет полного одноимённого квартала — честное сообщение.
+const p2Items=[{excelRow:500,warehouse:'A',group:'P Группа',supplier:'SP',purchasePrice:10,monthlySales:[0,10,0,10,0,0,5,0,0,5,0,0,10,0,0],sku:'500',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
+const p2Periods=[
+ ...['Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'].map((m,i)=>({year:2025,month:i+2,label:`${m} 25`})),
+ ...['Янв','Фев','Мар'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))
+];
+const p2Rep={fileName:'p2.xlsx',items:p2Items,periods:p2Periods,warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(p2Rep);change('chartKind','monthlyGroups');
+assert.match(d.querySelector('#chartsContent details.chart-trends').textContent,/Для сравнения нужен 1 кв\. 2025 — одноимённый квартал перед окном \(2 кв\. 2025 — 1 кв\. 2026\)\./,'Missing year-earlier quarter explains itself');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);
 change('chartKind','groups');
@@ -148,9 +168,9 @@ const dots8=[...d.querySelectorAll('#chartGroupList .cgp-item')].map(e=>e.queryS
 assert.ok(dots8[0].startsWith('1 ')&&dots8[7].startsWith('8 '),'First column flows top-to-bottom by number');
 const strokes=[...new Set([...d.querySelectorAll('#chartsContent path')].map(p=>p.getAttribute('stroke')))];
 assert.equal(strokes.length,12,'Each numbered group keeps its own stable color');
-// Тенденции на одногодичном богатом наборе: пояснение о необходимости двух лет.
-const wTrends=d.querySelector('#chartsContent .chart-trends');
-assert.match(wTrends.textContent,/нужен период, охватывающий хотя бы два года/,'Wide single-year set explains itself');
+// Тенденции на одногодичном богатом наборе: пояснение о необходимости полных кварталов.
+const wTrends=d.querySelector('#chartsContent details.chart-trends');
+assert.match(wTrends.textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Wide single-quarter set explains itself');
 // Неравномерность: максимум превышает минимум ненулевых месяцев более чем втрое (два года).
 const unItems=[{excelRow:300,warehouse:'A',group:'U Группа',supplier:'SU',purchasePrice:10,monthlySales:[30,1,1,1,1,1,1,1],sku:'300',name:'Т',salesSegment:3,sumSalesLast12M:37,closingStock:1,finalOrderQty:0}];
 const unPeriods=[{year:2025,month:1,label:'Я 25'},{year:2025,month:2,label:'Ф 25'},{year:2025,month:3,label:'М 25'},{year:2025,month:4,label:'А 25'},{year:2026,month:1,label:'Я 26'},{year:2026,month:2,label:'Ф 26'},{year:2026,month:3,label:'М 26'},{year:2026,month:4,label:'А 26'}];
