@@ -70,19 +70,28 @@ assert.match(d.querySelector('#chartsContent circle title').textContent,/1 кв\
 d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Back to monthly per-group curves');
-// Аналитическая оценка тенденций: рост/падение по половинам периода, пики, итог.
-const trends=d.querySelector('#chartsContent .chart-trends');
-assert.ok(trends,'Trend analysis block is rendered');
-assert.match(trends.textContent,/Аналитика тенденций/);
-assert.match(trends.textContent,/рост \+40,00%/,'Group <1>: 70 vs 50 in halves (money) = +40%');
-assert.match(trends.textContent,/продажи появились во второй половине периода/,'Zero-priced rows are excluded, so the half-before is empty');
-assert.match(trends.textContent,/Пик:/);
-assert.match(trends.textContent,/тенденций роста — 2, падения — 0, стабильных — 0/);
-const trendRows=trends.querySelectorAll('li').length;
-// В поквартальном режиме из 3 месяцев получается один квартал — честное сообщение о нехватке точек.
-d.getElementById('chartQuarterBands').checked=true;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
-assert.match(d.querySelector('#chartsContent .chart-trends').textContent,/Недостаточно точек \(1\).*от двух кварталов/,'Quarterly wording in the insufficient-data message');
-d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
+// Аналитика тенденций: год к году + квартал к кварталу (одноимённые кварталы по годам).
+// Основная фикстура — один год: честное сообщение о необходимости двух лет.
+assert.match(d.querySelector('#chartsContent .chart-trends').textContent,/нужен период, охватывающий хотя бы два года/,'Single-year period explains itself');
+// Двухлетний набор: Q1/Q2 двух лет; Q1 удвоился (+100%), Q2 обнулился (−100%), Z — стабильно.
+const yItems=[
+ {excelRow:400,warehouse:'A',group:'Y Группа',supplier:'SY',purchasePrice:10,monthlySales:[10,0,0,10,0,0,20,0,0,0,0,0],sku:'400',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0},
+ {excelRow:401,warehouse:'A',group:'Z Группа',supplier:'SZ',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5],sku:'401',name:'Т',salesSegment:2,sumSalesLast12M:60,closingStock:1,finalOrderQty:0},
+];
+const yPeriods=[...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2025,month:i+1,label:`${m} 25`})),...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))];
+const yRep={fileName:'yoy.xlsx',items:yItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(yRep);
+change('chartKind','monthlyGroups');
+const yTrends=d.querySelector('#chartsContent .chart-trends').textContent;
+assert.match(yTrends,/Y Группа — стабильно\. Год к году: 2026 против 2025: 200,00 против 200,00 руб\. \(0,00%\)/);
+assert.match(yTrends,/Квартал к кварталу: 1 кв\.: \+100,00% — рост; 2 кв\.: -100,00% — падение/,'Same quarters across years: Q1 doubled, Q2 dropped to zero');
+assert.match(yTrends,/Z Группа — стабильно/);
+assert.match(yTrends,/Пик: Янв 26 \(200,00 руб\.\)/);
+assert.match(yTrends,/Итог по 2 группам \(год к году, 2026 против 2025\): тенденций роста — 0, падения — 0, стабильных — 2/);
+assert.match(yTrends,/1 кв\., 2 кв\.\): 2025 против 2026/,'Note lists the matched quarter pairs');
+// Возврат к основной фикстуре.
+w.SalesCharts.update(rep);
+change('chartKind','groups');
 assert.equal(d.getElementById('chartGroupHint').textContent.includes('топ-15'),true,'Hint mentions the top-15 default');
 change('chartFrom','2');change('chartTo','0');assert.match(d.getElementById('chartsContent').textContent,/Начало периода/);
 change('chartFrom','0');change('chartTo','2');
@@ -118,12 +127,13 @@ const dots8=[...d.querySelectorAll('#chartGroupList .cgp-item')].map(e=>e.queryS
 assert.ok(dots8[0].startsWith('1 ')&&dots8[7].startsWith('8 '),'First column flows top-to-bottom by number');
 const strokes=[...new Set([...d.querySelectorAll('#chartsContent path')].map(p=>p.getAttribute('stroke')))];
 assert.equal(strokes.length,12,'Each numbered group keeps its own stable color');
-// Тенденции на богатом наборе: группы с продажами только в первой половине — падение.
+// Тенденции на одногодичном богатом наборе: пояснение о необходимости двух лет.
 const wTrends=d.querySelector('#chartsContent .chart-trends');
-assert.match(wTrends.textContent,/падение -100,00%/,'Sales only in the first half are a falling trend');
-// Неравномерность: максимум превышает минимум ненулевых месяцев более чем втрое.
-const unItems=[{excelRow:300,warehouse:'A',group:'U Группа',supplier:'SU',purchasePrice:10,monthlySales:[30,1,1,1],sku:'300',name:'Т',salesSegment:3,sumSalesLast12M:33,closingStock:1,finalOrderQty:0}];
-const unRep={fileName:'u.xlsx',items:unItems,periods:[{year:2026,month:1,label:'Я'},{year:2026,month:2,label:'Ф'},{year:2026,month:3,label:'М'},{year:2026,month:4,label:'А'}],warehouses:[],groups:[],suppliers:[],params:{}};
+assert.match(wTrends.textContent,/нужен период, охватывающий хотя бы два года/,'Wide single-year set explains itself');
+// Неравномерность: максимум превышает минимум ненулевых месяцев более чем втрое (два года).
+const unItems=[{excelRow:300,warehouse:'A',group:'U Группа',supplier:'SU',purchasePrice:10,monthlySales:[30,1,1,1,1,1,1,1],sku:'300',name:'Т',salesSegment:3,sumSalesLast12M:37,closingStock:1,finalOrderQty:0}];
+const unPeriods=[{year:2025,month:1,label:'Я 25'},{year:2025,month:2,label:'Ф 25'},{year:2025,month:3,label:'М 25'},{year:2025,month:4,label:'А 25'},{year:2026,month:1,label:'Я 26'},{year:2026,month:2,label:'Ф 26'},{year:2026,month:3,label:'М 26'},{year:2026,month:4,label:'А 26'}];
+const unRep={fileName:'u.xlsx',items:unItems,periods:unPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(unRep);change('chartKind','monthlyGroups');
 assert.match(d.querySelector('#chartsContent .chart-trends').textContent,/продажи неравномерные/,'max/min >= 3 is flagged uneven');
 // Возврат к основной фикстуре.
