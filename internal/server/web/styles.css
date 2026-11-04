@@ -1365,18 +1365,33 @@ body.col-resize-active * {
 .qlegend { margin-top: 4px; }
 .qsum { font-weight: 700; font-size: 12.5px; fill: var(--text); }
 
-/* Аналитическая оценка тенденций под графиком групп. */
+/* Аналитика тенденций: отдельная раскрывающаяся плашка с таблицей под графиком групп. */
 .chart-trends {
   margin-top: 12px;
-  padding: 10px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--surface);
 }
-.chart-trends h3 { margin: 0 0 6px; font-size: 14px; }
-.chart-trends ul { margin: 0; padding-left: 18px; }
-.chart-trends li { margin: 3px 0; font-size: 12.5px; list-style: none; }
+.chart-trends > summary {
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.chart-trends[open] > summary { border-bottom: 1px solid var(--border); }
+.chart-trends .ct-body { padding: 2px 12px 10px; }
+.ct-scroll { overflow-x: auto; }
+.chart-trends-table { width: 100%; font-size: 12.5px; }
+.chart-trends-table th, .chart-trends-table td { text-align: left; vertical-align: top; }
+.chart-trends-table th:nth-child(2), .chart-trends-table td:nth-child(2) { white-space: nowrap; }
 .ct-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+.ct-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ct-grow { background: #dcfce7; color: #166534; }
+.ct-fall { background: #fee2e2; color: #991b1b; }
+.ct-flat { background: #e5e7eb; color: #374151; }
+.ct-none { background: #f3f4f6; color: #6b7280; }
+.ct-q { display: block; }
 .ct-summary { margin: 8px 0 0; font-size: 12.5px; }
 
 /* Поповер рейтинга: вертикальные линии месяцев и чередующиеся годовые полосы. */
