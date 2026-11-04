@@ -8,6 +8,17 @@
   const int=v=>Math.round(Number(v)||0).toLocaleString('ru-RU');
   const pct=(v,total)=>money(100*v/total)+'%';
   const colors=['#2563eb','#dc2626','#059669','#9333ea','#d97706','#0891b2','#be185d','#4f46e5'];
+  // Стабильный цвет группы: ведущий номер группы фиксирует цвет — «группа 1»
+  // всегда одним цветом, «группа 2» другим; без номера — по хешу имени.
+  const groupPalette=['#2563eb','#dc2626','#059669','#9333ea','#d97706','#0891b2','#be185d','#4f46e5','#0d9488','#ca8a04','#7c3aed','#db2777','#0284c7','#65a30d','#ea580c','#16a34a'];
+  const qColors=['#dbeafe','#dcfce7','#fef3c7','#f3e8ff'];
+  const groupColor=name=>{
+    const m=String(name).match(/^\s*(\d+)/);
+    const idx=m?Number(m[1])-1:[...String(name)].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7);
+    return groupPalette[((idx%groupPalette.length)+groupPalette.length)%groupPalette.length];
+  };
+  const groupNum=name=>{const m=String(name).match(/^\s*(\d+)/);return m?Number(m[1]):Number.POSITIVE_INFINITY;};
+  const groupSort=(a,b)=>{const na=groupNum(a.name),nb=groupNum(b.name);return na!==nb?na-nb:String(a.name).localeCompare(String(b.name),'ru');};
   let report=null,signature='';
   const monthKey=p=>`${p.year}-${String(p.month).padStart(2,'0')}`;
   const warehouse=it=>String(it.warehouse||'Без склада');
@@ -23,7 +34,7 @@
     const mode=opts.unit||'money';
     const rows=new Map(),warehouses=new Set();let excluded=0,returns=0,total=0;
     const monthlyGroups=kind==='monthlyGroups';
-    if(monthlyGroups)for(let j=from;j<=to;j++)if(periods[j])rows.set(monthKey(periods[j]),{key:monthKey(periods[j]),label:periods[j].label||monthKey(periods[j]),values:new Map(),total:0,units:0,skuSet:new Set()});
+    if(monthlyGroups)for(let j=from;j<=to;j++)if(periods[j])rows.set(monthKey(periods[j]),{key:monthKey(periods[j]),label:periods[j].label||monthKey(periods[j]),values:new Map(),total:0,units:0,skuSet:new Set(),month:Number(periods[j].month)||1,year:Number(periods[j].year)||0});
     for(const it of items) {
       const whName=warehouse(it);if(wh && whName!==wh)continue;
       const price=Number(it.purchasePrice);
@@ -99,35 +110,67 @@
     const picked=groupCatalog.filter(g=>groupSelection.has(g.name)).map(g=>g.name);
     return picked.length?picked:groupCatalog.slice(0,TOP_GROUPS).map(g=>g.name);
   }
+  // Поквартальная агрегация: сумма трёх месяцев за квартал, подпись «1 кв. 2025».
+  function toQuarterRows(data) {
+    const out=[],map=new Map();
+    for(const r of data.rows) {
+      const q=Math.floor(((r.month||1)-1)/3),key=`${r.year}-Q${q+1}`;
+      let qr=map.get(key);
+      if(!qr){qr={key:`${q+1} кв. ${r.year}`,label:`${q+1} кв. ${r.year}`,values:new Map(),total:0,units:0,skuSet:new Set(),q,month:r.month,year:r.year};map.set(key,qr);out.push(qr);}
+      for(const [g,v] of r.values)qr.values.set(g,(qr.values.get(g)||0)+v);
+      qr.total+=r.total;qr.units+=r.units||0;
+    }
+    return out;
+  }
   function monthlyGroupsSvg(data,title) {
     const mode=unitMode(),unit=unitWord(mode);
-    const series=displayedGroups();
-    const valueOf=(r,g)=>r.values.get(g)||0;
+    const shown=displayedGroups();
+    const sumMode=Boolean($('chartSumMode')?.checked);
+    const qMode=Boolean($('chartQuarterBands')?.checked);
+    const rows=qMode?toQuarterRows(data):data.rows;
+    const series=sumMode?['__sum__']:shown;
+    const valueOf=(r,g)=>sumMode?shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
+    const sumLabel=`Сумма (${shown.length})`;
+    const seriesColor=g=>sumMode?'#b45309':groupColor(g);
     const h=440,x0=90,y0=350,pw=1020,ph=290;
-    // Автомасштаб: вертикаль растягивается на максимум выбранных (или топ-15) групп.
-    const peak=Math.max(1,...data.rows.flatMap(r=>series.map(g=>valueOf(r,g))));
-    const x=i=>x0+(data.rows.length===1?pw/2:i*pw/(data.rows.length-1));
+    // Автомасштаб: вертикаль растягивается на максимум показанных (или суммарных) значений.
+    const peak=Math.max(1,...rows.map(r=>Math.max(...series.map(g=>valueOf(r,g)),0)));
+    const x=i=>x0+(rows.length===1?pw/2:i*pw/(rows.length-1));
     const y=v=>y0-ph*v/peak;
     const ticks=Array.from({length:5},(_,i)=>{const v=peak*i/4,yy=y(v);return `<line x1="${x0}" x2="${x0+pw}" y1="${yy}" y2="${yy}" stroke="#e2e8f0"/><text x="${x0-8}" y="${yy+4}" text-anchor="end">${fmtMetric(v,mode)}</text>`;}).join('');
-    // Вертикальная сетка и подпись каждого месяца горизонтальной шкалы.
-    const grid=data.rows.map((r,i)=>`<line x1="${x(i)}" x2="${x(i)}" y1="${y0-ph}" y2="${y0}" stroke="#eef2f7"/>`).join('');
+    // Поквартальная раскраска: каждая четверть — светлая полоса своего цвета (4 тона по номеру квартала).
+    let qBands='',qLegend='';
+    if(qMode) {
+      const step=rows.length>1?pw/(rows.length-1):pw;
+      qBands=rows.map((r,i)=>{
+        const bx=Math.max(x0,x(i)-step/2),bx2=Math.min(x0+pw,x(i)+step/2);
+        return `<rect class="qband" x="${bx.toFixed(1)}" y="${y0-ph}" width="${(bx2-bx).toFixed(1)}" height="${ph}" fill="${qColors[(r.q||0)%4]}"/>`;
+      }).join('');
+      const present=[...new Set(rows.map(r=>r.q||0))].sort((a,b)=>a-b);
+      qLegend=`<div class="chart-legend qlegend">${present.map(q=>`<span><i style="background:${qColors[q%4]}"></i>${q+1} кв.</span>`).join('')}</div>`;
+    }
+    // Вертикальная сетка; подписи шкалы: каждый месяц — помесячно, каждый квартал с суммой — поквартально.
+    const grid=rows.map((r,i)=>`<line x1="${x(i)}" x2="${x(i)}" y1="${y0-ph}" y2="${y0}" stroke="#eef2f7"/>`).join('');
     // Гладкая кривая через точки: кубические Безье с горизонтальными касательными.
     const smooth=pts=>{if(pts.length<2)return `M ${pts[0].x} ${pts[0].y}`;let d=`M ${pts[0].x} ${pts[0].y}`;for(let i=1;i<pts.length;i++){const p0=pts[i-1],p1=pts[i];const cx=(p0.x+p1.x)/2;d+=` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;}return d;};
-    const paths=series.map((g,k)=>{
-      const pts=data.rows.map((r,i)=>({x:x(i),y:y(valueOf(r,g))}));
-      const dots=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="2.6" fill="${colors[k%colors.length]}"><title>${esc(data.rows[i].label)} — ${esc(g)}: ${fmtMetric(valueOf(data.rows[i],g),mode)} ${unit}; ${pct(valueOf(data.rows[i],g),data.total)} от итога</title></circle>`).join('');
-      return `<path d="${smooth(pts)}" fill="none" stroke="${colors[k%colors.length]}" stroke-width="1.3" stroke-linecap="round"><title>${esc(g)}</title></path>${dots}`;
+    const paths=series.map(g=>{
+      const color=seriesColor(g);
+      const pts=rows.map((r,i)=>({x:x(i),y:y(valueOf(r,g))}));
+      const name=g==='__sum__'?sumLabel:g;
+      const dots=pts.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="2.6" fill="${color}"><title>${esc(rows[i].label)} — ${esc(name)}: ${fmtMetric(valueOf(rows[i],g),mode)} ${unit}${g==='__sum__'?'':`; ${pct(valueOf(rows[i],g),data.total)} от итога`}</title></circle>`).join('');
+      return `<path d="${smooth(pts)}" fill="none" stroke="${color}" stroke-width="${sumMode?2.4:1.3}" stroke-linecap="round"><title>${esc(name)}</title></path>${dots}`;
     }).join('');
-    const labels=data.rows.map((r,i)=>`<text x="${x(i)}" y="375" text-anchor="end" transform="rotate(-35 ${x(i)} 375)">${esc(r.key)}</text>`).join('');
-    const svg=`<svg class="sales-chart" viewBox="0 0 1200 ${h}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><text x="${x0}" y="25">${unit}</text>${ticks}${grid}${paths}${labels}</svg>`;
-    const legend=`<div class="chart-legend">${series.map((g,k)=>`<span><i style="background:${colors[k%colors.length]}"></i>${esc(g)}</span>`).join('')}</div>`;
-    return legend+svg;
+    const labels=rows.map((r,i)=>qMode?`<text x="${x(i)}" y="375" text-anchor="middle">${esc(r.key)}</text>`:`<text x="${x(i)}" y="375" text-anchor="end" transform="rotate(-35 ${x(i)} 375)">${esc(r.key)}</text>`).join('');
+    const svg=`<svg class="sales-chart" viewBox="0 0 1200 ${h}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><text x="${x0}" y="25">${unit}</text>${qBands}${ticks}${grid}${paths}${labels}</svg>`;
+    const legend=`<div class="chart-legend">${series.map(g=>`<span><i style="background:${seriesColor(g)}"></i>${esc(g==='__sum__'?sumLabel:g)}</span>`).join('')}</div>`;
+    return legend+svg+qLegend+(qMode?'<p class="charts-note">Поквартальный режим: каждая точка — сумма за квартал, фон квартала подсвечен своим из 4 светлых цветов.</p>':'');
   }
   function renderGroupList() {
     const list=$('chartGroupList');if(!list)return;
     const q=($('chartGroupSearch')?.value||'').trim().toLowerCase();
-    const rows=groupCatalog.filter(g=>!q||g.name.toLowerCase().includes(q));
-    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><input type="checkbox" data-cgp-group="${esc(g.name)}" ${groupSelection.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>42?g.name.slice(0,40)+'…':g.name)}</span><span class="cgp-total">${money(g.total)}</span></label>`).join(''):'<p class="muted" style="padding:8px">Группа не найдена</p>';
+    // Перечень — по порядку: номер группы, затем алфавит (не по продажам).
+    const rows=groupCatalog.filter(g=>!q||g.name.toLowerCase().includes(q)).sort(groupSort);
+    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><i class="cgp-dot" style="background:${groupColor(g.name)}"></i><input type="checkbox" data-cgp-group="${esc(g.name)}" ${groupSelection.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>42?g.name.slice(0,40)+'…':g.name)}</span><span class="cgp-total">${money(g.total)}</span></label>`).join(''):'<p class="muted" style="padding:8px">Группа не найдена</p>';
     const hint=$('chartGroupHint');
     if(hint)hint.textContent=groupSelection.size?`Отмечено групп: ${groupSelection.size} — вертикаль масштабируется по ним`:`Не отмечено — показаны топ-${TOP_GROUPS} групп`;
   }
@@ -177,7 +220,7 @@
     }
     render();
   }
-  for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit'])$(id)?.addEventListener('change',render);
+  for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit','chartSumMode','chartQuarterBands'])$(id)?.addEventListener('change',render);
   $('chartGroupSearch')?.addEventListener('input',renderGroupList);
   $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
   $('chartGroupList')?.addEventListener('change',e=>{
