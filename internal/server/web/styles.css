@@ -1336,15 +1336,16 @@ body.col-resize-active * {
 }
 .cgp-hint { color: var(--text-muted); font-size: 12px; }
 .cgp-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 0 14px;
+  columns: 200px;
+  column-gap: 16px;
   overflow-y: visible;
 }
 .cgp-item {
+  break-inside: avoid;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
   padding: 0 4px;
   min-height: 18px;
   line-height: 1.15;
@@ -1355,7 +1356,6 @@ body.col-resize-active * {
 .cgp-item:hover { background: var(--surface-hover); }
 .cgp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.1; }
 .cgp-list .cgp-item input { margin: 0; }
-.cgp-list .cgp-item .cgp-total { line-height: 1.1; }
 .cgp-total { margin-left: auto; color: var(--text-muted); white-space: nowrap; }
 .cgp-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
 .cgp-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; white-space: nowrap; }
@@ -1363,6 +1363,21 @@ body.col-resize-active * {
 /* График групп: светлые полосы кварталов (4 чередующихся цвета). */
 .qband { opacity: 0.55; }
 .qlegend { margin-top: 4px; }
+.qsum { font-weight: 700; font-size: 12.5px; fill: var(--text); }
+
+/* Аналитическая оценка тенденций под графиком групп. */
+.chart-trends {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.chart-trends h3 { margin: 0 0 6px; font-size: 14px; }
+.chart-trends ul { margin: 0; padding-left: 18px; }
+.chart-trends li { margin: 3px 0; font-size: 12.5px; list-style: none; }
+.ct-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+.ct-summary { margin: 8px 0 0; font-size: 12.5px; }
 
 /* Поповер рейтинга: вертикальные линии месяцев и чередующиеся годовые полосы. */
 .rcp-mline { stroke: var(--border); stroke-width: 1; opacity: 0.55; }

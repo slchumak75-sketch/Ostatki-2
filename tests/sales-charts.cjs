@@ -62,12 +62,27 @@ assert.equal(d.querySelectorAll('#chartsContent path[stroke-width="2.4"]').lengt
 d.getElementById('chartQuarterBands').checked=true;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 assert.match(d.getElementById('chartsContent').textContent,/1 кв\. 2026/,'Quarter labels on the axis');
 assert.equal(d.querySelectorAll('#chartsContent .qband').length,1,'One light band per quarter');
+assert.equal(d.querySelectorAll('#chartsContent .qsum').length,1,'Quarter sum shown above the chart');
+assert.match(d.querySelector('#chartsContent .qsum').textContent,/130,00 руб\./,'Quarter sum uses the current unit');
 assert.match(d.getElementById('chartsContent').textContent,/сумма за квартал/,'Quarterly note is shown');
 d.getElementById('chartSumMode').checked=false;d.getElementById('chartSumMode').dispatchEvent(new w.Event('change'));
 assert.match(d.querySelector('#chartsContent circle title').textContent,/1 кв\. 2026 — Группа <1>: 120,00/,'Per-group quarterly sum in money');
 d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Back to monthly per-group curves');
+// Аналитическая оценка тенденций: рост/падение по половинам периода, пики, итог.
+const trends=d.querySelector('#chartsContent .chart-trends');
+assert.ok(trends,'Trend analysis block is rendered');
+assert.match(trends.textContent,/Аналитика тенденций/);
+assert.match(trends.textContent,/рост \+40,00%/,'Group <1>: 70 vs 50 in halves (money) = +40%');
+assert.match(trends.textContent,/продажи появились во второй половине периода/,'Zero-priced rows are excluded, so the half-before is empty');
+assert.match(trends.textContent,/Пик:/);
+assert.match(trends.textContent,/тенденций роста — 2, падения — 0, стабильных — 0/);
+const trendRows=trends.querySelectorAll('li').length;
+// В поквартальном режиме из 3 месяцев получается один квартал — честное сообщение о нехватке точек.
+d.getElementById('chartQuarterBands').checked=true;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
+assert.match(d.querySelector('#chartsContent .chart-trends').textContent,/Недостаточно точек \(1\).*от двух кварталов/,'Quarterly wording in the insufficient-data message');
+d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 assert.equal(d.getElementById('chartGroupHint').textContent.includes('топ-15'),true,'Hint mentions the top-15 default');
 change('chartFrom','2');change('chartTo','0');assert.match(d.getElementById('chartsContent').textContent,/Начало периода/);
 change('chartFrom','0');change('chartTo','2');
@@ -97,8 +112,20 @@ assert.equal(d.querySelectorAll('#chartGroupList input[data-cgp-group]').length,
 const pickerNames=[...d.querySelectorAll('#chartGroupList .cgp-name')].map(e=>e.textContent);
 assert.deepEqual(pickerNames.slice(0,3),['1 Группа','2 Группа','3 Группа'],'Picker is sorted by group number, not by sales');
 assert.equal(d.querySelectorAll('#chartGroupList .cgp-dot').length,12,'Every picker row shows its group color');
+assert.equal(d.querySelectorAll('#chartGroupList .cgp-total').length,0,'No per-row sums in the picker');
+assert.ok(!fs.readFileSync('internal/server/web/styles.css','utf8').match(/\.cgp-list[^}]*grid-template-columns/),'Picker uses vertical column flow');
+const dots8=[...d.querySelectorAll('#chartGroupList .cgp-item')].map(e=>e.querySelector('.cgp-name').textContent);
+assert.ok(dots8[0].startsWith('1 ')&&dots8[7].startsWith('8 '),'First column flows top-to-bottom by number');
 const strokes=[...new Set([...d.querySelectorAll('#chartsContent path')].map(p=>p.getAttribute('stroke')))];
 assert.equal(strokes.length,12,'Each numbered group keeps its own stable color');
+// Тенденции на богатом наборе: группы с продажами только в первой половине — падение.
+const wTrends=d.querySelector('#chartsContent .chart-trends');
+assert.match(wTrends.textContent,/падение -100,00%/,'Sales only in the first half are a falling trend');
+// Неравномерность: максимум превышает минимум ненулевых месяцев более чем втрое.
+const unItems=[{excelRow:300,warehouse:'A',group:'U Группа',supplier:'SU',purchasePrice:10,monthlySales:[30,1,1,1],sku:'300',name:'Т',salesSegment:3,sumSalesLast12M:33,closingStock:1,finalOrderQty:0}];
+const unRep={fileName:'u.xlsx',items:unItems,periods:[{year:2026,month:1,label:'Я'},{year:2026,month:2,label:'Ф'},{year:2026,month:3,label:'М'},{year:2026,month:4,label:'А'}],warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(unRep);change('chartKind','monthlyGroups');
+assert.match(d.querySelector('#chartsContent .chart-trends').textContent,/продажи неравномерные/,'max/min >= 3 is flagged uneven');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);change('chartKind','groups');
 w.SalesCharts.update(null);assert.match(d.getElementById('chartsContent').textContent,/Загрузите ведомость/);
