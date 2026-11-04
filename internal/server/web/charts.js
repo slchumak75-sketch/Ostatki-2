@@ -26,6 +26,14 @@
   const topMode=()=>$('chartTop')?.value||'all';
   const unitWord=mode=>mode==='units'?'шт.':'руб.';
   const fmtMetric=(v,mode)=>mode==='units'?qty(v):money(v);
+  // Компактный формат для подписей над квартальными полосами: без копеек
+  // и единиц, крупные числа сокращаются — подпись не «сбивается в кучу».
+  const compact=v=>{
+    const n=Number(v)||0,abs=Math.abs(n);
+    if(abs>=1e6)return `${qty(Math.round(n/1e5)/10)} млн`;
+    if(abs>=1e4)return `${qty(Math.round(n/100)/10)} тыс.`;
+    return qty(Math.round(n*10)/10);
+  };
 
   // Ядро агрегации продаж: деньги (цена обязательна) или штуки.
   // Виды: группы/поставщики (столбцы), доли, monthlyGroups — месяцы × товарные группы.
@@ -139,16 +147,42 @@
     const y=v=>y0-ph*v/peak;
     const ticks=Array.from({length:5},(_,i)=>{const v=peak*i/4,yy=y(v);return `<line x1="${x0}" x2="${x0+pw}" y1="${yy}" y2="${yy}" stroke="#e2e8f0"/><text x="${x0-8}" y="${yy+4}" text-anchor="end">${fmtMetric(v,mode)}</text>`;}).join('');
     // Поквартальная раскраска: каждая четверть — светлая полоса своего цвета (4 тона по номеру квартала),
-    // над графиком — сумма квартала (руб. или шт.) по показанным группам.
+    // над графиком — сумма квартала в компактном формате; подписи эшелонируются в два ряда при тесноте,
+    // при крайней тесноте печатаются через одну.
     let qBands='',qLegend='';
     if(qMode) {
       const step=rows.length>1?pw/(rows.length-1):pw;
-      qBands=rows.map((r,i)=>{
+      const qSumFont=11;
+      let widthOf=txt=>txt.length*7;
+      try{const cv=document.createElement('canvas');const ctx=cv.getContext('2d');if(ctx){ctx.font=`700 ${qSumFont}px sans-serif`;widthOf=txt=>Math.min(130,ctx.measureText(txt).width||txt.length*7);}}catch(_){/* jsdom/старые браузеры — оценка по длине */}
+      const gap=8;
+      const labels=rows.map((r,i)=>{
         const bx=Math.max(x0,x(i)-step/2),bx2=Math.min(x0+pw,x(i)+step/2);
         const qTotal=shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0);
+        const txt=`${compact(qTotal)}`;
         const cx=(Math.max(x0,bx)+Math.min(x0+pw,bx2))/2;
-        return `<rect class="qband" x="${bx.toFixed(1)}" y="${y0-ph}" width="${(bx2-bx).toFixed(1)}" height="${ph}" fill="${qColors[(r.q||0)%4]}"/>`+
-          `<text class="qsum" x="${cx.toFixed(1)}" y="48" text-anchor="middle"><title>${esc(r.key)}: ${fmtMetric(qTotal,mode)} ${unit}</title>${fmtMetric(qTotal,mode)} ${unit}</text>`;
+        return {r,i,bx,bx2,cx,txt,w:widthOf(txt),qTotal};
+      });
+      let skip=1;
+      for(const cand of [1,2,3]) {
+        const subset=labels.filter((_,i)=>i%cand===0);
+        let ok=true,row=0,prevEnd=-1e9;
+        for(const l of subset){if(l.cx-l.w/2<prevEnd+gap){row++;prevEnd=-1e9;}if(l.cx-l.w/2<prevEnd){ok=false;break;}prevEnd=l.cx+l.w/2;}
+        if(ok&&row<=(cand===1?1:0)){skip=cand;break;}
+        skip=cand;
+      }
+      // Эшелон: чередование двух рядов (48 и 62), если соседние подписи пересекаются в один ряд.
+      let tier=0,prevRight=-1e9;
+      qBands=labels.map((l,idx)=>{
+        const band=`<rect class="qband" x="${l.bx.toFixed(1)}" y="${y0-ph}" width="${(l.bx2-l.bx).toFixed(1)}" height="${ph}" fill="${qColors[(l.r.q||0)%4]}"/>`;
+        let textPart='';
+        if(idx%skip===0){
+          if(l.cx-l.w/2<prevRight+gap)tier=1-tier;else tier=0;
+          const ty=tier===0?48:63;
+          textPart=`<text class="qsum" x="${l.cx.toFixed(1)}" y="${ty}" text-anchor="middle" font-size="${qSumFont}"><title>${esc(l.r.key)}: ${fmtMetric(l.qTotal,mode)} ${unit}</title>${esc(l.txt)}</text>`;
+          prevRight=l.cx+l.w/2;
+        }
+        return band+textPart;
       }).join('');
       const present=[...new Set(rows.map(r=>r.q||0))].sort((a,b)=>a-b);
       qLegend=`<div class="chart-legend qlegend">${present.map(q=>`<span><i style="background:${qColors[q%4]}"></i>${q+1} кв.</span>`).join('')}</div>`;
@@ -170,45 +204,67 @@
     return legend+svg+qLegend+(qMode?'<p class="charts-note">Поквартальный режим: каждая точка — сумма за квартал, фон квартала подсвечен своим из 4 светлых цветов.</p>':'');
   }
 
-  // Аналитическая оценка тенденций продаж по данным показанного графика:
-  // первая половина периода против второй, пики, равномерность продаж.
+  // Направление по проценту изменения (порог ±10%).
+  const trendOf=change=>change===null?null:change>10?'рост':change<-10?'падение':'стабильно';
+  // Аналитическая оценка тенденций: год к году (последний год против предыдущего)
+  // и квартал к кварталу — одноимённые кварталы по годам (Q1 2026 ↔ Q1 2025 и т.д.).
   function trendAnalysis(data,title) {
     const mode=unitMode(),unit=unitWord(mode);
     const shown=displayedGroups();
     const sumMode=Boolean($('chartSumMode')?.checked);
-    const qMode=Boolean($('chartQuarterBands')?.checked);
-    const rows=qMode?toQuarterRows(data):data.rows;
-    const pointWord=qMode?'квартал':'месяц';
-    if(rows.length<2)return `<div class="chart-trends"><h3>Аналитика тенденций</h3><p class="charts-empty">Недостаточно точек (${rows.length}) для оценки тенденции — нужен период от двух ${pointWord}ов.</p></div>`;
+    const months=data.rows.map(r=>({month:r.month||1,year:r.year||0,v:r}));
+    const years=[...new Set(months.map(m=>m.year))].sort((a,b)=>a-b);
+    if(years.length<2)return `<div class="chart-trends"><h3>Аналитика тенденций</h3><p class="charts-empty">Для сравнения год к году нужен период, охватывающий хотя бы два года (сейчас: ${years.length ? years.join(', ') : '—'}).</p></div>`;
     const series=sumMode?['__sum__']:shown;
     const valueOf=(r,g)=>sumMode?shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
     const seriesColor=g=>sumMode?'#b45309':groupColor(g);
-    const half=Math.floor(rows.length/2);
     const fmtPct=v=>(v>0?'+':'')+money(v)+'%';
+    const groupSum=(year,g)=>months.filter(m=>m.year===year).reduce((s,m)=>s+valueOf(m.v,g),0);
+    const qSum=(year,q,g)=>months.filter(m=>m.year===year&&Math.floor((m.month-1)/3)===q).reduce((s,m)=>s+valueOf(m.v,g),0);
+    const qLabel=q=>`${q+1} кв.`;
+    const lastYear=years[years.length-1],prevYear=years[years.length-2];
+    // Кварталы, встречающиеся в обоих годах.
+    const qPairs=[];
+    for(let q=0;q<4;q++){
+      const present=months.some(m=>m.year===lastYear&&Math.floor((m.month-1)/3)===q)&&months.some(m=>m.year===prevYear&&Math.floor((m.month-1)/3)===q);
+      if(present)qPairs.push(q);
+    }
     const out=[];let grow=0,fall=0,flat=0;
     for(const g of series) {
       const name=g==='__sum__'?`Сумма (${shown.length})`:g;
-      const vals=rows.map(r=>valueOf(r,g));
-      const total=vals.reduce((a,b)=>a+b,0);
+      const total=months.reduce((s,m)=>s+valueOf(m.v,g),0);
       if(!(total>0)){out.push({name,color:seriesColor(g),direction:'нет продаж',text:`продаж за период нет`});continue;}
-      const h1=vals.slice(0,half).reduce((a,b)=>a+b,0);
-      const h2=vals.slice(half).reduce((a,b)=>a+b,0);
-      const change=h1>0?(h2-h1)/h1*100:null;
-      let direction,text;
-      if(change===null){direction='рост';text=`продажи появились во второй половине периода (+${fmtMetric(h2,mode)} ${unit})`;}
-      else if(change>10){direction='рост';text=`рост ${fmtPct(change)} — вторая половина периода против первой`;}
-      else if(change<-10){direction='падение';text=`падение ${fmtPct(change)} — вторая половина периода против первой`;}
-      else{direction='стабильно';text=`без выраженной тенденции (${fmtPct(change)})`;}
-      if(direction==='рост')grow++;else if(direction==='падение')fall++;else flat++;
-      const peakIdx=vals.indexOf(Math.max(...vals));
-      const nonZero=vals.filter(v=>v>0);
+      // Год к году.
+      const y1=groupSum(prevYear,g),y2=groupSum(lastYear,g);
+      const yChange=y1>0?(y2-y1)/y1*100:null;
+      const yDir=trendOf(yChange);
+      let yText;
+      if(yChange===null){yText=`продажи появились в ${lastYear} (+${fmtMetric(y2,mode)} ${unit})`;}
+      else yText=`${lastYear} против ${prevYear}: ${fmtMetric(y2,mode)} против ${fmtMetric(y1,mode)} ${unit} (${fmtPct(yChange)})`;
+      const direction=yDir==='падение'?'падение':yDir==='рост'?'рост':'стабильно';
+      if(yDir==='падение')fall++;else if(yDir==='рост')grow++;else flat++;
+      // Квартал к кварталу: одноимённые кварталы по годам.
+      const qParts=[];
+      for(const q of qPairs){
+        const a=qSum(prevYear,q,g),b=qSum(lastYear,q,g);
+        if(!(a>0)&&!(b>0))continue;
+        const ch=a>0?(b-a)/a*100:null;
+        const d=trendOf(ch);
+        qParts.push(`${qLabel(q)}: ${ch===null?`продажи появились (+${fmtMetric(b,mode)})`:`${fmtPct(ch)} — ${d}`}`);
+      }
+      // Пик и неравномерность по месяцам показанного периода.
+      const monthVals=data.rows.map(r=>valueOf(r,g));
+      const peakIdx=monthVals.indexOf(Math.max(...monthVals));
+      const nonZero=monthVals.filter(v=>v>0);
       const uneven=nonZero.length>1&&Math.max(...nonZero)/Math.min(...nonZero)>=3;
-      text+=`. Пик: ${rows[peakIdx]?.label||'—'} (${fmtMetric(vals[peakIdx],mode)} ${unit})${uneven?' · продажи неравномерные':''}`;
+      let text=`Год к году: ${yText}`;
+      if(qParts.length)text+=`. Квартал к кварталу: ${qParts.join('; ')}`;
+      text+=`. Пик: ${data.rows[peakIdx]?.label||'—'} (${fmtMetric(monthVals[peakIdx],mode)} ${unit})${uneven?' · продажи неравномерные':''}`;
       out.push({name,color:seriesColor(g),direction,text});
     }
     const list=out.map(r=>`<li><i class="ct-dot" style="background:${r.color}"></i><strong>${esc(r.name)}</strong> — ${esc(r.direction)}. ${esc(r.text)}</li>`).join('');
-    const summary=sumMode?'':`<p class="ct-summary">Итог по ${shown.length} группам: тенденций роста — <strong>${grow}</strong>, падения — <strong>${fall}</strong>, стабильных — <strong>${flat}</strong>.</p>`;
-    const note=`<p class="charts-note">Тенденция сравнивает суммы ${qMode?'четвертей':'месяцев'} первой и второй половины показанного периода (порог ±10%). «Неравномерные» — максимум превышает минимум более чем втрое.</p>`;
+    const summary=sumMode?'':`<p class="ct-summary">Итог по ${shown.length} группам (год к году, ${lastYear} против ${prevYear}): тенденций роста — <strong>${grow}</strong>, падения — <strong>${fall}</strong>, стабильных — <strong>${flat}</strong>.</p>`;
+    const note=`<p class="charts-note">«Год к году» — сумма последнего года периода против предыдущего. «Квартал к кварталу» — одноимённые кварталы по годам (${qPairs.map(qLabel).join(', ')||'нет пар'}): ${prevYear} против ${lastYear}. Порог тенденции ±10%. «Неравномерные» — максимум превышает минимум более чем втрое.</p>`;
     return `<div class="chart-trends"><h3>Аналитика тенденций — ${esc(title)}</h3><ul>${list}</ul>${summary}${note}</div>`;
   }
   function renderGroupList() {
