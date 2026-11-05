@@ -1392,7 +1392,8 @@ body.col-resize-active * {
 .ct-fall { background: #fee2e2; color: #991b1b; }
 .ct-flat { background: #e5e7eb; color: #374151; }
 .ct-none { background: #f3f4f6; color: #6b7280; }
-.ct-sum { font-weight: 600; white-space: nowrap; }
+.chart-trends-table th[colspan] { text-align: center; }
+.ct-num { text-align: right; white-space: nowrap; }
 .ct-summary { margin: 8px 0 0; font-size: 12.5px; }
 
 /* Поповер рейтинга: вертикальные линии месяцев и чередующиеся годовые полосы. */

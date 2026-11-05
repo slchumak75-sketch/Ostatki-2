@@ -70,49 +70,53 @@ assert.match(d.querySelector('#chartsContent circle title').textContent,/1 кв\
 d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Back to monthly per-group curves');
-// Аналитика тенденций: окно — последние четыре полных квартала; тенденция — последний
-// полный квартал против одноимённого квартала предыдущего года (3 кв. 2026 к 3 кв. 2025).
-// Блок — отдельная раскрывающаяся плашка с таблицей под «Точными значениями», по умолчанию свёрнута.
+// Аналитика тенденций: окно — последние четыре полных квартала; для каждого квартала —
+// сравнение с одноимённым кварталом предыдущего года (проценты + сумма со знаком),
+// «Год» — суммарно; направление — только в столбце «Тенденция».
 const tPlaque=d.querySelector('#chartsContent details.chart-trends');
 assert.ok(tPlaque,'Trends live on their own details plaque');
 assert.match(tPlaque.querySelector('summary').textContent,/Аналитика тенденций — Динамика продаж по группам товаров/,'Plaque summary carries the title');
 assert.ok(!tPlaque.open,'Trends plaque is collapsed by default');
 assert.equal(tPlaque.previousElementSibling.querySelector('summary').textContent,'Точные значения','Trends plaque sits directly below the exact-values table');
 assert.match(tPlaque.textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Period with one full quarter explains itself');
-// Полтора года: окно = 3 кв. 2025 — 2 кв. 2026; тенденция — 2 кв. 2026 к 2 кв. 2025.
+// Полные два года: окно = 1–4 кв. 2026; пары квартал-к-кварталу по годам + «Год».
 const yItems=[
- {excelRow:400,warehouse:'A',group:'Y Группа',supplier:'SY',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0],sku:'400',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0},
- {excelRow:401,warehouse:'A',group:'Z Группа',supplier:'SZ',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'401',name:'Т',salesSegment:2,sumSalesLast12M:90,closingStock:1,finalOrderQty:0},
+ {excelRow:400,warehouse:'A',group:'Y Группа',supplier:'SY',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0,10,0,0,20,0,0],sku:'400',name:'Т',salesSegment:3,sumSalesLast12M:60,closingStock:1,finalOrderQty:0},
+ {excelRow:401,warehouse:'A',group:'Z Группа',supplier:'SZ',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'401',name:'Т',salesSegment:2,sumSalesLast12M:120,closingStock:1,finalOrderQty:0},
 ];
 const yPeriods=[
  ...['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'].map((m,i)=>({year:2025,month:i+1,label:`${m} 25`})),
- ...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))
+ ...['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))
 ];
 const yRep={fileName:'yoy.xlsx',items:yItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(yRep);
 change('chartKind','monthlyGroups');
 const yTrends=d.querySelector('#chartsContent details.chart-trends');
-assert.ok(yTrends.open===false,'Analysis plaque also starts collapsed');
 yTrends.open=true;
-const yHeads=[...yTrends.querySelectorAll('thead th')].map(e=>e.textContent);
-assert.deepEqual(yHeads,['Группа','Тенденция','3 кв. 2025','4 кв. 2025','1 кв. 2026','2 кв. 2026','Сумма за 4 кв.'],'Columns: group, trend, the four window quarters, total');
+const headRows=yTrends.querySelectorAll('thead tr');
+assert.deepEqual([...headRows[0].querySelectorAll('th')].map(e=>e.textContent),['Группа','Тенденция','1 кв. 2026','2 кв. 2026','3 кв. 2026','4 кв. 2026','Год'],'Top header: group, trend, four quarters, year');
+assert.deepEqual([...headRows[1].querySelectorAll('th')].map(e=>e.textContent),['%','Сумма','%','Сумма','%','Сумма','%','Сумма','%','Сумма'],'Sub header: percent and signed amount per block');
 const yRow=[...yTrends.querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('Y Группа'));
 assert.ok(yRow,'Every data group gets its own row');
-assert.equal(yRow.querySelectorAll('td').length,7,'Row: group, trend badge, four quarters, total');
-assert.match(yRow.querySelector('.ct-badge').textContent,/рост/,'Trend badge: Q2 2026 doubled Q2 2025');
-assert.match(yRow.querySelector('.ct-badge').getAttribute('title'),/2 кв\. 2026 против 2 кв\. 2025: 200,00 против 100,00 руб\. \(\+100,00%\)/,'Badge tooltip carries the comparison');
+assert.equal(yRow.querySelectorAll('td').length,12,'Row: group, trend badge, four quarter pairs, year pair');
+assert.match(yRow.querySelector('.ct-badge').textContent,/рост/,'Trend badge: year window doubled');
 const yCells=[...yRow.querySelectorAll('td')].map(e=>e.textContent.trim());
-assert.match(yCells[2],/^50,00 руб\.$/,'Q3 2025 cell');
-assert.match(yCells[3],/^50,00 руб\.$/,'Q4 2025 cell');
-assert.match(yCells[4],/^100,00 руб\.$/,'Q1 2026 cell');
-assert.match(yCells[5],/^200,00 руб\.$/,'Q2 2026 cell');
-assert.match(yCells[6],/^400,00 руб\.$/,'Window total cell');
+assert.equal(yCells[2],'0,00%','Q1 2026 vs Q1 2025: percent');
+assert.equal(yCells[3],'0,00 руб.','Q1 2026 vs Q1 2025: amount');
+assert.equal(yCells[4],'+100,00%','Q2 2026 vs Q2 2025: percent');
+assert.equal(yCells[5],'+100,00 руб.','Q2 2026 vs Q2 2025: amount');
+assert.equal(yCells[6],'+100,00%','Q3 2026 vs Q3 2025: percent');
+assert.equal(yCells[7],'+50,00 руб.','Q3 2026 vs Q3 2025: amount');
+assert.equal(yCells[8],'+300,00%','Q4 2026 vs Q4 2025: percent');
+assert.equal(yCells[9],'+150,00 руб.','Q4 2026 vs Q4 2025: amount');
+assert.equal(yCells[10],'+100,00%','Year column: percent');
+assert.equal(yCells[11],'+300,00 руб.','Year column: signed amount');
+assert.match(yRow.querySelector('.ct-badge').getAttribute('title'),/600,00 против 300,00 руб\. годом ранее \(\+100,00%\)/,'Badge tooltip carries the year comparison');
 const zRow=[...yTrends.querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('Z Группа'));
 assert.match(zRow.querySelector('.ct-badge').textContent,/стабильно/,'Flat group keeps its badge');
-assert.match(zRow.textContent,/60,00 руб\.$/m,'Second group is summed over the window too');
-assert.match(yTrends.textContent,/Итог по 2 группам \(2 кв\. 2026 против 2 кв\. 2025\): тенденций роста — 1, падения — 0, стабильных — 1/);
-assert.match(yTrends.textContent,/последние четыре полных квартала \(3 кв\. 2025 — 2 кв\. 2026\)/,'Note names the window');
-assert.match(yTrends.textContent,/2 кв\. 2026 против 2 кв\. 2025\)\. Порог тенденции ±10%/,'Note states the comparison');
+assert.match(zRow.textContent,/0,00 руб\./,'Flat group shows zero changes');
+assert.match(yTrends.textContent,/Итог по 2 группам \(четыре квартала окна против тех же кварталов предыдущего года\): тенденций роста — 1, падения — 0, стабильных — 1/);
+assert.match(yTrends.textContent,/1 кв\. 2026 — 4 кв\. 2026/,'Note names the window');
 assert.ok(!yTrends.textContent.includes('неравномерн'),'Unevenness flag is not published');
 // Таблица считается по всем группам: группа, скрытая выбором другой, остаётся в тенденциях.
 const yBox=[...d.querySelectorAll('#chartGroupList input[data-cgp-group]')].find(c=>c.dataset.cgpGroup==='Y Группа');
@@ -121,6 +125,29 @@ const tHidden=d.querySelector('#chartsContent details.chart-trends');
 assert.ok(!d.querySelector('#chartsContent .sales-chart').textContent.includes('Z Группа'),'Group is hidden from the chart');
 assert.ok([...tHidden.querySelectorAll('tbody tr')].some(tr=>tr.textContent.includes('Z Группа')),'Hidden group is still analysed in the table');
 assert.match(tHidden.textContent,/Итог по 2 группам/,'Counters cover all groups, not only shown');
+// Полуторагодовой набор: у окна 3 кв. 2025 — 2 кв. 2026 пары прошлого года есть только у 1 и 2 кв. 2026.
+const hItems=[{excelRow:410,warehouse:'A',group:'H Группа',supplier:'SH',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0],sku:'410',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
+const hPeriods=[
+ ...['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'].map((m,i)=>({year:2025,month:i+1,label:`${m} 25`})),
+ ...['Янв','Фев','Мар','Апр','Май','Июн'].map((m,i)=>({year:2026,month:i+1,label:`${m} 26`}))
+];
+const hRep={fileName:'half.xlsx',items:hItems,periods:hPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(hRep);change('chartKind','monthlyGroups');
+const hTrends=d.querySelector('#chartsContent details.chart-trends');
+hTrends.open=true;
+const hRow=[...hTrends.querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('H Группа'));
+const hCells=[...hRow.querySelectorAll('td')].map(e=>e.textContent.trim());
+assert.equal(hCells[2],'—','Quarter without a year-earlier pair stays empty');
+assert.equal(hCells[3],'—','Missing pair amount is empty too');
+assert.equal(hCells[4],'—','Q4 2025 has no year-earlier pair either');
+assert.equal(hCells[5],'—','Q4 2025 amount stays empty');
+assert.equal(hCells[6],'0,00%','Q1 2026 vs Q1 2025: percent');
+assert.equal(hCells[7],'0,00 руб.','Q1 2026 vs Q1 2025: amount');
+assert.equal(hCells[8],'+100,00%','Q2 2026 vs Q2 2025: percent');
+assert.equal(hCells[9],'+100,00 руб.','Q2 2026 vs Q2 2025: amount');
+assert.equal(hCells[10],'+100,00%','Year percent uses the pairs that exist');
+assert.equal(hCells[11],'+200,00 руб.','Year amount uses the pairs that exist');
+assert.match(hTrends.textContent,/3 кв\. 2025 — 2 кв\. 2026/,'Half window is named');
 // Полных кварталов четыре, но перед окном нет полного одноимённого квартала — честное сообщение.
 const p2Items=[{excelRow:500,warehouse:'A',group:'P Группа',supplier:'SP',purchasePrice:10,monthlySales:[0,10,0,10,0,0,5,0,0,5,0,0,10,0,0],sku:'500',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
 const p2Periods=[
