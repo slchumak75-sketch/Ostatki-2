@@ -204,14 +204,14 @@
     return legend+svg+qLegend+(qMode?'<p class="charts-note">Поквартальный режим: каждая точка — сумма за квартал, фон квартала подсвечен своим из 4 светлых цветов.</p>':'');
   }
 
-  // Направление по проценту изменения (порог ±10%).
-  const trendOf=change=>change===null?null:change>10?'рост':change<-10?'падение':'стабильно';
+  // Направление по проценту изменения (порог ±5%).
+  const trendOf=change=>change===null?null:change>5?'рост':change<-5?'падение':'стабильно';
   // Аналитика тенденций: окно — последние четыре полных квартала. Для каждого квартала —
-  // сравнение с одноимённым кварталом предыдущего года (3 кв. 2026 к 3 кв. 2025) в двух
-  // столбцах: проценты и изменение суммой со знаком; «Год» — суммарно по четырём кварталам
-  // окна против тех же кварталов предыдущего года (проценты и сумма). Направление
-  // («рост»/«падение») — только в столбце «Тенденция». Публикуется таблицей на отдельной
-  // раскрывающейся плашке; считается для всех групп независимо от отметки в перечне.
+  // сравнение с одноимённым кварталом предыдущего года (3 кв. 2026 к 3 кв. 2025): проценты
+  // и изменение суммой со знаком; «Год» — суммарно по четырём кварталам окна против тех же
+  // кварталов предыдущего года. Направление («рост»/«падение», порог ±5%) — только
+  // в столбце «Тенденция». Блок показывается кнопкой «Аналитика» и считается для всех
+  // групп независимо от отметки в перечне.
   function trendAnalysis(data,title) {
     const mode=unitMode(),unit=unitWord(mode);
     const shown=displayedGroups();
@@ -226,25 +226,27 @@
     const qLabel=(q,y)=>`${q+1} кв. ${y}`;
     const hasMonth=(y,m)=>months.some(x=>x.year===y&&x.month===m);
     const isFull=(y,q)=>hasMonth(y,q*3+1)&&hasMonth(y,q*3+2)&&hasMonth(y,q*3+3);
-    const plaque=`<details class="chart-trends"><summary>Аналитика тенденций — ${esc(title)}</summary><div class="ct-body">`;
-    const close='</div></details>';
+    const visible=$('btnAnalytics')?.getAttribute('aria-pressed')==='true';
+    const block=`<div class="chart-trends${visible?'':' hidden'}"><h3>Аналитика тенденций — ${esc(title)}</h3>`;
+    const close='</div>';
     // Полные кварталы: присутствуют все три месяца.
     const fulls=[];
     for(const m of months){const q=qOf(m);if(isFull(m.year,q)&&!fulls.some(f=>f.y===m.year&&f.q===q))fulls.push({y:m.year,q});}
-    if(fulls.length<4)return `${plaque}<p class="charts-empty">Для анализа нужно не менее четырёх полных кварталов (сейчас: ${fulls.length}${fulls.length?`: ${fulls.map(f=>qLabel(f.q,f.y)).join(', ')}`:''}).</p>${close}`;
+    if(fulls.length<4)return `${block}<p class="charts-empty">Для анализа нужно не менее четырёх полных кварталов (сейчас: ${fulls.length}${fulls.length?`: ${fulls.map(f=>qLabel(f.q,f.y)).join(', ')}`:''}).</p>${close}`;
     const win=fulls.slice(-4);
     const [f0,,,f3]=win;
     const prevSame={y:f3.y-1,q:f3.q};
-    if(!isFull(prevSame.y,prevSame.q))return `${plaque}<p class="charts-empty">Для сравнения нужен ${qLabel(prevSame.q,prevSame.y)} — одноимённый квартал перед окном (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}).</p>${close}`;
+    if(!isFull(prevSame.y,prevSame.q))return `${block}<p class="charts-empty">Для сравнения нужен ${qLabel(prevSame.q,prevSame.y)} — одноимённый квартал перед окном (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}).</p>${close}`;
     const series=sumMode?['__sum__']:full.warehouses;
     const valueOf=(r,g)=>sumMode?shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
     const seriesColor=g=>sumMode?'#b45309':groupColor(g);
-    const fmtPct=v=>(v>0?'+':'')+money(v)+'%';
-    const fmtDiff=v=>(v>0?'+':'')+fmtMetric(v,mode)+' '+unit;
+    const fmtPct=v=>(v>0?'+':'')+money(v);
+    const fmtDiff=v=>(v>0?'+':'')+fmtMetric(v,mode);
     const qSum=(f,g)=>months.filter(m=>m.year===f.y&&qOf(m)===f.q).reduce((s,m)=>s+valueOf(m.v,g),0);
     const winPrev=win.map(f=>({y:f.y-1,q:f.q}));
     const prevFull=winPrev.map(f=>isFull(f.y,f.q));
     const out=[];let grow=0,fall=0,flat=0;
+    const totDiff=win.map(()=>0);let totYear=0;
     for(const g of series) {
       const name=g==='__sum__'?`Сумма (${shown.length})`:g;
       const cells=win.map(f=>qSum(f,g));
@@ -255,23 +257,26 @@
         if(!prevFull[i])return null;
         const b=qSum(winPrev[i],g),a=cells[i];
         const ch=b>0?(a-b)/b*100:null;
-        return {pct:ch===null?'—':fmtPct(ch),diff:fmtDiff(a-b),tip:ch===null?`продажи появились в ${qLabel(f.q,f.y)} (+${fmtMetric(a,mode)} ${unit})`:`${qLabel(f.q,f.y)} против ${qLabel(winPrev[i].q,winPrev[i].y)}: ${fmtMetric(a,mode)} против ${fmtMetric(b,mode)} ${unit} (${fmtPct(ch)})`};
+        totDiff[i]+=a-b;
+        return {pct:ch===null?'—':fmtPct(ch),diff:fmtDiff(a-b),tip:ch===null?`продажи появились в ${qLabel(f.q,f.y)} (+${fmtMetric(a,mode)} ${unit})`:`${qLabel(f.q,f.y)} против ${qLabel(winPrev[i].q,winPrev[i].y)}: ${fmtMetric(a,mode)} против ${fmtMetric(b,mode)} ${unit} (${fmtPct(ch)}%)`};
       });
       // «Год»: суммарно по четырём кварталам окна против тех же кварталов предыдущего года.
       const y2=total,y1=winPrev.reduce((s,f,i)=>s+(prevFull[i]?qSum(f,g):0),0);
       const yCh=y1>0?(y2-y1)/y1*100:null;
+      totYear+=y2-y1;
       const d=trendOf(yCh);
       if(d==='падение')fall++;else if(d==='рост'||d===null)grow++;else flat++;
       const dir=d==='падение'?'падение':(d==='рост'||d===null)?'рост':'стабильно';
       const cls=d==='падение'?'fall':(d==='рост'||d===null)?'grow':'flat';
-      const year={pct:yCh===null?'—':fmtPct(yCh),diff:fmtDiff(y2-y1),tip:yCh===null?`продажи появились в ${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)} (сумма ${fmtMetric(y2,mode)} ${unit})`:`Сумма ${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}: ${fmtMetric(y2,mode)} против ${fmtMetric(y1,mode)} ${unit} годом ранее (${fmtPct(yCh)})`};
+      const year={pct:yCh===null?'—':fmtPct(yCh),diff:fmtDiff(y2-y1),tip:yCh===null?`продажи появились в ${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)} (сумма ${fmtMetric(y2,mode)} ${unit})`:`Сумма ${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}: ${fmtMetric(y2,mode)} против ${fmtMetric(y1,mode)} ${unit} годом ранее (${fmtPct(yCh)}%)`};
       out.push({name,color:seriesColor(g),direction:dir,cls,tip:year.tip,pairs,year});
     }
     const rows=out.map(r=>`<tr><td><i class="ct-dot" style="background:${r.color}"></i>${esc(r.name)}</td><td><span class="ct-badge ct-${r.cls}"${r.tip?` title="${esc(r.tip)}"`:''}>${esc(r.direction)}</span></td>${r.pairs.map(p=>p?`<td class="ct-num" title="${esc(p.tip)}">${p.pct}</td><td class="ct-num">${p.diff}</td>`:'<td class="ct-num">—</td><td class="ct-num">—</td>').join('')}${r.year?`<td class="ct-num">${r.year.pct}</td><td class="ct-num">${r.year.diff}</td>`:'<td class="ct-num">—</td><td class="ct-num">—</td>'}</tr>`).join('');
-    const summary=sumMode?'':`<p class="ct-summary">Итог по ${series.length} группам (четыре квартала окна против тех же кварталов предыдущего года): тенденций роста — <strong>${grow}</strong>, падения — <strong>${fall}</strong>, стабильных — <strong>${flat}</strong>.</p>`;
-    const note=`<p class="charts-note">Окно анализа — последние четыре полных квартала (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}). Для каждого квартала — сравнение с одноимённым кварталом предыдущего года: проценты и изменение суммой; «Год» — суммарно по четырём кварталам окна против тех же кварталов предыдущего года. Порог тенденции ±10%.</p>`;
-    const subHead=win.map(() =>'<th>%</th><th>Сумма</th>').join('');
-    return `${plaque}<div class="ct-scroll"><table class="chart-trends-table data-table"><thead><tr><th rowspan="2">Группа</th><th rowspan="2">Тенденция</th>${win.map(f=>`<th colspan="2">${qLabel(f.q,f.y)}</th>`).join('')}<th colspan="2">Год</th></tr><tr>${subHead}<th>%</th><th>Сумма</th></tr></thead><tbody>${rows}</tbody></table></div>${summary}${note}${close}`;
+    const foot=`<tfoot><tr><td>Итог</td><td></td>${win.map((f,i)=>prevFull[i]?`<td class="ct-num">—</td><td class="ct-num">${fmtDiff(totDiff[i])}</td>`:'<td class="ct-num">—</td><td class="ct-num">—</td>').join('')}<td class="ct-num">—</td><td class="ct-num">${fmtDiff(totYear)}</td></tr></tfoot>`;
+    const summary=sumMode?'':`<p class="ct-summary">Итог по ${series.length} группам (четыре квартала окна против тех же кварталов предыдущего года, порог ±5%): тенденций роста — <strong>${grow}</strong>, падения — <strong>${fall}</strong>, стабильных — <strong>${flat}</strong>.</p>`;
+    const note=`<p class="charts-note">Окно анализа — последние четыре полных квартала (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}). Для каждого квартала — сравнение с одноимённым кварталом предыдущего года: проценты и изменение суммой; «Год» — суммарно по четырём кварталам окна против тех же кварталов предыдущего года. Порог тенденции ±5%.</p>`;
+    const subHead=win.map(()=>`<th>%</th><th>${mode==='units'?'шт.':'руб.'}</th>`).join('');
+    return `${block}<div class="ct-scroll"><table class="chart-trends-table data-table"><thead><tr><th rowspan="2">Группа</th><th rowspan="2">Тенденция</th>${win.map(f=>`<th colspan="2">${qLabel(f.q,f.y)}</th>`).join('')}<th colspan="2">Год</th></tr><tr>${subHead}<th>%</th><th>${mode==='units'?'шт.':'руб.'}</th></tr></thead><tbody>${rows}</tbody>${foot}</table></div>${summary}${note}${close}`;
   }
   function renderGroupList() {
     const list=$('chartGroupList');if(!list)return;
@@ -329,6 +334,15 @@
     render();
   }
   for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit','chartSumMode','chartQuarterBands'])$(id)?.addEventListener('change',render);
+  // Кнопка «Аналитика» (рядом с «Конфигурация») показывает или скрывает таблицу тенденций.
+  $('btnAnalytics')?.addEventListener('click',()=>{
+    const btn=$('btnAnalytics');
+    const on=btn.getAttribute('aria-pressed')!=='true';
+    btn.setAttribute('aria-pressed',on?'true':'false');
+    const blk=document.querySelector('#chartsContent .chart-trends');
+    if(blk)blk.classList.toggle('hidden',!on);
+    if(on)document.querySelector('[data-tab="charts"]')?.click();
+  });
   $('chartGroupSearch')?.addEventListener('input',renderGroupList);
   $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
   $('chartGroupList')?.addEventListener('change',e=>{

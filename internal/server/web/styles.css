@@ -1365,35 +1365,35 @@ body.col-resize-active * {
 .qlegend { margin-top: 4px; }
 .qsum { font-weight: 700; font-size: 12.5px; fill: var(--text); }
 
-/* Аналитика тенденций: отдельная раскрывающаяся плашка с таблицей под графиком групп. */
+/* Аналитика тенденций: блок с таблицей, показывается кнопкой «Аналитика». */
 .chart-trends {
   margin-top: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--surface);
 }
-.chart-trends > summary {
-  padding: 10px 12px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-}
-.chart-trends[open] > summary { border-bottom: 1px solid var(--border); }
-.chart-trends .ct-body { padding: 2px 12px 10px; }
-.ct-scroll { overflow-x: auto; }
-.chart-trends-table { width: 100%; font-size: 12.5px; }
-.chart-trends-table th, .chart-trends-table td { text-align: left; vertical-align: top; }
+.chart-trends.hidden { display: none; }
+.chart-trends h3 { margin: 0 0 8px; font-size: 14px; }
+.ct-scroll { overflow: auto; max-height: 60vh; }
+.chart-trends-table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.chart-trends-table th, .chart-trends-table td { text-align: left; vertical-align: top; border-left: 1px solid var(--border); }
+.chart-trends-table th:first-child, .chart-trends-table td:first-child { border-left: 0; }
 .chart-trends-table th { white-space: nowrap; }
-.chart-trends-table th:nth-child(2), .chart-trends-table td:nth-child(2) { white-space: nowrap; }
+.chart-trends-table td:first-child { white-space: nowrap; }
+.chart-trends-table td:nth-child(2) { white-space: nowrap; }
+.chart-trends-table thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 26; height: 28px; }
+.chart-trends-table thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 26; text-align: right; }
+.chart-trends-table th[colspan] { text-align: center; }
 .ct-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
 .ct-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: help; }
 .ct-grow { background: #dcfce7; color: #166534; }
 .ct-fall { background: #fee2e2; color: #991b1b; }
 .ct-flat { background: #e5e7eb; color: #374151; }
 .ct-none { background: #f3f4f6; color: #6b7280; }
-.chart-trends-table th[colspan] { text-align: center; }
 .ct-num { text-align: right; white-space: nowrap; }
+.chart-trends-table tfoot td { font-weight: 600; border-top: 2px solid var(--border-strong); text-align: right; background: var(--surface); }
+.chart-trends-table tfoot td:first-child { text-align: left; }
 .ct-summary { margin: 8px 0 0; font-size: 12.5px; }
 
 /* Поповер рейтинга: вертикальные линии месяцев и чередующиеся годовые полосы. */
