@@ -165,6 +165,29 @@ const aCells=[...aTable.querySelector('tbody tr').querySelectorAll('td')].map(e=
 assert.equal(aCells[11],'0,00','Filtered group keeps its own numbers');
 soWh.value='';soWh.dispatchEvent(new w.Event('change'));
 assert.equal([...d.querySelector('#analyticsContent .chart-trends').querySelectorAll('tbody tr')].length,2,'Clearing the selector restores all groups');
+// Выбор поставщика — слева от склада; фильтрует таблицу, работает вместе со складом.
+const anLabels=[...d.querySelectorAll('#view-analytics .charts-controls label')].map(l=>l.firstChild.textContent.trim());
+assert.deepEqual(anLabels,['Поставщик','Склад'],'Supplier selector sits left of warehouse');
+const soSup=d.getElementById('analyticsSupplier');
+assert.deepEqual([...soSup.options].map(o=>o.value),['','S2','S10'],'Analytics supplier selector lists report suppliers');
+soSup.value='S10';soSup.dispatchEvent(new w.Event('change'));
+assert.deepEqual([...d.querySelector('#analyticsContent .chart-trends').querySelectorAll('tbody tr')].map(tr=>tr.querySelector('td').textContent.trim()),['10 Группа'],'Supplier filter limits the rows');
+soSup.value='S2';soSup.dispatchEvent(new w.Event('change'));
+soWh.value='A';soWh.dispatchEvent(new w.Event('change'));
+assert.equal([...d.querySelector('#analyticsContent .chart-trends').querySelectorAll('tbody tr')].length,0,'Supplier and warehouse filters combine');
+soSup.value='';soWh.value='';soWh.dispatchEvent(new w.Event('change'));soSup.dispatchEvent(new w.Event('change'));
+// Номер не в начале имени: «Группа 2» раньше «Группа 10»; естественный порядок и в перечне.
+const natItems=[
+ {excelRow:700,warehouse:'A',group:'Группа 10',supplier:'N1',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'700',name:'Т',salesSegment:3,sumSalesLast12M:120,closingStock:1,finalOrderQty:0},
+ {excelRow:701,warehouse:'A',group:'Группа 2',supplier:'N2',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'701',name:'Т',salesSegment:3,sumSalesLast12M:120,closingStock:1,finalOrderQty:0},
+ {excelRow:702,warehouse:'A',group:'1 Группа',supplier:'N3',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'702',name:'Т',salesSegment:3,sumSalesLast12M:120,closingStock:1,finalOrderQty:0},
+];
+const natRep={fileName:'nat.xlsx',items:natItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(natRep);change('chartKind','monthlyGroups');
+w.SalesCharts.renderAnalytics();
+const natOrder=[...d.querySelectorAll('#analyticsContent .chart-trends tbody tr')].map(tr=>tr.querySelector('td').textContent.trim());
+assert.deepEqual(natOrder,['1 Группа','Группа 2','Группа 10'],'Trailing numbers sort naturally in analytics');
+assert.deepEqual([...d.querySelectorAll('#chartGroupList .cgp-name')].map(e=>e.textContent),['1 Группа','Группа 2','Группа 10'],'Picker shares the natural order');
 // Полуторагодовой набор: у окна 3 кв. 2025 — 2 кв. 2026 пары прошлого года есть только у 1 и 2 кв. 2026.
 const hItems=[{excelRow:410,warehouse:'A',group:'H Группа',supplier:'SH',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0],sku:'410',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
 const hPeriods=[
@@ -209,6 +232,9 @@ assert.match(css,/\.chart-trends-table td:nth-child\(2\), \.chart-trends-table t
 assert.match(css,/\.chart-trends-table\.data-table \{ table-layout: auto; \}/,'Trends table uses automatic column widths');
 assert.match(css,/\.chart-trends-table\.data-table td, \.chart-trends-table\.data-table tfoot td \{ text-align: right; \}/,'All data cells align right over .data-table defaults');
 assert.match(css,/\.chart-trends-table\.data-table td:first-child \{ text-align: left; white-space: nowrap; min-width: max-content; \}/,'Group column keeps the full name on one line');
+assert.match(css,/\.chart-trends-table\.data-table tbody td:nth-child\(3\), [^}]*\{ background-color: #f0f7ff; \}/,'Tint A covers quarter pairs 1/3 and the year block');
+assert.match(css,/\.chart-trends-table\.data-table tbody td:nth-child\(5\), [^}]*\{ background-color: #fff8ee; \}/,'Tint B covers quarter pairs 2/4');
+assert.match(css,/\.chart-trends-table\.data-table thead tr:nth-child\(1\) th:nth-child\(4\) \{ background-color: #fff8ee; \}/,'Quarter headers alternate tints');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);
 change('chartKind','groups');

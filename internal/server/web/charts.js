@@ -17,8 +17,11 @@
     const idx=m?Number(m[1])-1:[...String(name)].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7);
     return groupPalette[((idx%groupPalette.length)+groupPalette.length)%groupPalette.length];
   };
-  const groupNum=name=>{const m=String(name).match(/^\s*(\d+)/);return m?Number(m[1]):Number.POSITIVE_INFINITY;};
-  const groupSort=(a,b)=>{const na=groupNum(a.name),nb=groupNum(b.name);return na!==nb?na-nb:String(a.name).localeCompare(String(b.name),'ru');};
+  // Номер группы — первое число в любом месте имени («2 Группа», «Группа 10», «Гр. 3»);
+  // без числа — в конец. Порядок: номер по возрастанию, затем естественное сравнение
+  // по алфавиту (числа внутри имени сравниваются как числа: «Группа 2» раньше «Группа 10»).
+  const groupNum=name=>{const m=String(name).match(/\d+/);return m?Number(m[0]):Number.POSITIVE_INFINITY;};
+  const groupSort=(a,b)=>{const na=groupNum(a.name),nb=groupNum(b.name);if(na!==nb)return na-nb;const nat=String(a.name).localeCompare(String(b.name),'ru',{numeric:true});return nat!==0?nat:String(a.name).localeCompare(String(b.name),'ru');};
   let report=null,signature='';
   const monthKey=p=>`${p.year}-${String(p.month).padStart(2,'0')}`;
   const warehouse=it=>String(it.warehouse||'Без склада');
@@ -220,7 +223,9 @@
     // с учётом выбранного склада), а не диапазона графика: квартал год назад
     // обычно лежит за пределами показанного окна.
     const wh=$('analyticsWarehouse')?.value||'';
-    const full=aggregate(report,'monthlyGroups',wh,0,report.periods.length-1,{unit:mode});
+    const sup=$('analyticsSupplier')?.value||'';
+    const src=sup?[...report.items].filter(it=>it.supplier===sup):report.items;
+    const full=aggregate({...report,items:src},'monthlyGroups',wh,0,report.periods.length-1,{unit:mode});
     const months=full.rows.map(r=>({month:r.month||1,year:r.year||0,v:r}));
     const qOf=m=>Math.floor((m.month-1)/3);
     const qLabel=(q,y)=>`${q+1} кв. ${y}`;
@@ -236,7 +241,7 @@
     const [f0,,,f3]=win;
     const prevSame={y:f3.y-1,q:f3.q};
     if(!isFull(prevSame.y,prevSame.q))return `${block}<p class="charts-empty">Для сравнения нужен ${qLabel(prevSame.q,prevSame.y)} — одноимённый квартал перед окном (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}).</p>${close}`;
-    const series=sumMode?['__sum__']:[...full.warehouses].sort(groupSort);
+    const series=sumMode?['__sum__']:[...full.warehouses].sort((a,b)=>groupSort({name:a},{name:b}));
     const valueOf=(r,g)=>sumMode?shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
     const seriesColor=g=>sumMode?'#b45309':groupColor(g);
     const fmtPct=v=>(v>0?'+':'')+money(v);
@@ -328,6 +333,7 @@
       $('chartWarehouse').innerHTML='<option value="">Все склады</option>'+warehouses.map(w2=>`<option value="${esc(w2)}">${esc(w2)}</option>`).join('');
       if(warehouses.includes(oldWh))$('chartWarehouse').value=oldWh;
       if($('analyticsWarehouse')){const oldA=$('analyticsWarehouse').value;$('analyticsWarehouse').innerHTML='<option value="">Все склады</option>'+warehouses.map(w2=>`<option value="${esc(w2)}">${esc(w2)}</option>`).join('');if(warehouses.includes(oldA))$('analyticsWarehouse').value=oldA;}
+      if($('analyticsSupplier')){const oldS=$('analyticsSupplier').value;const sups=[...new Set((rep?.items||[]).map(r=>r.supplier).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ru',{numeric:true}));$('analyticsSupplier').innerHTML='<option value="">Все поставщики</option>'+sups.map(sp=>`<option value="${esc(sp)}">${esc(sp)}</option>`).join('');if(sups.includes(oldS))$('analyticsSupplier').value=oldS;}
       for(const id of ['chartFrom','chartTo'])$(id).innerHTML=periods.map((p,i)=>`<option value="${i}">${esc(p.label||monthKey(p))}</option>`).join('');
       if(periods.length){$('chartFrom').value=String(Math.max(0,periods.length-12));$('chartTo').value=String(periods.length-1);}
     }
@@ -335,6 +341,7 @@
   }
   for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit','chartSumMode','chartQuarterBands'])$(id)?.addEventListener('change',render);
   $('chartGroupSearch')?.addEventListener('input',renderGroupList);
+  $('analyticsSupplier')?.addEventListener('change',renderAnalytics);
   $('analyticsWarehouse')?.addEventListener('change',renderAnalytics);
   $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
   $('chartGroupList')?.addEventListener('change',e=>{
