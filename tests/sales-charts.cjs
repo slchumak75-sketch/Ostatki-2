@@ -12,7 +12,7 @@ const items=[item(8,'A','Группа <1>','S1',10,[1,2,3]),item(9,'B','Груп
 const rep={fileName:'test.xlsx',items,periods,warehouses:[],groups:[],suppliers:[],params:{}};
 const before=JSON.stringify(rep);
 w.SalesCharts.update(rep);
-assert.equal(d.querySelector('[data-tab="overstock"]').nextElementSibling.dataset.tab,'charts');
+assert.equal(d.querySelector('[data-tab="charts"]').nextElementSibling.dataset.tab,'analytics');
 assert.equal(d.querySelectorAll('#chartKind option').length,5);
 assert.ok(d.getElementById('chartTop'),'Top-10 selector exists');
 assert.ok(d.getElementById('chartUnit'),'Units selector exists');
@@ -70,15 +70,21 @@ assert.match(d.querySelector('#chartsContent circle title').textContent,/1 кв\
 d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Back to monthly per-group curves');
-// Аналитика тенденций: блок показывается кнопкой «Аналитика» на плашке с «Конфигурация»;
-// шапка «%/руб.», числа без единиц, строка «Итог», порог ±5%.
-const cfgBtn=d.getElementById('btnConfigurePanel'),anBtn=d.getElementById('btnAnalytics');
-assert.ok(cfgBtn&&anBtn&&cfgBtn.parentElement===anBtn.parentElement,'Analytics button lives on the same plate as Configure');
-assert.equal(anBtn.textContent,'Аналитика','Button is titled Аналитика');
-assert.equal(anBtn.getAttribute('aria-pressed'),'false','Analytics starts hidden');
-const tBlock=d.querySelector('#chartsContent .chart-trends');
-assert.ok(tBlock&&tBlock.classList.contains('hidden'),'Trends block hidden until the button is pressed');
-assert.match(tBlock.textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Period with one full quarter explains itself');
+// Аналитика тенденций — отдельная вкладка справа от «Графики»; таблица всегда в рублях.
+const tabsBar=[...d.querySelectorAll('.tab-btn')].map(b=>b.dataset.tab);
+assert.deepEqual(tabsBar,['table','suppliers','charts','analytics'],'Tab row: ведомость, заказ, графики, аналитика');
+const anTab=d.querySelector('.tab-btn[data-tab="analytics"]');
+assert.equal(anTab.previousElementSibling.dataset.tab,'charts','Analytics tab sits right after Charts');
+assert.ok(!d.querySelector('.tab-btn[data-tab="overstock"]'),'Overstock tab removed from the row');
+const ovBtn=d.getElementById('btnOverstockTab');
+assert.ok(ovBtn&&ovBtn.textContent.includes('Неликвиды')&&d.getElementById('btnConfigurePanel').parentElement===ovBtn.parentElement,'Overstock button lives next to Configure');
+assert.ok(ovBtn.querySelector('#cntTabOverstock'),'Overstock counter moved onto the button');
+assert.equal(d.getElementById('btnAnalytics'),null,'Standalone analytics button removed');
+assert.ok(d.getElementById('view-analytics')&&d.getElementById('analyticsContent'),'Analytics view container exists');
+// Таблица тенденций ушла с вкладки графиков; на вкладке аналитики — честное сообщение при одном годе.
+assert.equal(d.querySelector('#chartsContent .chart-trends'),null,'Charts tab no longer hosts the trends table');
+w.SalesCharts.renderAnalytics();
+assert.match(d.querySelector('#analyticsContent .chart-trends').textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Period with one full quarter explains itself');
 // Полные два года: окно = 1–4 кв. 2026; пары квартал-к-кварталу по годам + «Год».
 const yItems=[
  {excelRow:400,warehouse:'A',group:'Y Группа',supplier:'SY',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0,10,0,0,20,0,0],sku:'400',name:'Т',salesSegment:3,sumSalesLast12M:60,closingStock:1,finalOrderQty:0},
@@ -91,10 +97,8 @@ const yPeriods=[
 const yRep={fileName:'yoy.xlsx',items:yItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(yRep);
 change('chartKind','monthlyGroups');
-anBtn.click();
-assert.equal(anBtn.getAttribute('aria-pressed'),'true','Button press reveals analytics');
-const yTrends=d.querySelector('#chartsContent .chart-trends');
-assert.ok(!yTrends.classList.contains('hidden'),'Block becomes visible after the button');
+w.SalesCharts.renderAnalytics();
+const yTrends=d.querySelector('#analyticsContent .chart-trends');
 const headRows=yTrends.querySelectorAll('thead tr');
 assert.deepEqual([...headRows[0].querySelectorAll('th')].map(e=>e.textContent),['Группа','Тенденция','1 кв. 2026','2 кв. 2026','3 кв. 2026','4 кв. 2026','Год'],'Top header: group, trend, four quarters, year');
 assert.deepEqual([...headRows[1].querySelectorAll('th')].map(e=>e.textContent),['%','руб.','%','руб.','%','руб.','%','руб.','%','руб.'],'Sub header: percent and rubles per block');
@@ -121,18 +125,23 @@ assert.equal(footCells[0],'Итог','Footer row is labelled Итог');
 assert.deepEqual(footCells.slice(2),['—','0,00','—','+100,00','—','+50,00','—','+150,00','—','+300,00'],'Footer sums the signed amounts per column');
 assert.match(yTrends.textContent,/Порог тенденции ±5%/,'Threshold is five percent');
 assert.ok(!yTrends.textContent.includes('неравномерн'),'Unevenness flag is not published');
+// Единицы графика не влияют на аналитику: всегда рубли.
+change('chartUnit','units');
+w.SalesCharts.renderAnalytics();
+const uHead=d.querySelector('#analyticsContent .chart-trends thead').textContent;
+assert.match(uHead,/руб\./,'Analytics header keeps rubles');
+assert.ok(!uHead.includes('шт.'),'Units mode does not leak into analytics');
+const uCells=[...d.querySelector('#analyticsContent .chart-trends tbody tr').querySelectorAll('td')].map(e=>e.textContent.trim());
+assert.equal(uCells[3],'0,00','Amounts stay in rubles under units mode');
+change('chartUnit','money');
 // Таблица считается по всем группам: группа, скрытая выбором другой, остаётся в тенденциях.
 const yBox=[...d.querySelectorAll('#chartGroupList input[data-cgp-group]')].find(c=>c.dataset.cgpGroup==='Y Группа');
 yBox.checked=true;yBox.dispatchEvent(new w.Event('change',{bubbles:true}));
-const tHidden=d.querySelector('#chartsContent .chart-trends');
 assert.ok(!d.querySelector('#chartsContent .sales-chart').textContent.includes('Z Группа'),'Group is hidden from the chart');
+w.SalesCharts.renderAnalytics();
+const tHidden=d.querySelector('#analyticsContent .chart-trends');
 assert.ok([...tHidden.querySelectorAll('tbody tr')].some(tr=>tr.textContent.includes('Z Группа')),'Hidden group is still analysed in the table');
 assert.match(tHidden.textContent,/Итог по 2 группам/,'Counters cover all groups, not only shown');
-// Повторное нажатие прячет блок.
-anBtn.click();
-assert.equal(anBtn.getAttribute('aria-pressed'),'false','Second press hides analytics');
-assert.ok(d.querySelector('#chartsContent .chart-trends').classList.contains('hidden'),'Block hides again');
-anBtn.click();
 // Полуторагодовой набор: у окна 3 кв. 2025 — 2 кв. 2026 пары прошлого года есть только у 1 и 2 кв. 2026.
 const hItems=[{excelRow:410,warehouse:'A',group:'H Группа',supplier:'SH',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0],sku:'410',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
 const hPeriods=[
@@ -141,8 +150,8 @@ const hPeriods=[
 ];
 const hRep={fileName:'half.xlsx',items:hItems,periods:hPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(hRep);change('chartKind','monthlyGroups');
-const hTrends=d.querySelector('#chartsContent .chart-trends');
-const hRow=[...hTrends.querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('H Группа'));
+w.SalesCharts.renderAnalytics();
+const hRow=[...d.querySelector('#analyticsContent .chart-trends').querySelectorAll('tbody tr')].find(tr=>tr.textContent.includes('H Группа'));
 const hCells=[...hRow.querySelectorAll('td')].map(e=>e.textContent.trim());
 assert.equal(hCells[2],'—','Q3 2025 has no year-earlier pair');
 assert.equal(hCells[3],'—','Q3 2025 amount stays empty');
@@ -154,9 +163,9 @@ assert.equal(hCells[8],'+100,00','Q2 2026 vs Q2 2025: percent');
 assert.equal(hCells[9],'+100,00','Q2 2026 vs Q2 2025: amount');
 assert.equal(hCells[10],'+100,00','Year percent uses the pairs that exist');
 assert.equal(hCells[11],'+200,00','Year amount uses the pairs that exist');
-const hFoot=[...hTrends.querySelectorAll('tfoot td')].map(e=>e.textContent.trim());
+const hFoot=[...d.querySelectorAll('#analyticsContent .chart-trends tfoot td')].map(e=>e.textContent.trim());
 assert.deepEqual(hFoot.slice(2),['—','—','—','—','—','0,00','—','+100,00','—','+200,00'],'Footer skips quarters without pairs');
-assert.match(hTrends.textContent,/3 кв\. 2025 — 2 кв\. 2026/,'Half window is named');
+assert.match(d.querySelector('#analyticsContent .chart-trends').textContent,/3 кв\. 2025 — 2 кв\. 2026/,'Half window is named');
 // Полных кварталов четыре, но перед окном нет полного одноимённого квартала — честное сообщение.
 const p2Items=[{excelRow:500,warehouse:'A',group:'P Группа',supplier:'SP',purchasePrice:10,monthlySales:[0,10,0,10,0,0,5,0,0,5,0,0,10,0,0],sku:'500',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
 const p2Periods=[
@@ -165,13 +174,15 @@ const p2Periods=[
 ];
 const p2Rep={fileName:'p2.xlsx',items:p2Items,periods:p2Periods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(p2Rep);change('chartKind','monthlyGroups');
-assert.match(d.querySelector('#chartsContent .chart-trends').textContent,/Для сравнения нужен 1 кв\. 2025 — одноимённый квартал перед окном \(2 кв\. 2025 — 1 кв\. 2026\)\./,'Missing year-earlier quarter explains itself');
-// Оформление: закреплённая шапка, вертикальные линии, группа в одну строку, числа справа.
+w.SalesCharts.renderAnalytics();
+assert.match(d.querySelector('#analyticsContent .chart-trends').textContent,/Для сравнения нужен 1 кв\. 2025 — одноимённый квартал перед окном \(2 кв\. 2025 — 1 кв\. 2026\)\./,'Missing year-earlier quarter explains itself');
+// Оформление: закреплённая шапка, вертикальные линии, группа в одну строку, числа справа, узкие столбцы.
 const css=fs.readFileSync('internal/server/web/styles.css','utf8');
 assert.match(css,/\.chart-trends-table thead tr:nth-child\(2\) th \{ position: sticky; top: 28px/,'Second header row is pinned below the first');
 assert.match(css,/\.ct-scroll \{ overflow: auto; max-height: 60vh; \}/,'Table scrolls inside a capped container');
-assert.match(css,/\.chart-trends-table th, \.chart-trends-table td \{ text-align: left; vertical-align: top; border-left: 1px solid var\(--border\); \}/,'Vertical rules between columns');
+assert.match(css,/border-left: 1px solid var\(--border\); padding: 3px 5px; \}/,'Vertical rules and narrow cells');
 assert.match(css,/\.chart-trends-table td:first-child \{ white-space: nowrap; \}/,'Group column stays on one line');
+assert.match(css,/\.chart-trends-table td:nth-child\(2\), \.chart-trends-table thead tr:first-child th:nth-child\(2\) \{ text-align: right; \}/,'Trend column is right-aligned');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);
 change('chartKind','groups');
@@ -211,15 +222,16 @@ assert.ok(dots8[0].startsWith('1 ')&&dots8[7].startsWith('8 '),'First column flo
 const strokes=[...new Set([...d.querySelectorAll('#chartsContent path')].map(p=>p.getAttribute('stroke')))];
 assert.equal(strokes.length,12,'Each numbered group keeps its own stable color');
 // Тенденции на одногодичном богатом наборе: пояснение о необходимости полных кварталов.
-const wTrends=d.querySelector('#chartsContent .chart-trends');
-assert.match(wTrends.textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Wide single-quarter set explains itself');
+w.SalesCharts.renderAnalytics();
+assert.match(d.querySelector('#analyticsContent .chart-trends').textContent,/не менее четырёх полных кварталов \(сейчас: 1: 1 кв\. 2026\)/,'Wide single-quarter set explains itself');
 // Неравномерность: максимум превышает минимум ненулевых месяцев более чем втрое (два года).
 const unItems=[{excelRow:300,warehouse:'A',group:'U Группа',supplier:'SU',purchasePrice:10,monthlySales:[30,1,1,1,1,1,1,1],sku:'300',name:'Т',salesSegment:3,sumSalesLast12M:37,closingStock:1,finalOrderQty:0}];
 const unPeriods=[{year:2025,month:1,label:'Я 25'},{year:2025,month:2,label:'Ф 25'},{year:2025,month:3,label:'М 25'},{year:2025,month:4,label:'А 25'},{year:2026,month:1,label:'Я 26'},{year:2026,month:2,label:'Ф 26'},{year:2026,month:3,label:'М 26'},{year:2026,month:4,label:'А 26'}];
 const unRep={fileName:'u.xlsx',items:unItems,periods:unPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(unRep);change('chartKind','monthlyGroups');
 // Флаг «продажи неравномерные» больше не публикуется в таблице тенденций.
-assert.ok(!d.querySelector('#chartsContent .chart-trends').textContent.includes('неравномерн'),'Unevenness flag is not published');
+w.SalesCharts.renderAnalytics();
+assert.ok(!d.querySelector('#analyticsContent .chart-trends').textContent.includes('неравномерн'),'Unevenness flag is not published');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);change('chartKind','groups');
 w.SalesCharts.update(null);assert.match(d.getElementById('chartsContent').textContent,/Загрузите ведомость/);

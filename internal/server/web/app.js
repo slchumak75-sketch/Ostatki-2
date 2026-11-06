@@ -930,9 +930,10 @@
   }
 
   function switchTabUI(tabName) {
-    const nextTab = ['table', 'suppliers', 'overstock', 'charts'].includes(tabName) ? tabName : 'table';
+    const nextTab = ['table', 'suppliers', 'overstock', 'charts', 'analytics'].includes(tabName) ? tabName : 'table';
     state.activeTab = nextTab;
     if(nextTab === 'charts') window.SalesCharts?.update(state.report);
+    if(nextTab === 'analytics') window.SalesCharts?.renderAnalytics?.();
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
     if(nextTab==='suppliers' && state.pendingSuppliersRender && state.report){state.pendingSuppliersRender=false;renderSuppliersView(state.report);}
@@ -3093,9 +3094,15 @@
         state.activeTab = btn.dataset.tab;
         if(state.report)renderKPIs(state.report);
         if(state.activeTab === 'charts') window.SalesCharts?.update(state.report);
+        if(state.activeTab === 'analytics') window.SalesCharts?.renderAnalytics?.();
         document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${state.activeTab}`));
       });
+    });
+    document.getElementById('btnOverstockTab')?.addEventListener('click', () => {
+      exitComparison(true);
+      if(state.report)renderKPIs(state.report);
+      switchTabUI('overstock');
     });
 
     document.querySelectorAll('.preset-chip').forEach((chip) => {
