@@ -24,23 +24,27 @@ async function run(){
   d.getElementById('btnLoadSavedDb').click();await tick();
   assert.ok(!d.getElementById('savedDbModal').classList.contains('hidden'),'Saved workbook modal must open without a reference');
   d.getElementById('btnCloseSavedDbModal').click();await tick();
-  // Fresh workbook with NO reference: question first, "no" proceeds straight to the file picker.
+  // Fresh workbook with NO reference: диалог выбора; «Загрузить ведомость» открывает подбор файла.
   d.getElementById('btnUpload').click();await tick();
-  assert.ok(dialogVisible());assert.match(d.getElementById('safetyDialog').textContent,/Загрузить эталон\?/);
-  await confirmDialog(false);
-  assert.equal(fileDialogs,1,'"No" must open the workbook picker without a reference');
+  const choice=()=>d.getElementById('uploadChoiceModal');
+  assert.ok(!choice().classList.contains('hidden'),'Upload choice must open without a reference');
+  assert.deepEqual([...choice().querySelectorAll('.v4-modal-toolbar button')].map(b=>b.textContent.trim()),['Загрузить ведомость','Загрузить эталон','Отмена'],'Three actions in the dialog');
+  d.getElementById('btnPickWorkbookFile').click();await tick();
+  assert.ok(choice().classList.contains('hidden'),'Choice closes before the picker');
+  assert.equal(fileDialogs,1,'Workbook picker opens from the choice');
   assert.equal(etalonDialogs,0);
   assert.ok(!calls.includes('api/workbook/check'));
-  // "Yes" queues the reference import and then opens the workbook picker automatically.
+  // «Загрузить эталон» из того же диалога: импорт больше не открывает ведомость автоматически.
   d.getElementById('btnUpload').click();await tick();
-  await confirmDialog(true);
-  assert.equal(etalonDialogs,1,'Reference picker must open on "yes"');
+  d.getElementById('btnPickEtalonFile').click();await tick();
+  assert.equal(etalonDialogs,1,'Reference picker opens from the choice');
   await importEtalon();
-  assert.equal(fileDialogs,2,'Workbook picker must follow a successful reference import');
+  assert.equal(fileDialogs,1,'Reference import must not auto-open the workbook picker');
   ready();
-  // With a fresh reference no question is asked.
+  // Со свежим эталоном — тот же диалог и то же действие ведомости.
   d.getElementById('btnUpload').click();await tick();
-  assert.ok(!dialogVisible());assert.equal(fileDialogs,3);ready();
+  d.getElementById('btnPickWorkbookFile').click();await tick();
+  assert.equal(fileDialogs,2);ready();
   // Midnight: hint flips back, but loading still works and even the guarded day rollover cannot block it.
   now+=4000;timers.find(t=>t.ms===1000).cb();locked();
   now-=4000;w.dispatchEvent(new w.Event('focus'));locked(); // Clock rollback cannot fake freshness.
@@ -52,21 +56,21 @@ async function run(){
   locked();
   // Cancelled reference picker must not queue a surprise workbook dialog later.
   d.getElementById('etalonFileInput').dispatchEvent(new w.Event('cancel'));await tick();
-  d.getElementById('btnUpload').click();await tick();await confirmDialog(true);assert.equal(etalonDialogs,2);
+  d.getElementById('btnUpload').click();await tick();
+  d.getElementById('btnPickEtalonFile').click();await tick();assert.equal(etalonDialogs,2);
   d.getElementById('etalonFileInput').dispatchEvent(new w.Event('cancel'));await tick();
-  assert.equal(fileDialogs,3,'Cancelling the reference picker must not open the workbook picker');
+  assert.equal(fileDialogs,2,'Cancelling the reference picker must not open the workbook picker');
   // «Отмена»/Esc на вопросе об эталоне отменяет всё: ни одного окна, ни одной проверки.
   const callsBeforeCancel=calls.length;
-  d.getElementById('btnUpload').click();await tick();assert.ok(dialogVisible());
-  assert.match(d.getElementById('safetyDialog').textContent,/Отмена/,'A real cancel button is present');
-  d.getElementById('safetyDialog').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await tick();
-  assert.ok(!dialogVisible(),'Escape closes the dialog');
-  assert.equal(fileDialogs,3,'Cancel must not open the workbook picker');
+  d.getElementById('btnUpload').click();await tick();
+  d.getElementById('uploadChoiceModal').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await tick();
+  assert.ok(choice().classList.contains('hidden'),'Escape closes the choice');
+  assert.equal(fileDialogs,2,'Cancel must not open the workbook picker');
   assert.equal(etalonDialogs,2,'Cancel must not open the reference picker');
   assert.equal(calls.length,callsBeforeCancel,'Cancel must not probe the workbook');
   d.getElementById('btnUpload').click();await tick();
-  d.getElementById('safetyDialogCancel').click();await tick();
-  assert.ok(!dialogVisible());assert.equal(fileDialogs,3);assert.equal(etalonDialogs,2);
+  d.getElementById('btnCancelUploadChoice').click();await tick();
+  assert.ok(choice().classList.contains('hidden'));assert.equal(fileDialogs,2);assert.equal(etalonDialogs,2);
   assert.equal(calls.length,callsBeforeCancel,'Cancel button must not probe the workbook either');
  }finally{w.close();}
 }
