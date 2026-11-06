@@ -647,6 +647,24 @@
     </div>
   </div>
 
+  <!-- Выбор при загрузке: ведомость, эталон или отмена -->
+  <div id="uploadChoiceModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="uploadChoiceTitle">
+    <div class="v4-modal-card">
+      <div class="v4-modal-head">
+        <div>
+          <h3 id="uploadChoiceTitle">Загрузить новую ведомость</h3>
+          <div class="v4-modal-sub">Выберите, что загрузить: новую ведомость или эталон</div>
+        </div>
+        <button type="button" class="btn btn-ghost icon-only" id="btnCloseUploadChoice" aria-label="Закрыть окно">✕</button>
+      </div>
+      <div class="v4-modal-toolbar">
+        <button type="button" class="btn btn-beige" id="btnPickWorkbookFile">Загрузить ведомость</button>
+        <button type="button" class="btn btn-beige" id="btnPickEtalonFile">Загрузить эталон</button>
+        <button type="button" class="btn btn-ghost" id="btnCancelUploadChoice">Отмена</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Модальное окно подтверждения при закрытии программы -->
   <div id="adminNoticeModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="adminNoticeTitle">
     <div class="v4-modal-card v4-modal-confirm">
@@ -704,7 +722,7 @@
   </div>
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=17"></script>
-  <script src="app.js?v=4.18"></script>
+  <script src="app.js?v=5.18"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>

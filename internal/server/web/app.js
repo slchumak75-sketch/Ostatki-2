@@ -4110,19 +4110,18 @@
     el('orderPreviewModal').addEventListener('click',e=>{if(e.target===el('orderPreviewModal'))closeOrderPreview();});
     el('orderPreviewModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeOrderPreview();}if(e.key==='Tab'){e.preventDefault();el('btnCloseOrderPreview').focus();}});
 
+    // «Загрузить новую ведомость» открывает выбор из трёх действий: ведомость,
+    // эталон или отмена (возврат в основное меню без каких-либо проверок).
     el('btnUpload').addEventListener('click', () => {
-      if(canLoadWorkbook()){el('fileInput').click();return;}
-      const epoch=state.clientEpoch;
-      // Застрявший флаг прежней цепочки не должен открывать окно ведомости сам.
-      pendingWorkbookAfterEtalon=false;
-      safetyDialog('Загрузить эталон?','Перед новой ведомостью рекомендуется свежий эталон за сегодня: он задаёт рабочие галочки, рейтинг и остаток для сравнения.\n\nЗагрузить эталон перед загрузкой ведомости?','',null,{cancel:true}).then(answer=>{
-        if(epoch!==state.clientEpoch)return;
-        if(answer===true){pendingWorkbookAfterEtalon=true;el('etalonFileInput').click();}
-        else if(answer===false)el('fileInput').click();
-        // «Отмена»/Esc: ничего не открываем и не проверяем — ошибки загрузки нет.
-      });
+      const modal=el('uploadChoiceModal');modal.classList.remove('hidden');modal._returnFocus=document.activeElement;el('btnPickWorkbookFile').focus();
     });
-    el('etalonFileInput').addEventListener('cancel',()=>{pendingWorkbookAfterEtalon=false;});
+    const closeUploadChoice=()=>{const modal=el('uploadChoiceModal');modal.classList.add('hidden');modal._returnFocus?.focus();};
+    el('btnCloseUploadChoice').addEventListener('click',closeUploadChoice);
+    el('btnCancelUploadChoice').addEventListener('click',closeUploadChoice);
+    el('uploadChoiceModal').addEventListener('click',e=>{if(e.target===el('uploadChoiceModal'))closeUploadChoice();});
+    el('uploadChoiceModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeUploadChoice();}if(e.key==='Tab'){e.preventDefault();el('btnPickWorkbookFile').focus();}});
+    el('btnPickWorkbookFile').addEventListener('click',()=>{closeUploadChoice();el('fileInput').click();});
+    el('btnPickEtalonFile').addEventListener('click',()=>{closeUploadChoice();el('etalonFileInput').click();});
     el('fileInput').addEventListener('change', (e) => {
       uploadExcelFile(e.target.files?.[0]);
       e.target.value = '';
