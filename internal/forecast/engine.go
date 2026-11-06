@@ -467,6 +467,7 @@ func calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	// 5. Подсчёт финальных сводок по отчёту, матрице ABC-XYZ, группам, складам и поставщикам
 	whMap := make(map[string]*model.WarehouseSummary)
 	supMap := make(map[string]*model.SupplierSummary)
+	supSales12 := make(map[string]float64)
 	grpOrderItems := make(map[string]int)
 	grpOrderUnits := make(map[string]int)
 	grpOrderCost := make(map[string]float64)
@@ -529,6 +530,7 @@ func calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 			supName = "(Поставщик не указан)"
 		}
 		supKey := it.Warehouse + "\x00" + supName
+		supSales12[supKey] += it.SumSalesLast12M
 		ss, ok := supMap[supKey]
 		if !ok {
 			ss = &model.SupplierSummary{
@@ -596,6 +598,10 @@ func calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 	})
 
 	for _, ss := range supMap {
+		// Поставщики без продаж за последние 12 месяцев в реестр не попадают.
+		if supSales12[ss.Warehouse+"\x00"+ss.Supplier] <= 0 {
+			continue
+		}
 		ss.TotalOrderCost = roundTo(ss.TotalOrderCost, 2)
 		ss.TotalRetailVal = roundTo(ss.TotalRetailVal, 2)
 		if report.TotalOrderCost > 0 {
