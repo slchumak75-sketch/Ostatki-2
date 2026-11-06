@@ -2695,3 +2695,14 @@ body {
 .ef-supplier-clear {flex:0 0 auto;margin-left:6px;}
 .stock-mode-switch.toolbar-custom-width > #btnStockSearchMode {flex:1;min-width:0;}
 .stock-match-control.toolbar-custom-width {overflow:hidden;}
+
+/* Аналитика тенденций: выравнивание и ширины поверх общих правил .data-table
+   (повышенная специфичность .chart-trends-table.data-table + конец файла). */
+.chart-trends-table.data-table { table-layout: auto; }
+.chart-trends-table.data-table td, .chart-trends-table.data-table tfoot td { text-align: right; }
+.chart-trends-table.data-table td:first-child { text-align: left; white-space: nowrap; min-width: max-content; }
+.chart-trends-table.data-table td:nth-child(2), .chart-trends-table.data-table tfoot td:nth-child(2) { text-align: right; }
+.chart-trends-table.data-table thead tr:nth-child(1) th { text-align: center; }
+.chart-trends-table.data-table thead tr:nth-child(1) th:first-child, .chart-trends-table.data-table thead tr:nth-child(1) th:nth-child(2) { text-align: right; }
+.chart-trends-table.data-table thead tr:nth-child(2) th { text-align: right; }
+.chart-trends-table.data-table tfoot td:first-child { text-align: left; }
