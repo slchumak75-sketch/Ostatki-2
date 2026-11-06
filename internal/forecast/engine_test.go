@@ -111,3 +111,49 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 		}
 	}
 }
+
+// Поставщики без продаж за последние 12 месяцев не попадают в реестр заказов.
+func TestSuppliersRegistryExcludesNoSalesSuppliers(t *testing.T) {
+	wb, _, err := xlsx.ReadFile(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx"))
+	if err != nil {
+		t.Fatalf("failed to load workbook: %v", err)
+	}
+	base := wb.Items[0]
+	zero := make([]float64, len(wb.Periods))
+	live := make([]float64, len(wb.Periods))
+	for m := len(live) - 12; m < len(live); m++ {
+		live[m] = 5
+	}
+	wb.Items = append(wb.Items,
+		model.RawItem{ExcelRow: 900001, Warehouse: base.Warehouse, Group: base.Group, SKU: "TEST-NOSALES", Name: "Тест без продаж", ClosingStock: 5, PurchasePrice: 10, Supplier: "Поставщик Без Продаж", MonthlySales: zero},
+		model.RawItem{ExcelRow: 900002, Warehouse: base.Warehouse, Group: base.Group, SKU: "TEST-WITHSALES", Name: "Тест с продажами", ClosingStock: 5, PurchasePrice: 10, Supplier: "Поставщик С Продажами", MonthlySales: live},
+	)
+	rep := forecast.Calculate(wb, model.DefaultParams(), nil)
+	for _, s := range rep.Suppliers {
+		if s.Supplier == "Поставщик Без Продаж" {
+			t.Fatalf("поставщик без продаж за 12 месяцев попал в реестр: %s/%s", s.Warehouse, s.Supplier)
+		}
+	}
+	found := false
+	for _, s := range rep.Suppliers {
+		if s.Supplier == "Поставщик С Продажами" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("поставщик с продажами должен остаться в реестре")
+	}
+	live12 := map[string]bool{}
+	for i := range rep.Items {
+		it := &rep.Items[i]
+		if it.SumSalesLast12M > 0 {
+			live12[it.Warehouse+"\x00"+it.Supplier] = true
+		}
+	}
+	for _, s := range rep.Suppliers {
+		if !live12[s.Warehouse+"\x00"+s.Supplier] {
+			t.Fatalf("в реестре поставщик без продаж за 12 месяцев: %s/%s", s.Warehouse, s.Supplier)
+		}
+	}
+}
