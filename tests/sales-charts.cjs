@@ -147,6 +147,7 @@ assert.match(tHidden.textContent,/Итог по 2 группам/,'Counters cove
 const soItems=[
  {excelRow:600,warehouse:'A',group:'10 Группа',supplier:'S10',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'600',name:'Т',salesSegment:3,sumSalesLast12M:120,closingStock:1,finalOrderQty:0},
  {excelRow:601,warehouse:'B',group:'2 Группа',supplier:'S2',purchasePrice:2,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,10,10,10,10,10,10,10,10,10,10,10,10],sku:'601',name:'Т',salesSegment:3,sumSalesLast12M:180,closingStock:1,finalOrderQty:0},
+ {excelRow:602,warehouse:'B',group:'2 Группа',supplier:'S0',purchasePrice:1,monthlySales:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],sku:'602',name:'Т',salesSegment:3,sumSalesLast12M:0,closingStock:1,finalOrderQty:0},
 ];
 const soRep={fileName:'so.xlsx',items:soItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
 w.SalesCharts.update(soRep);change('chartKind','monthlyGroups');
@@ -170,6 +171,7 @@ const anLabels=[...d.querySelectorAll('#view-analytics .charts-controls label')]
 assert.deepEqual(anLabels,['Поставщик','Склад'],'Supplier selector sits left of warehouse');
 const soSup=d.getElementById('analyticsSupplier');
 assert.deepEqual([...soSup.options].map(o=>o.value),['','S2','S10'],'Analytics supplier selector lists report suppliers');
+assert.ok(![...soSup.options].some(o=>o.value==='S0'),'Suppliers without last-12-month sales are not listed');
 soSup.value='S10';soSup.dispatchEvent(new w.Event('change'));
 assert.deepEqual([...d.querySelector('#analyticsContent .chart-trends').querySelectorAll('tbody tr')].map(tr=>tr.querySelector('td').textContent.trim()),['10 Группа'],'Supplier filter limits the rows');
 soSup.value='S2';soSup.dispatchEvent(new w.Event('change'));
@@ -235,6 +237,12 @@ assert.match(css,/\.chart-trends-table\.data-table td:first-child \{ text-align:
 assert.match(css,/\.chart-trends-table\.data-table tbody td:nth-child\(3\), [^}]*\{ background-color: #f0f7ff; \}/,'Tint A covers quarter pairs 1/3 and the year block');
 assert.match(css,/\.chart-trends-table\.data-table tbody td:nth-child\(5\), [^}]*\{ background-color: #fff8ee; \}/,'Tint B covers quarter pairs 2/4');
 assert.match(css,/\.chart-trends-table\.data-table thead tr:nth-child\(1\) th:nth-child\(4\) \{ background-color: #fff8ee; \}/,'Quarter headers alternate tints');
+const blueRule=[...css.matchAll(/[^{}]*\{ background-color: #f0f7ff; \}/g)].map(m2=>m2[0]).find(r=>r.includes('tbody td:nth-child(3)'));
+assert.ok(blueRule.includes('thead tr:nth-child(2) th:nth-child(5)')&&!blueRule.includes('thead tr:nth-child(2) th:nth-child(3)'),'Blue subheader cells match their columns');
+const creamRule=[...css.matchAll(/[^{}]*\{ background-color: #fff8ee; \}/g)].map(m2=>m2[0]).find(r=>r.includes('tbody td:nth-child(5)'));
+assert.ok(creamRule.includes('thead tr:nth-child(2) th:nth-child(3)')&&!creamRule.includes('thead tr:nth-child(2) th:nth-child(5)'),'Cream subheader cells match their columns');
+assert.match(css,/\.chart-trends-table\.data-table tbody tr:hover td \{ background-color: var\(--surface-hover\); \}/,'Row hover spans the whole table');
+assert.match(css,/\.chart-trends-table\.data-table thead tr:nth-child\(1\) th:first-child, \.chart-trends-table\.data-table thead tr:nth-child\(1\) th:nth-child\(2\) \{ text-align: center; \}/,'Group and trend headers are centered');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);
 change('chartKind','groups');
