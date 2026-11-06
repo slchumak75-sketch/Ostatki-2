@@ -219,7 +219,7 @@
     // Анализ ведётся по последним четырём полным кварталам данных (весь отчёт,
     // с учётом выбранного склада), а не диапазона графика: квартал год назад
     // обычно лежит за пределами показанного окна.
-    const wh=$('chartWarehouse')?.value||'';
+    const wh=$('analyticsWarehouse')?.value||'';
     const full=aggregate(report,'monthlyGroups',wh,0,report.periods.length-1,{unit:mode});
     const months=full.rows.map(r=>({month:r.month||1,year:r.year||0,v:r}));
     const qOf=m=>Math.floor((m.month-1)/3);
@@ -236,7 +236,7 @@
     const [f0,,,f3]=win;
     const prevSame={y:f3.y-1,q:f3.q};
     if(!isFull(prevSame.y,prevSame.q))return `${block}<p class="charts-empty">Для сравнения нужен ${qLabel(prevSame.q,prevSame.y)} — одноимённый квартал перед окном (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}).</p>${close}`;
-    const series=sumMode?['__sum__']:full.warehouses;
+    const series=sumMode?['__sum__']:[...full.warehouses].sort(groupSort);
     const valueOf=(r,g)=>sumMode?shown.reduce((s,g2)=>s+(r.values.get(g2)||0),0):(r.values.get(g)||0);
     const seriesColor=g=>sumMode?'#b45309':groupColor(g);
     const fmtPct=v=>(v>0?'+':'')+money(v);
@@ -327,6 +327,7 @@
       const oldWh=$('chartWarehouse').value;signature=sig;
       $('chartWarehouse').innerHTML='<option value="">Все склады</option>'+warehouses.map(w2=>`<option value="${esc(w2)}">${esc(w2)}</option>`).join('');
       if(warehouses.includes(oldWh))$('chartWarehouse').value=oldWh;
+      if($('analyticsWarehouse')){const oldA=$('analyticsWarehouse').value;$('analyticsWarehouse').innerHTML='<option value="">Все склады</option>'+warehouses.map(w2=>`<option value="${esc(w2)}">${esc(w2)}</option>`).join('');if(warehouses.includes(oldA))$('analyticsWarehouse').value=oldA;}
       for(const id of ['chartFrom','chartTo'])$(id).innerHTML=periods.map((p,i)=>`<option value="${i}">${esc(p.label||monthKey(p))}</option>`).join('');
       if(periods.length){$('chartFrom').value=String(Math.max(0,periods.length-12));$('chartTo').value=String(periods.length-1);}
     }
@@ -334,6 +335,7 @@
   }
   for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit','chartSumMode','chartQuarterBands'])$(id)?.addEventListener('change',render);
   $('chartGroupSearch')?.addEventListener('input',renderGroupList);
+  $('analyticsWarehouse')?.addEventListener('change',renderAnalytics);
   $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
   $('chartGroupList')?.addEventListener('change',e=>{
     const box=e.target.closest('[data-cgp-group]');

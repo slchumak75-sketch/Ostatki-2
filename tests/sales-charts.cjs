@@ -98,6 +98,7 @@ const yRep={fileName:'yoy.xlsx',items:yItems,periods:yPeriods,warehouses:[],grou
 w.SalesCharts.update(yRep);
 change('chartKind','monthlyGroups');
 w.SalesCharts.renderAnalytics();
+assert.deepEqual([...d.getElementById('analyticsWarehouse').options].map(o=>o.value),['','A'],'Analytics selector picks up warehouses from the report');
 const yTrends=d.querySelector('#analyticsContent .chart-trends');
 const headRows=yTrends.querySelectorAll('thead tr');
 assert.deepEqual([...headRows[0].querySelectorAll('th')].map(e=>e.textContent),['Группа','Тенденция','1 кв. 2026','2 кв. 2026','3 кв. 2026','4 кв. 2026','Год'],'Top header: group, trend, four quarters, year');
@@ -142,6 +143,28 @@ w.SalesCharts.renderAnalytics();
 const tHidden=d.querySelector('#analyticsContent .chart-trends');
 assert.ok([...tHidden.querySelectorAll('tbody tr')].some(tr=>tr.textContent.includes('Z Группа')),'Hidden group is still analysed in the table');
 assert.match(tHidden.textContent,/Итог по 2 группам/,'Counters cover all groups, not only shown');
+// Порядок групп — по номерам, затем по алфавиту; селектор склада фильтрует таблицу.
+const soItems=[
+ {excelRow:600,warehouse:'A',group:'10 Группа',supplier:'S10',purchasePrice:1,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5],sku:'600',name:'Т',salesSegment:3,sumSalesLast12M:120,closingStock:1,finalOrderQty:0},
+ {excelRow:601,warehouse:'B',group:'2 Группа',supplier:'S2',purchasePrice:2,monthlySales:[5,5,5,5,5,5,5,5,5,5,5,5,10,10,10,10,10,10,10,10,10,10,10,10],sku:'601',name:'Т',salesSegment:3,sumSalesLast12M:180,closingStock:1,finalOrderQty:0},
+];
+const soRep={fileName:'so.xlsx',items:soItems,periods:yPeriods,warehouses:[],groups:[],suppliers:[],params:{}};
+w.SalesCharts.update(soRep);change('chartKind','monthlyGroups');
+w.SalesCharts.renderAnalytics();
+const soWh=d.getElementById('analyticsWarehouse');
+assert.deepEqual([...soWh.options].map(o=>o.value),['','A','B'],'Analytics warehouse selector lists report warehouses');
+const soTable=d.querySelector('#analyticsContent .chart-trends');
+const soOrder=[...soTable.querySelectorAll('tbody tr')].map(tr=>tr.querySelector('td').textContent.trim());
+assert.deepEqual(soOrder,['2 Группа','10 Группа'],'Groups ordered by number, not lexicographically');
+const soFoot=[...soTable.querySelectorAll('tfoot td')].map(e=>e.textContent.trim());
+assert.deepEqual(soFoot.slice(2),['—','+30,00','—','+30,00','—','+30,00','—','+30,00','—','+120,00'],'Footer totals across both warehouses');
+soWh.value='A';soWh.dispatchEvent(new w.Event('change'));
+const aTable=d.querySelector('#analyticsContent .chart-trends');
+assert.deepEqual([...aTable.querySelectorAll('tbody tr')].map(tr=>tr.querySelector('td').textContent.trim()),['10 Группа'],'Warehouse filter limits the rows');
+const aCells=[...aTable.querySelector('tbody tr').querySelectorAll('td')].map(e=>e.textContent.trim());
+assert.equal(aCells[11],'0,00','Filtered group keeps its own numbers');
+soWh.value='';soWh.dispatchEvent(new w.Event('change'));
+assert.equal([...d.querySelector('#analyticsContent .chart-trends').querySelectorAll('tbody tr')].length,2,'Clearing the selector restores all groups');
 // Полуторагодовой набор: у окна 3 кв. 2025 — 2 кв. 2026 пары прошлого года есть только у 1 и 2 кв. 2026.
 const hItems=[{excelRow:410,warehouse:'A',group:'H Группа',supplier:'SH',purchasePrice:10,monthlySales:[10,0,0,10,0,0,5,0,0,5,0,0,10,0,0,20,0,0],sku:'410',name:'Т',salesSegment:3,sumSalesLast12M:40,closingStock:1,finalOrderQty:0}];
 const hPeriods=[
@@ -183,6 +206,9 @@ assert.match(css,/\.ct-scroll \{ overflow: auto; max-height: 60vh; \}/,'Table sc
 assert.match(css,/border-left: 1px solid var\(--border\); padding: 3px 5px; \}/,'Vertical rules and narrow cells');
 assert.match(css,/\.chart-trends-table td:first-child \{ white-space: nowrap; \}/,'Group column stays on one line');
 assert.match(css,/\.chart-trends-table td:nth-child\(2\), \.chart-trends-table thead tr:first-child th:nth-child\(2\) \{ text-align: right; \}/,'Trend column is right-aligned');
+assert.match(css,/\.chart-trends-table\.data-table \{ table-layout: auto; \}/,'Trends table uses automatic column widths');
+assert.match(css,/\.chart-trends-table\.data-table td, \.chart-trends-table\.data-table tfoot td \{ text-align: right; \}/,'All data cells align right over .data-table defaults');
+assert.match(css,/\.chart-trends-table\.data-table td:first-child \{ text-align: left; white-space: nowrap; min-width: max-content; \}/,'Group column keeps the full name on one line');
 // Возврат к основной фикстуре.
 w.SalesCharts.update(rep);
 change('chartKind','groups');
