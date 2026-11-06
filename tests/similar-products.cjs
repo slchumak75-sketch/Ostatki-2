@@ -6,7 +6,7 @@ const report={fileName:'Тест.xlsx',items,periods:[],params:{},warehouses:[],
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__similar={state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore,setWorkingMark:(row,value)=>{const it=state.rowMap.get(row);nomenclatureProperties[propertyKey(it)]=value;}};bootstrap();'));
 const tick=()=>new Promise(r=>setTimeout(r,50));
 (async()=>{try{
- await tick();assert.equal(d.querySelector('[data-tab="liquidity"]'),null);assert.equal(d.querySelector('#view-liquidity'),null);assert.equal(d.querySelector('[data-tab="charts"]').nextElementSibling.querySelector('input').id,'stockSimilarityPercent');
+ await tick();assert.equal(d.querySelector('[data-tab="liquidity"]'),null);assert.equal(d.querySelector('#view-liquidity'),null);assert.equal(d.querySelector('[data-tab="analytics"]').nextElementSibling.querySelector('input').id,'stockSimilarityPercent');
  const {state,collectUIState,applyEnvelope,stockNameSignature,stockNameScore}=w.__similar;const percent=d.getElementById('stockSimilarityPercent'),toggle=d.getElementById('btnStockSearchMode'),pop=d.getElementById('warehouseStockPopover');
  // Квадратик «×» по умолчанию зелёный: подсказки выключены, включаем для сценариев ниже.
  assert.equal(state.stockHintsDisabled,true,'Stock hints must start disabled (green square)');
@@ -47,7 +47,7 @@ const tick=()=>new Promise(r=>setTimeout(r,50));
  const disabledSaved=collectUIState();assert.equal(disabledSaved.stockHintsDisabled,true);applyEnvelope({report,uiState:disabledSaved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(state.stockHintsDisabled,true);hover();assert.ok(pop.classList.contains('hidden'));
  assert.equal(toggle.disabled,true);toggle.click();assert.equal(state.stockHintsDisabled,true);assert.equal(state.stockSearchMode,mode);hover();assert.ok(pop.classList.contains('hidden'));
  off.click();assert.equal(toggle.disabled,false);assert.equal(state.stockHintsDisabled,false);assert.equal(state.stockSearchMode,mode);hover();assert.ok(!pop.classList.contains('hidden'));
- for(const tab of ['table','suppliers','overstock','charts'])assert.ok(d.querySelector(`[data-tab="${tab}"]`).classList.contains('tab-beige'));
+ for(const tab of ['table','suppliers','charts','analytics'])assert.ok(d.querySelector(`[data-tab="${tab}"]`).classList.contains('tab-beige'));
  const liveAnchor=d.querySelector('[data-stock-row="8"]');
  liveAnchor.click();
  liveAnchor.dispatchEvent(new w.MouseEvent('mouseout',{bubbles:true,relatedTarget:d.body}));

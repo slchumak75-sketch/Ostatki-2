@@ -1377,7 +1377,7 @@ body.col-resize-active * {
 .chart-trends h3 { margin: 0 0 8px; font-size: 14px; }
 .ct-scroll { overflow: auto; max-height: 60vh; }
 .chart-trends-table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
-.chart-trends-table th, .chart-trends-table td { text-align: left; vertical-align: top; border-left: 1px solid var(--border); }
+.chart-trends-table th, .chart-trends-table td { text-align: left; vertical-align: top; border-left: 1px solid var(--border); padding: 3px 5px; }
 .chart-trends-table th:first-child, .chart-trends-table td:first-child { border-left: 0; }
 .chart-trends-table th { white-space: nowrap; }
 .chart-trends-table td:first-child { white-space: nowrap; }
@@ -1392,6 +1392,7 @@ body.col-resize-active * {
 .ct-flat { background: #e5e7eb; color: #374151; }
 .ct-none { background: #f3f4f6; color: #6b7280; }
 .ct-num { text-align: right; white-space: nowrap; }
+.chart-trends-table td:nth-child(2), .chart-trends-table thead tr:first-child th:nth-child(2) { text-align: right; }
 .chart-trends-table tfoot td { font-weight: 600; border-top: 2px solid var(--border-strong); text-align: right; background: var(--surface); }
 .chart-trends-table tfoot td:first-child { text-align: left; }
 .ct-summary { margin: 8px 0 0; font-size: 12.5px; }

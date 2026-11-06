@@ -213,7 +213,7 @@
   // в столбце «Тенденция». Блок показывается кнопкой «Аналитика» и считается для всех
   // групп независимо от отметки в перечне.
   function trendAnalysis(data,title) {
-    const mode=unitMode(),unit=unitWord(mode);
+    const mode='money',unit='руб.'; // Аналитика всегда в рублях, независимо от единиц графика.
     const shown=displayedGroups();
     const sumMode=Boolean($('chartSumMode')?.checked);
     // Анализ ведётся по последним четырём полным кварталам данных (весь отчёт,
@@ -226,8 +226,7 @@
     const qLabel=(q,y)=>`${q+1} кв. ${y}`;
     const hasMonth=(y,m)=>months.some(x=>x.year===y&&x.month===m);
     const isFull=(y,q)=>hasMonth(y,q*3+1)&&hasMonth(y,q*3+2)&&hasMonth(y,q*3+3);
-    const visible=$('btnAnalytics')?.getAttribute('aria-pressed')==='true';
-    const block=`<div class="chart-trends${visible?'':' hidden'}"><h3>Аналитика тенденций — ${esc(title)}</h3>`;
+    const block=`<div class="chart-trends"><h3>Аналитика тенденций — ${esc(title)}</h3>`;
     const close='</div>';
     // Полные кварталы: присутствуют все три месяца.
     const fulls=[];
@@ -275,8 +274,8 @@
     const foot=`<tfoot><tr><td>Итог</td><td></td>${win.map((f,i)=>prevFull[i]?`<td class="ct-num">—</td><td class="ct-num">${fmtDiff(totDiff[i])}</td>`:'<td class="ct-num">—</td><td class="ct-num">—</td>').join('')}<td class="ct-num">—</td><td class="ct-num">${fmtDiff(totYear)}</td></tr></tfoot>`;
     const summary=sumMode?'':`<p class="ct-summary">Итог по ${series.length} группам (четыре квартала окна против тех же кварталов предыдущего года, порог ±5%): тенденций роста — <strong>${grow}</strong>, падения — <strong>${fall}</strong>, стабильных — <strong>${flat}</strong>.</p>`;
     const note=`<p class="charts-note">Окно анализа — последние четыре полных квартала (${qLabel(f0.q,f0.y)} — ${qLabel(f3.q,f3.y)}). Для каждого квартала — сравнение с одноимённым кварталом предыдущего года: проценты и изменение суммой; «Год» — суммарно по четырём кварталам окна против тех же кварталов предыдущего года. Порог тенденции ±5%.</p>`;
-    const subHead=win.map(()=>`<th>%</th><th>${mode==='units'?'шт.':'руб.'}</th>`).join('');
-    return `${block}<div class="ct-scroll"><table class="chart-trends-table data-table"><thead><tr><th rowspan="2">Группа</th><th rowspan="2">Тенденция</th>${win.map(f=>`<th colspan="2">${qLabel(f.q,f.y)}</th>`).join('')}<th colspan="2">Год</th></tr><tr>${subHead}<th>%</th><th>${mode==='units'?'шт.':'руб.'}</th></tr></thead><tbody>${rows}</tbody>${foot}</table></div>${summary}${note}${close}`;
+    const subHead=win.map(()=>'<th>%</th><th>руб.</th>').join('');
+    return `${block}<div class="ct-scroll"><table class="chart-trends-table data-table"><thead><tr><th rowspan="2">Группа</th><th rowspan="2">Тенденция</th>${win.map(f=>`<th colspan="2">${qLabel(f.q,f.y)}</th>`).join('')}<th colspan="2">Год</th></tr><tr>${subHead}<th>%</th><th>руб.</th></tr></thead><tbody>${rows}</tbody>${foot}</table></div>${summary}${note}${close}`;
   }
   function renderGroupList() {
     const list=$('chartGroupList');if(!list)return;
@@ -311,7 +310,7 @@
       const names=new Set(groupCatalog.map(g=>g.name));
       for(const g of [...groupSelection])if(!names.has(g))groupSelection.delete(g);
       renderGroupList();
-      $('chartsContent').innerHTML=`<h2>${esc(title)}</h2><p class="charts-summary">${esc(report.periods[from].label||monthKey(report.periods[from]))} — ${esc(report.periods[to].label||monthKey(report.periods[to]))} · Всего: <strong>${fmtMetric(data.total,mode)} ${metric}</strong>${mode==='money'?` · в штуках: ${qty(data.unitsTotal)}`:''}</p>${monthlyGroupsSvg(data,title)}<details><summary>Точные значения</summary><table class="chart-values data-table"><thead><tr><th>Месяц</th>${data.warehouses.map(g=>`<th>${esc(g)}, ${metric}</th>`).join('')}<th>Итого, ${metric}</th><th>Доля, %</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td>${esc(r.label)}</td>${data.warehouses.map(g=>`<td>${fmtMetric(r.values.get(g)||0,mode)}</td>`).join('')}<td>${fmtMetric(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),mode)}</td><td>${pct(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),data.total)}</td></tr>`).join('')}</tbody></table></details>${trendAnalysis(data,title)}`;
+      $('chartsContent').innerHTML=`<h2>${esc(title)}</h2><p class="charts-summary">${esc(report.periods[from].label||monthKey(report.periods[from]))} — ${esc(report.periods[to].label||monthKey(report.periods[to]))} · Всего: <strong>${fmtMetric(data.total,mode)} ${metric}</strong>${mode==='money'?` · в штуках: ${qty(data.unitsTotal)}`:''}</p>${monthlyGroupsSvg(data,title)}<details><summary>Точные значения</summary><table class="chart-values data-table"><thead><tr><th>Месяц</th>${data.warehouses.map(g=>`<th>${esc(g)}, ${metric}</th>`).join('')}<th>Итого, ${metric}</th><th>Доля, %</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td>${esc(r.label)}</td>${data.warehouses.map(g=>`<td>${fmtMetric(r.values.get(g)||0,mode)}</td>`).join('')}<td>${fmtMetric(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),mode)}</td><td>${pct(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),data.total)}</td></tr>`).join('')}</tbody></table></details>`;
       return;
     }
     const {rows,note}=applyTop(data.rows,true);
@@ -334,15 +333,6 @@
     render();
   }
   for(const id of ['chartKind','chartWarehouse','chartFrom','chartTo','chartTop','chartUnit','chartSumMode','chartQuarterBands'])$(id)?.addEventListener('change',render);
-  // Кнопка «Аналитика» (рядом с «Конфигурация») показывает или скрывает таблицу тенденций.
-  $('btnAnalytics')?.addEventListener('click',()=>{
-    const btn=$('btnAnalytics');
-    const on=btn.getAttribute('aria-pressed')!=='true';
-    btn.setAttribute('aria-pressed',on?'true':'false');
-    const blk=document.querySelector('#chartsContent .chart-trends');
-    if(blk)blk.classList.toggle('hidden',!on);
-    if(on)document.querySelector('[data-tab="charts"]')?.click();
-  });
   $('chartGroupSearch')?.addEventListener('input',renderGroupList);
   $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
   $('chartGroupList')?.addEventListener('change',e=>{
@@ -351,6 +341,13 @@
     if(box.checked)groupSelection.add(box.dataset.cgpGroup);else groupSelection.delete(box.dataset.cgpGroup);
     renderGroupList();render();
   });
-  window.SalesCharts={update,aggregate};
+  // Вкладка «Аналитика»: таблица тенденций по данным всего отчёта (все склады), всегда в рублях.
+  function renderAnalytics() {
+    const host=$('analyticsContent');
+    if(!host)return;
+    if(!report?.items?.length||!report.periods?.length){host.innerHTML='<p class="charts-empty">Загрузите ведомость с помесячными продажами.</p>';return;}
+    host.innerHTML=trendAnalysis(null,'Динамика продаж по группам товаров');
+  }
+  window.SalesCharts={update,aggregate,renderAnalytics};
   update(null);
 })();

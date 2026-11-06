@@ -13,7 +13,7 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,60));
 (async()=>{
  try {
-  await tick();d.querySelector('[data-tab="overstock"]').click();await tick();
+  await tick();d.getElementById('btnOverstockTab').click();await tick();
   const panel=d.getElementById('view-overstock'),card=d.getElementById('overstockContainer');
   const viewport=card.querySelector('.table-scroll');
   assert.equal(w.getComputedStyle(panel).overflow,'hidden');
@@ -29,7 +29,7 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
   const first=d.querySelector('#overstockTable tbody tr').textContent;
   d.querySelector('#overstockTable [data-ov-sort="overstockValue"]').click();
   assert.notEqual(d.querySelector('#overstockTable tbody tr').textContent,first,'Radar sorting still works');
-  d.querySelector('[data-tab="table"]').click();d.querySelector('[data-tab="overstock"]').click();
+  d.querySelector('[data-tab="table"]').click();d.getElementById('btnOverstockTab').click();
   assert.equal(w.getComputedStyle(d.querySelector('#overstockTable th')).top,'0px','Tab switch must not restore an outer header offset');
   console.log('Radar single scroll viewport and sticky header layout tests passed');
  } finally {w.close();}

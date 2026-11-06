@@ -79,7 +79,7 @@
             <button type="button" class="btn btn-beige" id="btnBackupEtalon">Резервная копия свойств (JSON) для эталона</button>
             <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
             <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
-            <button type="button" class="btn btn-beige" id="btnAnalytics" aria-pressed="false" title="Показать или скрыть аналитику тенденций на вкладке графиков">Аналитика</button>
+            <button type="button" class="btn btn-beige" id="btnOverstockTab" title="Открыть вкладку Неликвиды">Неликвиды <span class="tab-counter" id="cntTabOverstock">0</span></button>
           </div>
           <div class="presets-bar">
  <button type="button" class="btn btn-beige" id="btnReferenceHistory">История эталонов</button>
@@ -198,10 +198,8 @@
           <button class="tab-btn tab-beige" data-tab="suppliers" role="tab">
             Заказ <span class="tab-counter" id="cntTabSuppliers">0</span>
           </button>
-          <button class="tab-btn tab-beige" data-tab="overstock" role="tab">
-            Неликвиды <span class="tab-counter" id="cntTabOverstock">0</span>
-          </button>
           <button class="tab-btn tab-beige" data-tab="charts" role="tab">Графики</button>
+          <button class="tab-btn tab-beige" data-tab="analytics" role="tab">Аналитика</button>
           <label class="stock-match-control btn-beige" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="number" min="0" max="100" step="1" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /></label>
           <span class="stock-mode-switch" role="group" aria-label="Режим подсказок номенклатуры"><button type="button" class="btn btn-beige" id="btnStockSearchMode" aria-pressed="false" title="Показать совпадения на других складах">Другой склад</button><button type="button" class="stock-hints-close" id="btnStockHintsOff" title="Отключить подсказки" aria-label="Отключить подсказки" aria-pressed="false">×</button></span>
         </div>
@@ -378,6 +376,9 @@
       </div>
       <p class="charts-note">Продажи в текущих закупочных ценах: количество × «Цена», не фактическая выручка. Только положительные продажи; возвраты не включены. Все позиции ведомости, независимо от фильтров и бюджета.</p>
       <div id="chartsContent" class="charts-content statement-surface" aria-live="polite"></div>
+    </section>
+    <section class="tab-view" id="view-analytics">
+      <div id="analyticsContent" class="charts-content statement-surface" aria-live="polite"></div>
     </section>
   </main>
 
@@ -698,7 +699,7 @@
     </div>
   </div>
   <div id="toast" class="toast hidden"></div>
-  <script src="charts.js?v=13"></script>
+  <script src="charts.js?v=14"></script>
   <script src="app.js?v=4.18"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>

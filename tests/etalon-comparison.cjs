@@ -62,7 +62,7 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
  assert.deepEqual(rows(),[11],'Rating filter combines with the property filter');
  d.querySelector('.tab-btn[data-tab="table"]').click();assert.deepEqual(rows(),[],'Leaving comparison restores ordinary search and drops property filters');
  d.getElementById('btnClearAllExcelFilters').click();await tick(); // ordinary filters persist after exit; clear them for the next section
- for(const tab of ['table','suppliers','overstock','charts']){
+ for(const tab of ['table','suppliers','charts','analytics']){
   compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12,14]);
   d.querySelector(`.tab-btn[data-tab="${tab}"]`).click();
   assert.equal(compare.getAttribute('aria-pressed'),'false');assert.ok(d.getElementById('comparisonHint').classList.contains('hidden'));assert.deepEqual(rows(),[10]);
