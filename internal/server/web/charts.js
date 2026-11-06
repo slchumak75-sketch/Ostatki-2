@@ -333,7 +333,7 @@
       $('chartWarehouse').innerHTML='<option value="">Все склады</option>'+warehouses.map(w2=>`<option value="${esc(w2)}">${esc(w2)}</option>`).join('');
       if(warehouses.includes(oldWh))$('chartWarehouse').value=oldWh;
       if($('analyticsWarehouse')){const oldA=$('analyticsWarehouse').value;$('analyticsWarehouse').innerHTML='<option value="">Все склады</option>'+warehouses.map(w2=>`<option value="${esc(w2)}">${esc(w2)}</option>`).join('');if(warehouses.includes(oldA))$('analyticsWarehouse').value=oldA;}
-      if($('analyticsSupplier')){const oldS=$('analyticsSupplier').value;const sups=[...new Set((rep?.items||[]).map(r=>r.supplier).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ru',{numeric:true}));$('analyticsSupplier').innerHTML='<option value="">Все поставщики</option>'+sups.map(sp=>`<option value="${esc(sp)}">${esc(sp)}</option>`).join('');if(sups.includes(oldS))$('analyticsSupplier').value=oldS;}
+      if($('analyticsSupplier')){const oldS=$('analyticsSupplier').value;const sups=[...new Set((rep?.items||[]).filter(r=>Number(r.sumSalesLast12M)>0).map(r=>r.supplier).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ru',{numeric:true}));$('analyticsSupplier').innerHTML='<option value="">Все поставщики</option>'+sups.map(sp=>`<option value="${esc(sp)}">${esc(sp)}</option>`).join('');if(sups.includes(oldS))$('analyticsSupplier').value=oldS;}
       for(const id of ['chartFrom','chartTo'])$(id).innerHTML=periods.map((p,i)=>`<option value="${i}">${esc(p.label||monthKey(p))}</option>`).join('');
       if(periods.length){$('chartFrom').value=String(Math.max(0,periods.length-12));$('chartTo').value=String(periods.length-1);}
     }
