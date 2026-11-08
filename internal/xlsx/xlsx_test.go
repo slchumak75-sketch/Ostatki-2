@@ -247,3 +247,19 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 		t.Fatalf("unexpected extracted snapshot: %+v", extracted)
 	}
 }
+
+func TestParseBytesRejectsLegacyXls(t *testing.T) {
+	ole := []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0x00, 0x00}
+	_, err := xlsx.ParseBytes(ole, "Ведомость 08.11.2026.xls")
+	if err == nil {
+		t.Fatal("expected error for legacy .xls payload")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, ".xls") || !strings.Contains(msg, ".xlsx") {
+		t.Fatalf("error must explain the .xls → .xlsx conversion, got: %v", err)
+	}
+	// Не-OLE мусор по-прежнему даёт общую ошибку архива
+	if _, err := xlsx.ParseBytes([]byte("not a zip at all"), "broken.xlsx"); err == nil || !strings.Contains(err.Error(), "ZIP") {
+		t.Fatalf("expected generic zip error, got: %v", err)
+	}
+}

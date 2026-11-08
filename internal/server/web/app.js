@@ -450,6 +450,12 @@
   function fmtInt(n) {
     return Math.round(Number(n) || 0).toLocaleString('ru-RU');
   }
+  // Остаток: целые показываем как целые, дробные (встречаются в ведомостях 1С,
+  // напр. 0,25 кг / 4,52 м) — с двумя знаками, чтобы значение не «врало» округлением.
+  function fmtStock(n) {
+    const v = Number(n) || 0;
+    return Number.isInteger(v) ? v.toLocaleString('ru-RU') : v.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 
   function parseQtyInput(raw) {
     const digits = String(raw ?? '').replace(/[^\d]/g, '');
@@ -1890,7 +1896,7 @@
             <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
       <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
       <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
-      <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
+      <td class="num-col col-5digits">${fmtStock(it.closingStock)}</td>
       <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
         <div class="qty-editor">
           <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${state.orderTransferRows.has(it.excelRow)?'пер':Number(it.finalOrderQty)===0?'':fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
@@ -2210,7 +2216,7 @@
         <span><i class="rcp-dot" style="background:#93c5fd"></i>1-й: <strong>${fmtInt(y1Sum)} шт.</strong></span>
         <span><i class="rcp-dot" style="background:#3b82f6"></i>2-й: <strong>${fmtInt(y2Sum)} шт.</strong></span>
         <span><i class="rcp-dot" style="background:#10b981"></i>12 мес.: <strong>${fmtInt(y3Sum)} шт.</strong></span>
-        <span>Ост.: <strong>${fmtInt(it.closingStock)} шт.</strong></span>
+        <span>Ост.: <strong>${fmtStock(it.closingStock)} шт.</strong></span>
       </div>
       <svg class="rcp-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
         ${gridSVG}
@@ -2596,7 +2602,7 @@
               <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
               <td class="sup-cell" title="${esc(it.supplier)}">${esc(it.supplier || '')}</td>
               <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
-              <td class="num-col col-5digits">${fmtInt(it.closingStock)}</td>
+              <td class="num-col col-5digits">${fmtStock(it.closingStock)}</td>
               <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
               <td class="num-col">${fmtRetail(it)}</td>
               <td class="num-col" style="color:var(--warn);font-weight:700">${fmtMoney(it.overstockValue)} руб.</td>
@@ -4100,7 +4106,7 @@
       const supplier=btn.dataset.filterSup,warehouse=btn.dataset.filterWh||'';
       const items=(state.report?.items||[]).filter(it=>normalizeSupName(it.supplier)===normalizeSupName(supplier) && (it.warehouse||'')===warehouse && Number(it.finalOrderQty)>0);
       el('orderPreviewTitle').textContent=`Предварительный просмотр: ${supplier} • ${warehouse||'Склад не указан'}`;
-      el('orderPreviewBody').innerHTML=items.map(it=>`<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>шт.</td><td>${fmtInt(it.sumSalesLast12M)}</td><td>${fmtInt(it.closingStock)}</td><td>${fmtInt(it.finalOrderQty)}</td></tr>`).join('') || '<tr><td colspan="6">В заказе нет позиций</td></tr>';
+      el('orderPreviewBody').innerHTML=items.map(it=>`<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>шт.</td><td>${fmtInt(it.sumSalesLast12M)}</td><td>${fmtStock(it.closingStock)}</td><td>${fmtInt(it.finalOrderQty)}</td></tr>`).join('') || '<tr><td colspan="6">В заказе нет позиций</td></tr>';
       el('orderPreviewTotal').textContent=`Позиций: ${items.length} • Заказ: ${fmtInt(items.reduce((sum,it)=>sum+Number(it.finalOrderQty),0))} шт. • Сумма: ${fmtMoney(items.reduce((sum,it)=>sum+calcLineSum(it.finalOrderQty,it.purchasePrice),0))} руб.`;
       const modal=el('orderPreviewModal');modal.classList.remove('hidden');modal._returnFocus=btn;el('btnCloseOrderPreview').focus();
     });
