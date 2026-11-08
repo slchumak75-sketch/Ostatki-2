@@ -18,3 +18,6 @@ func OpenAppWindow(url string) error {
 	}
 	return cmd.Start()
 }
+
+// HideConsole на Linux / macOS не требуется (нет консольного окна Windows).
+func HideConsole() {}
