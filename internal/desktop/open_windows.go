@@ -104,7 +104,7 @@ func OpenAppWindow(url string) error {
 	// Имя профиля меняется при смене иконки/оформления приложения: в профиле
 	// браузера кэшируется favicon, и старый кэш показывал бы прежнюю иконку
 	// на панели задач (иконку окна в --app режиме браузер берёт из favicon).
-	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV7Max")
+	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV8Max")
 	prepareWindowedMaxProfile(profileDir, screenW, screenH)
 
 	for _, bin := range candidates {

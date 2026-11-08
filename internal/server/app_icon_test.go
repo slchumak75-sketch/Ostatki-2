@@ -68,4 +68,17 @@ func TestApplicationIconAssets(t *testing.T) {
 	if _, err := png.Decode(bytes.NewReader(rec.Body.Bytes())); err != nil {
 		t.Fatal("invalid favicon", err)
 	}
+	// Регрессия батча-26: web/app-icon.png — вторая копия иконки (favicon GUI),
+	// которую при замене дизайна забыли обновить; из неё браузер --app-окна берёт
+	// иконку для панели задач. Старая иконка была бирюзовой (teal: g>r, b~149),
+	// новая — тёплой кремовой (r>240, g>230, b>150).
+	fav, err := png.Decode(bytes.NewReader(rec.Body.Bytes()))
+	if err != nil {
+		t.Fatal("decode favicon", err)
+	}
+	fr, fg, fb, _ := fav.At(32, 3).RGBA()
+	fr8, fg8, fb8 := uint8(fr>>8), uint8(fg>>8), uint8(fb>>8)
+	if !(fr8 > 200 && fg8 > 180 && fb8 > 150) {
+		t.Fatalf("favicon must be the new warm icon, got RGB(%d,%d,%d) at (32,3)", fr8, fg8, fb8)
+	}
 }
