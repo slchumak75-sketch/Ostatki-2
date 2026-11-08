@@ -154,6 +154,10 @@ func main() {
 			time.Sleep(150 * time.Millisecond)
 			if err := desktop.OpenAppWindow(localURL); err != nil {
 				log.Printf("Не удалось автоматически открыть окно: %v. Откройте вручную: %s", err, localURL)
+			} else {
+				// Графическое окно открыто: закрываем консоль, чтобы на панели
+				// задач не оставалось её кнопки с иконкой терминала.
+				desktop.HideConsole()
 			}
 		}()
 	}

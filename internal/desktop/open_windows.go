@@ -24,7 +24,22 @@ var (
 
 	shell32DLL       = syscall.NewLazyDLL("shell32.dll")
 	procShellExecute = shell32DLL.NewProc("ShellExecuteW")
+
+	kernel32DLL       = syscall.NewLazyDLL("kernel32.dll")
+	procGetConsoleWnd = kernel32DLL.NewProc("GetConsoleWindow")
+	procFreeConsole   = kernel32DLL.NewProc("FreeConsole")
 )
+
+// HideConsole отключает процесс от консоли, из которой он был запущен:
+// чёрное окно консоли (в Windows 11 — вкладка Windows Terminal) закрывается,
+// и на панели задач остаётся только графическое окно приложения с иконкой
+// из ресурсов EXE. В режимах -server/-headless и при ошибке открытия GUI
+// консоль сохраняется для журнала.
+func HideConsole() {
+	if h, _, _ := procGetConsoleWnd.Call(); h != 0 {
+		procFreeConsole.Call()
+	}
+}
 
 func primaryScreenSize() (int, int) {
 	w, _, _ := procGetSysMetrics.Call(smCxScreen)
@@ -86,7 +101,10 @@ func prepareWindowedMaxProfile(profileDir string, screenW, screenH int) {
 func OpenAppWindow(url string) error {
 	screenW, screenH := primaryScreenSize()
 	candidates := findChromiumAppBinaries()
-	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV5Max")
+	// Имя профиля меняется при смене иконки/оформления приложения: в профиле
+	// браузера кэшируется favicon, и старый кэш показывал бы прежнюю иконку
+	// на панели задач (иконку окна в --app режиме браузер берёт из favicon).
+	profileDir := filepath.Join(os.TempDir(), "Ostatki2GUIProfileV7Max")
 	prepareWindowedMaxProfile(profileDir, screenW, screenH)
 
 	for _, bin := range candidates {
