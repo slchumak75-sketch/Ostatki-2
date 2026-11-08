@@ -57,6 +57,13 @@ func ReadFile(filePath string) (*model.WorkbookData, []byte, error) {
 
 // ParseBytes разбирает .xlsx архив из памяти, полностью игнорируя цветовую заливку (в т.ч. красные поля) 1С.
 func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
+	// Файлы старого двоичного формата Excel (.xls, OLE2: D0 CF 11 E0…) не являются
+	// ZIP-архивом. Раньше они падали с общей ошибкой «некорректный ZIP/XLSX архив»,
+	// и пользователь продолжал видеть предыдущую ведомость, сравнивая её с новым
+	// файлом. Даём понятную инструкцию, как пересохранить в .xlsx.
+	if len(raw) >= 8 && raw[0] == 0xD0 && raw[1] == 0xCF && raw[2] == 0x11 && raw[3] == 0xE0 {
+		return nil, fmt.Errorf("это файл старого формата Excel (.xls): в Excel выберите «Файл → Сохранить как → Книга Excel (*.xlsx)» и загрузите пересохранённый файл")
+	}
 	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
 	if err != nil {
 		return nil, fmt.Errorf("некорректный ZIP/XLSX архив: %w", err)
