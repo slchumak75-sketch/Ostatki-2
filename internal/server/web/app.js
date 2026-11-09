@@ -792,10 +792,19 @@
       table.style.width = '100%';
       return;
     }
+    // Единицы ширин фиксируем ДО нормировки: pxBase — ПИКСЕЛЬНЫЙ эталон (из него
+    // считается ширина возвращающегося столбца «+»), записываем его ТОЛЬКО если
+    // ширины действительно были в px. Раньше сюда безусловно попадали проценты
+    // как пиксели (≈5.9 вместо ≈80), эталон портился, и столбец «+» возвращался
+    // шириной ~24% вместо ~2,4%, расталкивая соседние колонки («разъезд» от
+    // кнопки «Актуально» в обе стороны).
+    const rawWidths = cols.map(col => col.style.width);
     const widths = cols.map(col => parseFloat(col.style.width) || 1);
     const total = widths.reduce((sum, width) => sum + width, 0);
     cols.forEach((col, idx) => { col.style.width = `${widths[idx] * 100 / total}%`; });
-    try { table.dataset.pxBase = JSON.stringify(widths); } catch (_) {}
+    if (rawWidths.every(v => v === '' || v.endsWith('px'))) {
+      try { table.dataset.pxBase = JSON.stringify(widths); } catch (_) {}
+    }
     table.querySelectorAll('thead th').forEach(th => { th.style.width = ''; });
     table.style.width = '100%';
   }
@@ -820,20 +829,19 @@
         // Скрываем «+»: в colgroup ровно один лишний col — плюс.
         cols[plusIndex]?.remove();cols.splice(plusIndex,1);
       } else if(hasPlus && cols.length===expected-1){
-        // Показываем «+»: вставляем узкий col на своё место. Если colgroup уже
-        // нормирован в процентах, ширину «+» считаем от исходного px-базиса —
-        // смешивать '%' и 'px' нельзя, это искажало бы пропорции столбцов.
-        let plusWidth='32px';
+        // Показываем «+»: вставляем узкий col на своё место. В %-раскладке «+»
+        // занимает ровно остаток до 100% — данные колонки неподвижны, таблица
+        // остаётся ровно 100%. Раньше сюда попадал литеральный '32px', который
+        // после наивной нормировки parseFloat раздувался до ~24% и расталкивал
+        // колонки при каждом переключении «Актуально».
+        let plusWidth='2.4%';
         const styles=cols.map(c=>c.style.width);
-        if(styles.every(v=>v.endsWith('%'))){
-          try{
-            let base=JSON.parse(table.dataset.pxBase||'[]');
-            if(Array.isArray(base)&&base.length===cols.length+1)base=base.filter((_,i)=>i!==plusIndex);
-            if(Array.isArray(base)&&base.length===cols.length){
-              const sumPlus=base.reduce((a,b)=>a+b,0)+32;
-              plusWidth=`${32*100/sumPlus}%`;
-            }
-          }catch(_){/* нет базиса — остаёмся в пикселях */}
+        if(!styles.every(v=>v.endsWith('%'))){
+          plusWidth='32px';
+        } else {
+          const sumPct=styles.reduce((a,v)=>a+(parseFloat(v)||0),0);
+          const rest=100-sumPct;
+          if(rest>0.3&&rest<8)plusWidth=`${rest}%`;
         }
         const col=document.createElement('col');col.style.width=plusWidth;
         colgroup.insertBefore(col,cols[plusIndex]||null);cols.splice(plusIndex,0,col);
