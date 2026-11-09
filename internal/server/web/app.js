@@ -388,8 +388,17 @@
       if(supplier) suppliers=new Set([...suppliers].filter(s=>s===supplier));
       if(Object.hasOwn(state.colFilters,'supplier'))suppliers=new Set([...suppliers].filter(s=>state.colFilters.supplier.includes(s)));
       if(!suppliers.size || (suppliers.size>1 && !Object.hasOwn(state.colFilters,'supplier') && !supplier))throw new Error('Выберите поставщиков и один склад в фильтрах ведомости');
-      // The warehouse follows the selection: an explicit single-warehouse filter wins, otherwise
-      // the selected suppliers' own warehouse is used automatically when it is unambiguous.
+      // Сначала смотрим, где выбранные поставщики реально водятся: если все они
+      // только на одном складе — он однозначен, и фильтр складов не обязан ему
+      // соответствовать. Раньше автозаказ требовал «ровно один отмеченный склад»
+      // даже когда склад поставщика очевиден, и у поставщика с единственным
+      // складом отказывался работать при любом другом/множественном фильтре.
+      const supWarehouses=new Set(state.report.items.filter(it=>suppliers.has(normalizeSupName(it.supplier))).map(it=>it.warehouse||''));
+      if(supWarehouses.size===1){
+        const selected=[...suppliers].sort();
+        const warehouse=[...supWarehouses][0];
+        return selected.length===1 ? {warehouse,supplier:selected[0]} : {warehouse,suppliers:selected};
+      }
       const selectedWarehouses=activeWarehouseSet();
       if(selectedWarehouses && selectedWarehouses.size!==1)throw new Error('Выберите один склад в фильтрах ведомости');
       const warehouses=new Set(state.report.items.filter(it=>suppliers.has(normalizeSupName(it.supplier)) && (!selectedWarehouses || selectedWarehouses.has(it.warehouse||''))).map(it=>it.warehouse||''));
@@ -1611,6 +1620,13 @@
     if (el('fltSupplier')) {
       el('fltSupplier').innerHTML = `<option value="">Все поставщики</option>` +
         uniqueSuppliers.map((s) => `<option value="${esc(s.supplier)}">${esc(s.supplier)} — ${fmtMoney(s.totalOrderCost)} р. (${s.orderItems})</option>`).join('');
+      if (prevSup && ![...el('fltSupplier').options].some((o) => o.value === prevSup)) {
+        // Выбранный поставщик скрыт фильтром складов (он на другом складе):
+        // сохраняем выбор дополнительной опцией. Раньше смена складов молча
+        // сбрасывала поставщика — и «Сделать автозаказ» отказывал с «Выберите
+        // поставщиков…», хотя склад такого поставщика однозначен.
+        el('fltSupplier').insertAdjacentHTML('beforeend', `<option value="${esc(prevSup)}">${esc(prevSup)}</option>`);
+      }
       if ([...el('fltSupplier').options].some((o) => o.value === prevSup)) {
         el('fltSupplier').value = prevSup;
       }
