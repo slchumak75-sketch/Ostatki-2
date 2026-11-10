@@ -3,6 +3,7 @@ package xlsx_test
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/xml"
 	"io"
 	"os"
 	"path/filepath"
@@ -261,5 +262,57 @@ func TestParseBytesRejectsLegacyXls(t *testing.T) {
 	// Не-OLE мусор по-прежнему даёт общую ошибку архива
 	if _, err := xlsx.ParseBytes([]byte("not a zip at all"), "broken.xlsx"); err == nil || !strings.Contains(err.Error(), "ZIP") {
 		t.Fatalf("expected generic zip error, got: %v", err)
+	}
+}
+
+// Регрессия (батч-29): выгрузка «заказа поставщику» содержала XML-запрещённые
+// управляющие символы из названий номенклатуры 1С — Excel открывал файл только
+// через «восстановление содержимого». Текст должен чиститься и в читалке, и в писателе.
+func TestSupplierOrderXLSXRejectsIllegalXMLChars(t *testing.T) {
+	hostile := "Кабель \x00ВВГ-П\x0B 2*1,5 \x1F«Бел&<Адмирал»\r\nряд"
+	rep := &model.CalculationReport{Items: []model.CalculatedItem{{
+		Warehouse: hostile, SKU: "арт\x0C1", Name: hostile, Supplier: "ООО «БелАдмиралСтрой»",
+		SumSalesLast12M: 1121, ClosingStock: 199.86, FinalOrderQty: 30,
+	}}}
+	for _, gen := range []struct {
+		name string
+		fn   func() ([]byte, error)
+	}{
+		{"single-supplier", func() ([]byte, error) { return xlsx.GenerateSingleSupplierOrderXLSX(rep, hostile, "ООО «БелАдмиралСтрой»") }},
+		{"staryo", func() ([]byte, error) { return xlsx.GenerateStaryoExportXLSX(rep.Items) }},
+	} {
+		raw, err := gen.fn()
+		if err != nil {
+			t.Fatalf("%s: %v", gen.name, err)
+		}
+		zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+		if err != nil {
+			t.Fatalf("%s: zip: %v", gen.name, err)
+		}
+		for _, f := range zr.File {
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatalf("%s/%s: %v", gen.name, f.Name, err)
+			}
+			data, err := io.ReadAll(rc)
+			_ = rc.Close()
+			if err != nil {
+				t.Fatalf("%s/%s: %v", gen.name, f.Name, err)
+			}
+			if strings.HasSuffix(f.Name, ".xml") || strings.HasSuffix(f.Name, ".rels") {
+				if err := xml.Unmarshal(data, new(any)); err != nil {
+					t.Fatalf("%s/%s: некорректный XML: %v", gen.name, f.Name, err)
+				}
+			}
+			for _, r := range string(data) {
+				if r < 0x20 && r != '\t' && r != '\n' && r != '\r' {
+					t.Fatalf("%s/%s: XML-запрещённый символ U+%04X в выгрузке", gen.name, f.Name, r)
+				}
+			}
+		}
+	}
+	// Читалка тоже обязана чистить: текст из sharedStrings не несёт управляющих символов
+	if got := xlsx.SanitizeXMLTextForTest("a\x00b\x0Bc\x1Fd"); got != "abcd" {
+		t.Fatalf("sanitizeXMLText: %q", got)
 	}
 }
