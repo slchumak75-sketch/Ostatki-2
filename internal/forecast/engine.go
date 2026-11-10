@@ -61,6 +61,11 @@ func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 	default:
 		p.SeasonMode = model.SeasonHybrid
 	}
+	switch p.RatingWindowMonths {
+	case 6, 9, 12:
+	default:
+		p.RatingWindowMonths = 6
+	}
 	switch p.Rounding {
 	case model.RoundNearest, model.RoundCeil, model.RoundFloor:
 	default:
@@ -168,7 +173,7 @@ func calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 
 	// 2. Классификация ABC, 6-уровневый рейтинг продаж (0..5), медианная наценка по группам и дневная сетка горизонта
 	abcClasses := computeABCClasses(wb.Items, periods)
-	salesSegments, sumLast6List := computeSalesSegments(wb.Items, periods)
+	salesSegments, sumWindowList := computeSalesSegments(wb.Items, periods, params.RatingWindowMonths)
 	groupMarkup := computeGroupMedianMarkup(wb.Items)
 
 	type dayStep struct {
@@ -396,7 +401,7 @@ func calculate(wb *model.WorkbookData, rawParams model.ForecastParams, manualOve
 
 			salesSeg := salesSegments[i]
 			salesSegLabel := model.SalesSegmentLabelByCode(salesSeg)
-			sumLast6 := sumLast6List[i]
+			sumLast6 := sumWindowList[i]
 
 			unitPrice := roundTo(item.PurchasePrice, 2)
 			unitRetail := roundTo(effectiveRetail, 2)
@@ -1088,24 +1093,30 @@ func quantileSorted(sorted []float64, p float64) float64 {
 }
 
 // computeSalesSegments рассчитывает 6-уровневый параметр рейтинга продаж (0..5):
-//   - 0 ("0-Нет продаж") — продажи отсутствуют в течение последних 6 месяцев (sumLast6 <= 0)
-//   - 1 ("1-Низкий") .. 5 ("5-Высокий") — квинтили (20/40/60/80%) интенсивности продаж за 6 месяцев среди активных SKU
-func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn) ([]int, []float64) {
+//   - 0 ("0-Нет продаж") — продажи отсутствуют в течение окна рейтинга (sumWindow <= 0)
+//   - 1 ("1-Низкий") .. 5 ("5-Высокий") — квинтили (20/40/60/80%) интенсивности продаж за окно среди активных SKU
+//
+// Окно рейтинга задаётся параметром (6/9/12 месяцев) — см. RatingWindowMonths.
+func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn, windowMonths int) ([]int, []float64) {
 	T := len(periods)
-	startIdx := T - 6
+	window := windowMonths
+	if window <= 0 {
+		window = 6
+	}
+	startIdx := T - window
 	if startIdx < 0 {
 		startIdx = 0
 	}
 
 	n := len(items)
-	sum6 := make([]float64, n)
+	sumWindow := make([]float64, n)
 	active := make([]float64, 0, n)
 	for i, it := range items {
 		s6 := 0.0
 		for pIdx := startIdx; pIdx < T && pIdx < len(it.MonthlySales); pIdx++ {
 			s6 += it.MonthlySales[pIdx]
 		}
-		sum6[i] = s6
+		sumWindow[i] = s6
 		if s6 > 0 {
 			active = append(active, s6)
 		}
@@ -1113,7 +1124,7 @@ func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn) (
 
 	segments := make([]int, n)
 	if len(active) == 0 {
-		return segments, sum6
+		return segments, sumWindow
 	}
 
 	sort.Float64s(active)
@@ -1123,7 +1134,7 @@ func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn) (
 	q60 := quantileSorted(active, 0.60)
 	q80 := quantileSorted(active, 0.80)
 
-	for i, s6 := range sum6 {
+	for i, s6 := range sumWindow {
 		if s6 <= 0 {
 			segments[i] = 0
 			continue
@@ -1145,7 +1156,7 @@ func computeSalesSegments(items []model.RawItem, periods []model.PeriodColumn) (
 			segments[i] = 5
 		}
 	}
-	return segments, sum6
+	return segments, sumWindow
 }
 
 func computeABCClasses(items []model.RawItem, periods []model.PeriodColumn) []string {

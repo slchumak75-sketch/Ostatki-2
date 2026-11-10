@@ -157,3 +157,73 @@ func TestSuppliersRegistryExcludesNoSalesSuppliers(t *testing.T) {
 		}
 	}
 }
+
+// Батч-32: окно рейтинга продаж 6/9/12 месяцев (RatingWindowMonths).
+// Сезонный SKU с продажами 11–12 мес. назад: при окне 6 — «0-Нет продаж» и пустой
+// авторасчёт, при окне 9 — всё ещё 0, при окне 12 — рейтинг 1..5 и авторасчёт
+// заполняется. Граница окна: продажа ровно 9 мес. назад попадает в окно 9.
+func TestRatingWindowMonths(t *testing.T) {
+	wb, _, err := xlsx.ReadFile(filepath.Join("..", "..", "Ведомость с периодом ОК (1).xlsx"))
+	if err != nil {
+		t.Fatalf("failed to load workbook: %v", err)
+	}
+	base := wb.Items[0]
+	T := len(wb.Periods)
+	if T < 13 {
+		t.Fatalf("ожидается >= 13 периодов, получено %d", T)
+	}
+	seasonal := make([]float64, T)
+	seasonal[T-12] = 10
+	seasonal[T-11] = 10
+	recent := make([]float64, T)
+	recent[T-9] = 8
+	wb.Items = append(wb.Items,
+		model.RawItem{ExcelRow: 910001, Warehouse: base.Warehouse, Group: base.Group, SKU: "TEST-SEASON", Name: "Сезонный тест", ClosingStock: 0, PurchasePrice: 10, Supplier: base.Supplier, MonthlySales: seasonal},
+		model.RawItem{ExcelRow: 910002, Warehouse: base.Warehouse, Group: base.Group, SKU: "TEST-BOUND9", Name: "Граница 9 мес", ClosingStock: 0, PurchasePrice: 10, Supplier: base.Supplier, MonthlySales: recent},
+	)
+
+	find := func(rep *model.CalculationReport, sku string) *model.CalculatedItem {
+		for i := range rep.Items {
+			if rep.Items[i].SKU == sku {
+				return &rep.Items[i]
+			}
+		}
+		t.Fatalf("%s: элемент не найден в отчёте", sku)
+		return nil
+	}
+
+	rep6 := forecast.Calculate(wb, model.DefaultParams(), nil)
+	for _, sku := range []string{"TEST-SEASON", "TEST-BOUND9"} {
+		it := find(rep6, sku)
+		if it.SalesSegment != 0 {
+			t.Fatalf("%s: окно 6, ожидается рейтинг 0, получено %d", sku, it.SalesSegment)
+		}
+		if it.FinalOrderQty != 0 {
+			t.Fatalf("%s: окно 6, авторасчёт должен быть пуст, получено %d", sku, it.FinalOrderQty)
+		}
+	}
+
+	p9 := model.DefaultParams()
+	p9.RatingWindowMonths = 9
+	rep9 := forecast.Calculate(wb, p9, nil)
+	if it := find(rep9, "TEST-BOUND9"); it.SalesSegment == 0 {
+		t.Fatalf("TEST-BOUND9: продажа ровно 9 мес. назад должна попасть в окно 9")
+	}
+	if it := find(rep9, "TEST-SEASON"); it.SalesSegment != 0 {
+		t.Fatalf("TEST-SEASON: окно 9, ожидается рейтинг 0, получено %d", it.SalesSegment)
+	}
+
+	p12 := model.DefaultParams()
+	p12.RatingWindowMonths = 12
+	rep12 := forecast.Calculate(wb, p12, nil)
+	it := find(rep12, "TEST-SEASON")
+	if it.SalesSegment < 1 || it.SalesSegment > 5 {
+		t.Fatalf("TEST-SEASON: окно 12, ожидается рейтинг 1..5, получено %d", it.SalesSegment)
+	}
+	if it.FinalOrderQty <= 0 {
+		t.Fatalf("TEST-SEASON: окно 12, авторасчёт должен заполниться, получено %d", it.FinalOrderQty)
+	}
+	if it2 := find(rep12, "TEST-BOUND9"); it2.SalesSegment == 0 {
+		t.Fatalf("TEST-BOUND9: окно 12, рейтинг должен быть > 0")
+	}
+}
