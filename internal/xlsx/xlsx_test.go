@@ -357,6 +357,11 @@ func TestSupplierOrderWarehouseRenameAndZipLayout(t *testing.T) {
 		if f.Flags&0x8 != 0 {
 			t.Fatalf("%s: запись с data descriptor (флаг 0x8) — Excel восстанавливает файл", f.Name)
 		}
+		// «version needed to extract» в локальном заголовке: CreateRaw оставляет 0,
+		// Excel 2010/2013 считает такой файл повреждённым. Допустимы 10/20/45.
+		if vneed := uint16(f.ReaderVersion); vneed == 0 {
+			t.Fatalf("%s: version needed = 0 — Excel считает файл повреждённым", f.Name)
+		}
 		rc, err := f.Open()
 		if err != nil {
 			t.Fatal(err)
