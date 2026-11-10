@@ -142,6 +142,15 @@
             </select>
             <span class="field-hint">37 мес. статистики продаж</span>
           </div>
+          <div class="param-field">
+            <label for="selRatingWindow">Окно рейтинга продаж</label>
+            <select id="selRatingWindow">
+              <option value="6">6 месяцев</option>
+              <option value="9">9 месяцев</option>
+              <option value="12">12 месяцев</option>
+            </select>
+            <span class="field-hint">«0-Нет продаж» = нет продаж за окно; сезонный товар не «умирает» при окне 9/12</span>
+          </div>
 
           <div class="param-field param-paired">
             <label for="selPackMultiple">Кратность заказа / витрина</label>
@@ -243,7 +252,7 @@
               <th data-sort="_staryoChecked" data-col="plus" class="plus-col" title="Отметить галочкой позиции для выгрузки «Старьё»">
                 <div class="th-excel-wrap"><span class="th-excel-title">+</span><button type="button" class="th-filter-btn" data-filter-col="plus" aria-label="Фильтр: +"></button></div>
               </th>
-              <th data-sort="salesSegment" data-col="salesSegment" class="seg-col" title="Рейтинг: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют в течение 6 месяцев)">
+              <th data-sort="salesSegment" data-col="salesSegment" class="seg-col" title="Рейтинг: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют за окно рейтинга (Конфигурация))">
                 <div class="th-excel-wrap"><span class="th-excel-title">Рейтинг</span><button type="button" class="th-filter-btn" data-filter-col="salesSegment" aria-label="Фильтр: Рейтинг"></button></div>
               </th>
               <th data-sort="sumSalesLast12M" data-col="sumSalesLast12M" class="num-col col-5digits">
@@ -331,7 +340,7 @@
           <input type="search" id="ovInpSearch" placeholder="Быстрый поиск по номенклатуре или артикулу…" />
         </div>
 
-        <select id="ovFltRating" aria-label="Рейтинг в радаре неликвидов" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+        <select id="ovFltRating" aria-label="Рейтинг в радаре неликвидов" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют за окно рейтинга (Конфигурация))">
           <option value="">Рейтинг: Все</option>
           <option value="5">5-Высокий</option>
           <option value="4">4-Выше среднего</option>
@@ -505,7 +514,7 @@
         </div>
 
         <div class="ms-dropdown ms-dd-rating" id="ddRating" data-ms-key="rating">
-          <select id="fltABCXYZ" class="sr-only-select" aria-label="Рейтинг" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+          <select id="fltABCXYZ" class="sr-only-select" aria-label="Рейтинг" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют за окно рейтинга (Конфигурация))">
             <option value="">Рейтинг: Все</option>
             <option value="5">5-Высокий</option>
             <option value="4">4-Выше среднего</option>
@@ -514,7 +523,7 @@
             <option value="1">1-Низкий</option>
             <option value="0">0-Нет продаж</option>
           </select>
-          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="rating" aria-expanded="false" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют в течение 6 месяцев)">
+          <button type="button" class="supplier-dd-trigger ms-dd-trigger" data-ms-trigger="rating" aria-expanded="false" title="Рейтинг продаж (0-Нет продаж — продажи отсутствуют за окно рейтинга (Конфигурация))">
             <span class="supplier-dd-label" id="lblMsRating">Рейтинг: Все</span>
             <span class="supplier-dd-caret">▾</span>
           </button>

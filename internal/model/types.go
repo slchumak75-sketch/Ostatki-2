@@ -74,6 +74,7 @@ type ForecastParams struct {
 	SeasonMode           SeasonMode   `json:"seasonMode"`           // Режим учёта сезонности (hybrid / group / item / flat)
 	RecencyDecay         float64      `json:"recencyDecay"`         // Годовой коэффициент затухания старых лет (0.3..1.0, по умолч. 0.65)
 	ShrinkageK           float64      `json:"shrinkageK"`           // Параметр сглаживания Байеса K (по умолч. 12.0)
+	RatingWindowMonths   int          `json:"ratingWindowMonths"`   // Окно рейтинга продаж 6/9/12 мес («0-Нет продаж» = нет продаж за окно, по умолч. 6)
 	MinDisplayStock      int          `json:"minDisplayStock"`      // Витринный минимум для ходовых товаров ABC A/B (0 = выкл.)
 	Rounding             RoundingMode `json:"rounding"`             // Режим округления (nearest / ceil / floor)
 	WriteZeroValues      bool         `json:"writeZeroValues"`      // Записывать 0 в пустые ячейки столбца 8
@@ -100,6 +101,7 @@ func DefaultParams() ForecastParams {
 		SeasonMode:           SeasonHybrid,
 		RecencyDecay:         0.65,
 		ShrinkageK:           12.0,
+		RatingWindowMonths:   6,
 		MinDisplayStock:      0,
 		Rounding:             RoundNearest,
 		WriteZeroValues:      true,

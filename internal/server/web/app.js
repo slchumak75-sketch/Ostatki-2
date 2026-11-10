@@ -1325,6 +1325,9 @@
     el('inpBudgetCap').value = p.budgetCap || 0;
     el('inpMinSupplier').value = p.minSupplierOrder ?? 50;
     el('selSeasonMode').value = p.seasonMode;
+    const rw = String(p.ratingWindowMonths || 6);
+    el('selRatingWindow').value = rw;
+    if (el('selRatingWindow').value !== rw) el('selRatingWindow').value = '6';
     el('selPackMultiple').value = String(p.packMultiple || 1);
     el('selMinDisplay').value = String(p.minDisplayStock || 0);
     el('chkOutlierFilter').checked = Boolean(p.outlierFilter);
@@ -2604,7 +2607,7 @@
               <th data-ov-sort="group" class="grp-col">Группа</th>
               <th data-ov-sort="sku">Артикул</th>
               <th data-ov-sort="name" class="col-name">Номенклатура</th>
-              <th data-ov-sort="salesSegment" class="seg-col" title="Рейтинг: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют в течение 6 месяцев)">Рейтинг</th>
+              <th data-ov-sort="salesSegment" class="seg-col" title="Рейтинг: 5-Высокий, 4-Выше среднего, 3-Средний, 2-Ниже среднего, 1-Низкий, 0-Нет продаж (продажи отсутствуют за окно рейтинга (Конфигурация))">Рейтинг</th>
               <th data-ov-sort="supplier">Поставщик</th>
               <th data-ov-sort="sumSalesLast12M" class="num-col col-5digits">Продажи</th>
               <th data-ov-sort="closingStock" class="num-col col-5digits">Остаток</th>
@@ -2671,6 +2674,7 @@
       leadTimeDays: rawLead === '' ? 4 : Number(rawLead),
       safetyStockPct: rawSafety === '' ? 10 : Number(rawSafety),
       seasonMode: el('selSeasonMode').value,
+      ratingWindowMonths: Number(el('selRatingWindow').value) || 6,
       recencyDecay: state.report?.params?.recencyDecay ?? 0.65,
       shrinkageK: 12,
       minDisplayStock: Number(el('selMinDisplay').value) || 0,
@@ -3150,12 +3154,14 @@
           el('inpSafety').value = 10;
           state.planStartDate = '';
           el('selSeasonMode').value = 'hybrid';
+          el('selRatingWindow').value = '6';
         } else if (preset === 'standard') {
           el('inpHorizon').value = 30;
           el('inpLeadTime').value = 4;
           el('inpSafety').value = 10;
           state.planStartDate = '';
           el('selSeasonMode').value = 'hybrid';
+          el('selRatingWindow').value = '6';
         } else if (preset === 'budget5k') {
           el('inpHorizon').value = 30;
           el('inpLeadTime').value = 4;
@@ -3163,6 +3169,7 @@
           el('inpBudgetCap').value = 5000;
           state.planStartDate = '';
           el('selSeasonMode').value = 'hybrid';
+          el('selRatingWindow').value = '6';
         }
         scheduleRecalculate();
       });
