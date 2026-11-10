@@ -14,6 +14,10 @@ import (
 // файла» с восстановлением содержимого («некоторые фрагменты восстановлены или
 // удалены»). addZipPart формирует заголовок записи с заранее известными CRC и
 // размерами — как делает сам Excel — и не оставляет у частей флага 0x8.
+//
+// ВАЖНО: CreateRaw, в отличие от CreateHeader, НЕ заполняет ReaderVersion —
+// в заголовках остаётся недопустимый 0 («version needed to extract»), и Excel
+// снова считает файл повреждённым. Явно ставим версию 2.0 и там, и там.
 
 // zipPartTimestamp — фиксированная метка времени частей: выгрузки детерминированы.
 var zipPartTimestamp = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -35,6 +39,7 @@ func addZipPart(zw *zip.Writer, name string, content []byte) error {
 		Method:         zip.Deflate,
 		Modified:       zipPartTimestamp,
 		CreatorVersion: 20,
+		ReaderVersion:  20,
 	}
 	h.UncompressedSize64 = uint64(len(content))
 	h.CompressedSize64 = uint64(compressed.Len())
