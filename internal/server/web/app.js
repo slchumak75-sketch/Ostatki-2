@@ -3347,7 +3347,7 @@
 
     [
       'inpHorizon', 'inpLeadTime', 'inpSafety',
-      'inpBudgetCap', 'inpMinSupplier', 'selSeasonMode',
+      'inpBudgetCap', 'inpMinSupplier', 'selSeasonMode', 'selRatingWindow',
       'selPackMultiple', 'selMinDisplay', 'chkOutlierFilter',
       'chkCrostonZ', 'chkAdaptiveSLA', 'chkNormalizeLast', 'chkWriteZeros',
     ].forEach((id) => {
