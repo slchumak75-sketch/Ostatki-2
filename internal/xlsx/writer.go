@@ -89,31 +89,23 @@ func WriteOrderColumnLossless(
 	zw := zip.NewWriter(&outBuf)
 
 	for _, f := range zr.File {
-		hdr := f.FileHeader
-		hdr.Method = zip.Deflate
-		w, err := zw.CreateHeader(&hdr)
-		if err != nil {
-			return nil, err
-		}
+		var data []byte
 		switch f.Name {
 		case "xl/sharedStrings.xml":
 			if updatedSST != nil {
-				if _, err := w.Write(updatedSST); err != nil {
-					return nil, err
-				}
-				continue
+				data = updatedSST
 			}
 		case sheetPath:
-			if _, err := w.Write(updatedSheet); err != nil {
+			data = updatedSheet
+		}
+		if data == nil {
+			var err error
+			data, err = readZipEntry(f)
+			if err != nil {
 				return nil, err
 			}
-			continue
 		}
-		data, err := readZipEntry(f)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := w.Write(data); err != nil {
+		if err := addZipPart(zw, f.Name, data); err != nil {
 			return nil, err
 		}
 	}
@@ -387,12 +379,7 @@ func GenerateSupplierOrdersXLSX(report *model.CalculationReport, filterWarehouse
 	zw := zip.NewWriter(&buf)
 
 	addFile := func(name, content string) error {
-		w, err := zw.Create(name)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write([]byte(content))
-		return err
+		return addZipPart(zw, name, []byte(content))
 	}
 
 	if err := addFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -694,10 +681,25 @@ func CleanFilenamePart(raw string) string {
 	return cleaned
 }
 
+// supplierOrderWarehouseNames — отображаемые названия складов в выгрузке
+// «Заказ поставщику»: внутренние названия складов из ведомости заменяются
+// на названия организаций — и в столбце «Наименование склада», и в имени файла.
+var supplierOrderWarehouseNames = map[string]string{
+	"Склад Кореличи": "Мирсититорг",
+	"Склад Мир":      "Мирстроймаркет",
+}
+
+func displayWarehouseName(warehouse string) string {
+	if v, ok := supplierOrderWarehouseNames[strings.TrimSpace(warehouse)]; ok {
+		return v
+	}
+	return warehouse
+}
+
 // FormatSupplierOrderFilename формирует имя файла заказа поставщику строго по шаблону:
 // "<Наименование склада>, <Наименование поставщика>, <текущая дата заказа>.xlsx".
 func FormatSupplierOrderFilename(warehouse string, supplier string, orderDate time.Time) string {
-	wh := CleanFilenamePart(warehouse)
+	wh := CleanFilenamePart(displayWarehouseName(warehouse))
 	if wh == "" {
 		wh = "Все склады"
 	}
@@ -738,12 +740,7 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 	zw := zip.NewWriter(&buf)
 
 	addFile := func(name, content string) error {
-		w, err := zw.Create(name)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write([]byte(content))
-		return err
+		return addZipPart(zw, name, []byte(content))
 	}
 
 	if err := addFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -837,7 +834,7 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 	for idx, it := range orderItems {
 		rs := strconv.Itoa(idx + 2)
 		s1.WriteString(`<row r="` + rs + `" ht="20" customHeight="1">`)
-		s1.WriteString(inlineStrCell("A"+rs, 2, it.Warehouse))
+		s1.WriteString(inlineStrCell("A"+rs, 2, displayWarehouseName(it.Warehouse)))
 		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
 		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
 		s1.WriteString(inlineStrCell("D"+rs, 4, "шт."))
@@ -886,12 +883,7 @@ func GenerateStaryoExportXLSX(markedItems []model.CalculatedItem) ([]byte, error
 	zw := zip.NewWriter(&buf)
 
 	addFile := func(name, content string) error {
-		w, err := zw.Create(name)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write([]byte(content))
-		return err
+		return addZipPart(zw, name, []byte(content))
 	}
 
 	if err := addFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

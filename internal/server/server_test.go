@@ -135,7 +135,8 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /api/export/supplier-order code=%d len=%d", rec.Code, rec.Body.Len())
 	}
 	disp := rec.Header().Get("Content-Disposition")
-	if !strings.Contains(disp, "%D0%A1%D0%BA%D0%BB%D0%B0%D0%B4%20%D0%9A%D0%BE%D1%80%D0%B5%D0%BB%D0%B8%D1%87%D0%B8%2C%20%D0%9E%D0%9E%D0%9E%20%C2%AB%D0%93%D0%BE%D0%BB%D0%B4%D0%94%D0%B5%D0%BA%D0%BE%D1%80%C2%BB%2C%20") {
+	// Батч-30: в имени файла — название организации «Мирсититорг» вместо «Склад Кореличи».
+	if !strings.Contains(disp, "%D0%9C%D0%B8%D1%80%D1%81%D0%B8%D1%82%D0%B8%D1%82%D0%BE%D1%80%D0%B3%2C%20%D0%9E%D0%9E%D0%9E%20%C2%AB%D0%93%D0%BE%D0%BB%D0%B4%D0%94%D0%B5%D0%BA%D0%BE%D1%80%C2%BB%2C%20") {
 		t.Fatalf("unexpected Content-Disposition filename header: %s", disp)
 	}
 

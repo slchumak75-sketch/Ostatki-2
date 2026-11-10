@@ -197,19 +197,11 @@ func GenerateNomenclatureXLSX(records map[string]model.NomenclatureRecord) ([]by
 		case "[Content_Types].xml":
 			data = strings.Replace(data, `</Types>`, `<Override PartName="/xl/worksheets/nomenclature-keys.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`, 1)
 		}
-		w, err := zw.Create(f.Name)
-		if err != nil {
-			return nil, err
-		}
-		if _, err = w.Write([]byte(data)); err != nil {
+		if err := addZipPart(zw, f.Name, []byte(data)); err != nil {
 			return nil, err
 		}
 	}
-	w, err := zw.Create("xl/worksheets/nomenclature-keys.xml")
-	if err != nil {
-		return nil, err
-	}
-	if _, err = w.Write([]byte(meta.String())); err != nil {
+	if err := addZipPart(zw, "xl/worksheets/nomenclature-keys.xml", []byte(meta.String())); err != nil {
 		return nil, err
 	}
 	if err := zw.Close(); err != nil {

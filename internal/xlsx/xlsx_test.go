@@ -130,7 +130,8 @@ func TestReadAndWriteRealRepositoryWorkbookLossless(t *testing.T) {
 	// Проверка индивидуального заказа поставщику (5 столбцов: Склад, Артикул, Номенклатура, Ед., Заказ — без цветовой заливки)
 	dt := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
 	gotName := xlsx.FormatSupplierOrderFilename("Склад Кореличи", `ООО "ГолдДекор"`, dt)
-	wantName := "Склад Кореличи, ООО «ГолдДекор», 20.10.2026.xlsx"
+	// Батч-30: названия складов в выгрузке заказа заменяются на названия организаций.
+	wantName := "Мирсититорг, ООО «ГолдДекор», 20.10.2026.xlsx"
 	if gotName != wantName {
 		t.Fatalf("FormatSupplierOrderFilename mismatch: got %q want %q", gotName, wantName)
 	}
@@ -282,7 +283,9 @@ func TestSupplierOrderXLSXRejectsIllegalXMLChars(t *testing.T) {
 		name string
 		fn   func() ([]byte, error)
 	}{
-		{"single-supplier", func() ([]byte, error) { return xlsx.GenerateSingleSupplierOrderXLSX(rep, hostile, "ООО «БелАдмиралСтрой»") }},
+		{"single-supplier", func() ([]byte, error) {
+			return xlsx.GenerateSingleSupplierOrderXLSX(rep, hostile, "ООО «БелАдмиралСтрой»")
+		}},
 		{"staryo", func() ([]byte, error) { return xlsx.GenerateStaryoExportXLSX(rep.Items) }},
 	} {
 		raw, err := gen.fn()
@@ -325,5 +328,54 @@ func TestSupplierOrderXLSXRejectsIllegalXMLChars(t *testing.T) {
 	// Читалка тоже обязана чистить: текст из sharedStrings не несёт управляющих символов
 	if got := xlsx.SanitizeXMLTextForTest("a\x00b\x0Bc\x1Fd"); got != "abcd" {
 		t.Fatalf("sanitizeXMLText: %q", got)
+	}
+}
+
+// Регрессия (батч-30): 1) в выгрузке «Заказ поставщику» внутренние названия
+// складов заменяются на названия организаций — и в таблице, и в имени файла;
+// 2) ZIP-контейнер не содержит записей с data descriptor (флаг 0x8) — на них
+// Excel 2010/2013 запускал «проверку на уровне файла» с восстановлением.
+func TestSupplierOrderWarehouseRenameAndZipLayout(t *testing.T) {
+	rep := &model.CalculationReport{Items: []model.CalculatedItem{
+		{RawItem: model.RawItem{Warehouse: "Склад Кореличи", SKU: "1", Name: "Т1", Supplier: "ООО «БелАдмиралСтрой»", ClosingStock: 199.86}, SumSalesLast12M: 10, FinalOrderQty: 5},
+		{RawItem: model.RawItem{Warehouse: "Склад Мир", SKU: "2", Name: "Т2", Supplier: "ООО «БелАдмиралСтрой»", ClosingStock: 74}, SumSalesLast12M: 20, FinalOrderQty: 7},
+	}}
+	raw, err := xlsx.GenerateSingleSupplierOrderXLSX(rep, "", "ООО «БелАдмиралСтрой»")
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := xlsx.FormatSupplierOrderFilename("Склад Мир", "ООО «БелАдмиралСтрой»", time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC))
+	if !strings.Contains(name, "Мирстроймаркет") || strings.Contains(name, "Склад Мир") {
+		t.Fatalf("имя файла должно использовать «Мирстроймаркет»: %q", name)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var all strings.Builder
+	for _, f := range zr.File {
+		if f.Flags&0x8 != 0 {
+			t.Fatalf("%s: запись с data descriptor (флаг 0x8) — Excel восстанавливает файл", f.Name)
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		all.Write(data)
+	}
+	for _, bad := range []string{"Склад Кореличи", "Склад Мир"} {
+		if strings.Contains(all.String(), bad) {
+			t.Fatalf("в выгрузке осталось %q", bad)
+		}
+	}
+	for _, good := range []string{"Мирсититорг", "Мирстроймаркет"} {
+		if !strings.Contains(all.String(), good) {
+			t.Fatalf("в выгрузке нет %q", good)
+		}
 	}
 }
