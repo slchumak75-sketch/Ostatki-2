@@ -863,10 +863,13 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 
 func inlineStrCell(ref string, style int, text string) string {
 	return fmt.Sprintf(`<c r="%s" s="%d" t="inlineStr"><is><t xml:space="preserve">%s</t></is></c>`,
-		ref, style, html.EscapeString(text))
+		ref, style, html.EscapeString(sanitizeXMLText(text)))
 }
 
 func numCell(ref string, style int, val float64) string {
+	if math.IsNaN(val) || math.IsInf(val, 0) {
+		val = 0
+	}
 	formatted := strconv.FormatFloat(val, 'f', -1, 64)
 	return fmt.Sprintf(`<c r="%s" s="%d"><v>%s</v></c>`, ref, style, formatted)
 }

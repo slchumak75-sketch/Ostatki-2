@@ -539,6 +539,7 @@ func extractAllTextNodes(xmlChunk string) string {
 			break
 		}
 		piece := unescapeXMLFast(xmlChunk[openEnd : openEnd+endRel])
+		piece = sanitizeXMLText(piece)
 		p = openEnd + endRel + len("</t>")
 		if count == 0 {
 			single = piece
@@ -558,6 +559,22 @@ func extractAllTextNodes(xmlChunk string) string {
 	}
 	return sb.String()
 }
+
+// xmlIllegalChars — символы, запрещённые в XML 1.0 (управляющие, кроме \t \n \r).
+// Выгрузки 1С и конвертеры иногда оставляют их в названиях номенклатуры/поставщиков;
+// при повторной записи в XLSX такой текст делал файл «нечитаемым» для Excel
+// («обнаружено содержимое, которое не удалось прочитать» → восстановление файла).
+var xmlIllegalChars = regexp.MustCompile(`[\x{0000}-\x{0008}\x{000B}\x{000C}\x{000E}-\x{001F}]`)
+
+func sanitizeXMLText(s string) string {
+	if strings.IndexFunc(s, func(r rune) bool { return r < 0x20 && r != '\t' && r != '\n' && r != '\r' }) < 0 {
+		return s
+	}
+	return xmlIllegalChars.ReplaceAllString(s, "")
+}
+
+// SanitizeXMLTextForTest открывает sanitizeXMLText регрессионным тестам (package xlsx_test).
+func SanitizeXMLTextForTest(s string) string { return sanitizeXMLText(s) }
 
 func readSharedStrings(zf *zip.File) ([]string, error) {
 	if zf == nil {
