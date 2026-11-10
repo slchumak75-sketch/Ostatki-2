@@ -60,11 +60,7 @@ func GenerateRadarXLSX(items []model.CalculatedItem) ([]byte, error) {
 		if f.Name == "xl/workbook.xml" {
 			raw = bytes.ReplaceAll(raw, []byte(`name="Старьё"`), []byte(`name="Радар неликвидов"`))
 		}
-		w, err := zw.Create(f.Name)
-		if err != nil {
-			return nil, err
-		}
-		if _, err = w.Write(raw); err != nil {
+		if err := addZipPart(zw, f.Name, raw); err != nil {
 			return nil, err
 		}
 	}

@@ -59,12 +59,6 @@ func BuildSavedDatabaseXLSX(
 		if f.Name == SavedStateZipEntry {
 			continue
 		}
-		hdr := f.FileHeader
-		hdr.Method = zip.Deflate
-		w, err := zw.CreateHeader(&hdr)
-		if err != nil {
-			return nil, err
-		}
 		data, err := readZipEntry(f)
 		if err != nil {
 			return nil, err
@@ -72,19 +66,12 @@ func BuildSavedDatabaseXLSX(
 		if f.Name == "[Content_Types].xml" {
 			data = ensureJSONContentTypeXML(data)
 		}
-		if _, err := w.Write(data); err != nil {
+		if err := addZipPart(zw, f.Name, data); err != nil {
 			return nil, err
 		}
 	}
 
-	sw, err := zw.CreateHeader(&zip.FileHeader{
-		Name:   SavedStateZipEntry,
-		Method: zip.Deflate,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if _, err := sw.Write(stateBytes); err != nil {
+	if err := addZipPart(zw, SavedStateZipEntry, stateBytes); err != nil {
 		return nil, err
 	}
 
