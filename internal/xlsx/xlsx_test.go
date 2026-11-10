@@ -271,8 +271,12 @@ func TestParseBytesRejectsLegacyXls(t *testing.T) {
 func TestSupplierOrderXLSXRejectsIllegalXMLChars(t *testing.T) {
 	hostile := "Кабель \x00ВВГ-П\x0B 2*1,5 \x1F«Бел&<Адмирал»\r\nряд"
 	rep := &model.CalculationReport{Items: []model.CalculatedItem{{
-		Warehouse: hostile, SKU: "арт\x0C1", Name: hostile, Supplier: "ООО «БелАдмиралСтрой»",
-		SumSalesLast12M: 1121, ClosingStock: 199.86, FinalOrderQty: 30,
+		RawItem: model.RawItem{
+			Warehouse: hostile, SKU: "арт\x0C1", Name: hostile, Supplier: "ООО «БелАдмиралСтрой»",
+			ClosingStock: 199.86,
+		},
+		SumSalesLast12M: 1121,
+		FinalOrderQty:   30,
 	}}}
 	for _, gen := range []struct {
 		name string
@@ -300,8 +304,15 @@ func TestSupplierOrderXLSXRejectsIllegalXMLChars(t *testing.T) {
 				t.Fatalf("%s/%s: %v", gen.name, f.Name, err)
 			}
 			if strings.HasSuffix(f.Name, ".xml") || strings.HasSuffix(f.Name, ".rels") {
-				if err := xml.Unmarshal(data, new(any)); err != nil {
-					t.Fatalf("%s/%s: некорректный XML: %v", gen.name, f.Name, err)
+				dec := xml.NewDecoder(bytes.NewReader(data))
+				for {
+					_, err := dec.Token()
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						t.Fatalf("%s/%s: некорректный XML: %v", gen.name, f.Name, err)
+					}
 				}
 			}
 			for _, r := range string(data) {
