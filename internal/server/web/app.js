@@ -172,6 +172,8 @@
     if(state.report){refreshExcelTable();renderOverstockView(state.report);}
   }
   let nomenclatureProperties = {};
+  // Остаток на момент постановки отметки «+» (батч-35): если остаток вырос — отметка снимается.
+  let markStocks = {};
   let nomenclatureRecords = {};
   function captureNomenclatureRecords() {
     for (const it of state.report?.items || []) {
@@ -239,6 +241,44 @@
       }
     }
   }
+  // Батч-35: автоснятие отметок «+», если остаток позиции вырос по сравнению
+  // с остатком на момент отметки. Новые позиции, наследующие ключ отмеченного
+  // товара (без артикула ключ строится по наименованию), проверяются так же.
+  // Позиции без сохранённого остатка (отметки старых версий) получают базу
+  // тихо, при первой загрузке новой версии.
+  function autoUnmarkGrownStock() {
+    if (!state.report) return 0;
+    const removed = [];
+    for (const it of state.report.items) {
+      const key = propertyKey(it);
+      if (nomenclatureProperties[key] !== true) continue;
+      const stock = Number(it.closingStock) || 0;
+      const base = markStocks[key];
+      if (base === undefined || !Number.isFinite(base)) {
+        markStocks[key] = stock;
+        propertiesDirty = true; propertiesRevision += 1;
+        continue;
+      }
+      if (stock > base + 1e-9) {
+        nomenclatureProperties[key] = false;
+        delete markStocks[key];
+        state.staryoRows.delete(it.excelRow);
+        if (it._unmarkedAutoOrderQty !== undefined) {
+          it.autoOrderQty = it._unmarkedAutoOrderQty;
+          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = 0;
+          delete it._unmarkedAutoOrderQty;
+        }
+        removed.push(it);
+        propertiesDirty = true; propertiesRevision += 1;
+      }
+    }
+    if (removed.length) {
+      showToast(`Автоматически сняты отметки «+» (остаток вырос): ${removed.length} поз.`);
+      rememberNomenclatureProperties(removed);
+      syncProperties().catch(() => {});
+    }
+    return removed.length;
+  }
   function rememberNomenclatureProperties(items = state.report?.items || []) {
     if (!state.report) return;
     // Свойство относится только к товару на конкретном складе.
@@ -302,7 +342,7 @@
       for (const [key,value] of Object.entries(snapshot)) {
         if (acknowledgedProperties[key] !== value) changes[key] = value;
       }
-      const result = await apiPost('api/properties', {properties:changes,save,persist:true,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true});
+      const result = await apiPost('api/properties', {properties:changes,markStocks:{...markStocks},save,persist:true,removeKeys:[...retiredGlobalPropertyKeys]}, {unabortable:true});
       if (result.persisted) acknowledgedProperties = snapshot;
       return result;
     }).then(result => {
@@ -964,6 +1004,7 @@
       colFilters: state.colFilters,
       staryoMode: Boolean(state.staryoMode),
       staryoRows: [...state.staryoRows].sort((a, b) => a - b),
+      sourceFileName: state.report?.fileName || '',
       activeTab: state.activeTab || 'table',
       activePreset: document.querySelector('.preset-chip.active')?.dataset.preset || 'standard',
       paramsExpanded: !el('paramsBody')?.classList.contains('hidden'),
@@ -1190,7 +1231,10 @@
       state.orderTransferRows = new Set((ui.orderTransferRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.highlightedOrderRows = new Set((ui.highlightedOrderRows || []).map(Number).filter(n=>state.rowMap.has(n)));
       state.staryoMode = !state.unmarkedOnly;
-      state.staryoRows = new Set((ui.staryoRows || []).map(Number).filter((n) => n > 0));
+      // Батч-35: отметки по номерам строк восстанавливаются только для той же ведомости;
+      // для другой/новой ведомости отметки возвращаются только по товару (артикул+склад).
+      const uiSameFile = !ui.sourceFileName || ui.sourceFileName === state.report.fileName;
+      state.staryoRows = new Set((uiSameFile ? (ui.staryoRows || []) : []).map(Number).filter((n) => n > 0));
       state.sales12Only = true; state.unmarkedOnly = true; syncPropertyFilters();
 
       state.selectedExcelRow = ui.selectedExcelRow ?? null;
@@ -1243,6 +1287,7 @@
         }
       }
       applyNomenclatureProperties();
+      autoUnmarkGrownStock();
       switchTabUI(ui.activeTab || 'table');
       recomputeFilteredList();
       renderKPIs(state.report);
@@ -1267,6 +1312,7 @@
     }
 
     applyNomenclatureProperties();
+    autoUnmarkGrownStock();
     populateFilterDropdowns(state.report);
     recomputeFilteredList();
     renderKPIs(state.report);
@@ -2984,7 +3030,7 @@
         const selected=[...el('safetyDialogFields').querySelectorAll('input:checked')].map(c=>c.dataset.restorePart);if(!selected.length){showToast('Ни один раздел не выбран');return;}
         const form=new FormData();form.append('file',file);form.append('selected',JSON.stringify(selected));form.append('token',preview.token);
         const response=await fetch('api/backup/restore',{method:'POST',body:form});const result=await response.json();if(!response.ok)throw new Error(result.error||'Ошибка восстановления');
-        const props=await apiGet('api/properties');nomenclatureProperties=props.properties||{};nomenclatureRecords=props.nomenclature||{};acknowledgedProperties={...nomenclatureProperties};propertiesRevision++;propertiesDirty=false;updateEtalon(props);if(selected.includes('etalon.json')&&etalonLoaded)approveReferenceLoad();
+        const props=await apiGet('api/properties');nomenclatureProperties=props.properties||{};markStocks=props.markStocks||{};nomenclatureRecords=props.nomenclature||{};acknowledgedProperties={...nomenclatureProperties};propertiesRevision++;propertiesDirty=false;updateEtalon(props);if(selected.includes('etalon.json')&&etalonLoaded)approveReferenceLoad();
         const widths=await apiGet('api/column-widths');savedColumnWidths=widths.widths||{};exitComparison();applyEnvelope(await apiGet('api/state'));applyNomenclatureProperties();if(state.report)state.hasUnsavedChanges=true;refreshExcelTable();renderSafetyStatus();showToast('Выбранные разделы восстановлены');
       }catch(err){showToast(err.message);}finally{e.target.value='';}
     });
@@ -4150,6 +4196,12 @@
       const plusChk = e.target.closest('input[data-plus-row]');
       if (!plusChk) return;
       const rowNum = Number(plusChk.dataset.plusRow);
+      const markedItem = state.rowMap.get(rowNum);
+      if (markedItem) {
+        const markKey = propertyKey(markedItem);
+        if (plusChk.checked) markStocks[markKey] = Number(markedItem.closingStock) || 0;
+        else delete markStocks[markKey];
+      }
       if (plusChk.checked) {
         plusChk.classList.add('has-plus');
         state.staryoRows.add(rowNum);
@@ -4281,7 +4333,7 @@
           if (acknowledgedProperties[key] !== value) changes[key] = value;
         }
         // Keep the last-chance request small: browsers limit keepalive/beacon bodies.
-        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:changes,save:true,removeKeys:[...retiredGlobalPropertyKeys]})], {type:'application/json'}));
+        navigator.sendBeacon('api/properties', new Blob([JSON.stringify({properties:changes,markStocks:{...markStocks},save:true,removeKeys:[...retiredGlobalPropertyKeys]})], {type:'application/json'}));
       }
     });
 
@@ -4869,6 +4921,7 @@
       const properties = await apiGet('api/properties');
       updateEtalon(properties);
       nomenclatureProperties = properties.properties || {};
+      markStocks = properties.markStocks || {};
       nomenclatureRecords = properties.nomenclature || {};
       storageStatus('propertiesStorageHint',properties.lastFileName,properties.savedAt);
       acknowledgedProperties = {...nomenclatureProperties};

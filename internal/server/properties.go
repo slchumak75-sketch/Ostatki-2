@@ -32,6 +32,7 @@ func (s *AppServer) propertiesDirLocked() (string, error) {
 func (s *AppServer) loadPropertiesLocked(latest string) error {
 	if !s.propertiesLoaded {
 		s.properties = make(map[string]bool)
+		s.markStocks = make(map[string]float64)
 		s.nomenclature = map[string]model.NomenclatureRecord{}
 		s.etalon = map[string]model.NomenclatureRecord{}
 		s.etalonSavedAt = ""
@@ -54,6 +55,10 @@ func (s *AppServer) loadPropertiesLocked(latest string) error {
 				return fmt.Errorf("файл свойств повреждён: %w", err)
 			}
 			s.properties = catalog.Properties
+			s.markStocks = catalog.MarkStocks
+			if s.markStocks == nil {
+				s.markStocks = make(map[string]float64)
+			}
 			s.nomenclature = catalog.Nomenclature
 			s.propertiesSavedAt = catalog.SavedAt
 			if s.propertiesSavedAt == "" {
@@ -98,10 +103,11 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Properties map[string]bool `json:"properties"`
-		RemoveKeys []string        `json:"removeKeys"`
-		Persist    bool            `json:"persist"`
-		Save       bool            `json:"save"`
+		Properties map[string]bool    `json:"properties"`
+		MarkStocks map[string]float64 `json:"markStocks"`
+		RemoveKeys []string           `json:"removeKeys"`
+		Persist    bool               `json:"persist"`
+		Save       bool               `json:"save"`
 	}
 	if r.Method == http.MethodPost {
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<20)).Decode(&req); err != nil {
@@ -135,6 +141,14 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 			changed = true
 		}
 		s.properties[key] = value
+		if !value {
+			delete(s.markStocks, key)
+		}
+	}
+	for key, stock := range req.MarkStocks {
+		if stock > 0 && s.properties[key] {
+			s.markStocks[key] = stock
+		}
 	}
 	if changed && s.wb != nil {
 		s.epoch.Add(1)
@@ -158,6 +172,7 @@ func (s *AppServer) handleProperties(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{"fileName": name, "directory": dir, "persisted": req.Persist || req.Save, "markedCount": countMarkedProperties(s.properties), "savedAt": s.propertiesSavedAt, "lastFileName": s.propertiesFileName}
 	if r.Method == http.MethodGet || (!req.Persist && !req.Save) {
 		result["properties"] = s.properties
+		result["markStocks"] = s.markStocks
 		result["nomenclature"] = s.catalogLocked().Nomenclature
 		result["etalonLoaded"] = len(s.etalon) > 0
 		result["etalonProperties"] = etalonProperties(s.etalon)

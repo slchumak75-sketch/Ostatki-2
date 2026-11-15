@@ -12,6 +12,9 @@ type NomenclatureRecord struct {
 	Checked       bool    `json:"checked"`
 	Rating        int     `json:"rating"`
 	Stock         float64 `json:"stock"`
+	// MarkStock — остаток позиции на момент постановки отметки «+».
+	// Нужен для автоснятия отметок: если остаток вырос, отметка снимается.
+	MarkStock float64 `json:"markStock,omitempty"`
 	// Group preserves the identity of legacy items without an article number.
 	Group string `json:"group,omitempty"`
 }
@@ -22,5 +25,6 @@ type NomenclatureCatalog struct {
 	SavedAt      string                        `json:"savedAt,omitempty"`
 	Version      int                           `json:"version"`
 	Properties   map[string]bool               `json:"properties"`
+	MarkStocks   map[string]float64            `json:"markStocks,omitempty"`
 	Nomenclature map[string]NomenclatureRecord `json:"nomenclature"`
 }

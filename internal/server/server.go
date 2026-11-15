@@ -29,6 +29,7 @@ var embeddedWeb embed.FS
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.
 type AppServer struct {
 	properties              map[string]bool
+	markStocks              map[string]float64
 	nomenclature            map[string]model.NomenclatureRecord
 	etalon                  map[string]model.NomenclatureRecord
 	etalonSource            string
