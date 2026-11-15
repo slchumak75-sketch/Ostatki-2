@@ -40,7 +40,7 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  const thCount=d.querySelectorAll('#itemsTable thead th').length;
  assert.equal(d.querySelector('#tableBody tr[data-row]').children.length,thCount,'Body cells must stay aligned with the headers');
  assert.equal(d.querySelector('#tableFoot td')?.colSpan,10,'Footer keeps spanning every visible lead column');
- assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
+ assert.equal([...d.querySelectorAll('#itemsTable thead th')].findIndex(th=>th.classList.contains('plus-col')),0,'Plus column is first and always visible');
  assert.equal(d.getElementById('chkAllPlus'),null);
  d.querySelector('[data-filter-col="plus"]').click();
  assert.equal(d.getElementById('efFillAllPlus').textContent,'Заполнить всё');
@@ -230,7 +230,8 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['x'],'new.xlsx')]});
  input.dispatchEvent(new w.Event('change'));await tick();
  const restored=[...table.querySelectorAll('colgroup col')].map(col=>parseFloat(col.style.width));
- assert.equal(restored.length,heads.length-1,'Reload starts with relevance enabled and plus hidden');
+ // Батч-34: «+» — первая колонка, восстанавливается вместе с сохранёнными ширинами.
+ assert.equal(restored.length,heads.length,'Plus column is restored with saved widths');
  assert.ok(Math.abs(restored.reduce((a,b)=>a+b,0)-100)<0.001,'Restored widths fit viewport');
  assert.ok(Math.abs(restored[1]/restored[0]-2)<0.001);
  console.log('Excel filter interactions passed');w.close();

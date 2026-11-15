@@ -27,19 +27,17 @@ thsAll.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW0.get(i),top:0
  const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number(tr.dataset.row)).sort((a,b)=>a-b);
  const sales=d.getElementById('btnSales12'),relevant=d.getElementById('btnRelevant');
  assert.deepEqual(rows(),[8],'Both filters are enabled by default');
- assert.ok(!d.getElementById('itemsTable').classList.contains('show-plus-col'),'Active relevance hides plus column');
+ assert.equal(thsAll.findIndex(th=>th.classList.contains('plus-col')),0,'Plus column is the first header');
  assert.equal(d.getElementById('btnActiveFilter'),null);
  for(const id of ['btnSales12','btnRelevant'])assert.ok(d.getElementById(id).closest('.topbar-actions'));
  for(const id of ['btnExportProperties','btnImportProperties','btnSaveProperties','btnSaveDb'])assert.equal(d.getElementById(id),null);
  for(const button of [sales,relevant])assert.equal(button.getAttribute('aria-pressed'),'true');
  for(let i=0;i<3;i++){sales.click();assert.deepEqual(rows(),[8],'First three clicks must not disable sales');}
  sales.click();assert.deepEqual(rows(),[8,9,10,12],'Fourth click disables sales');
- for(let i=0;i<3;i++){relevant.click();assert.deepEqual(rows(),[8,9,10,12]);assert.ok(!d.getElementById('itemsTable').classList.contains('show-plus-col'));}
+ for(let i=0;i<3;i++){relevant.click();assert.deepEqual(rows(),[8,9,10,12]);}
  relevant.click();assert.deepEqual(rows(),[8,9,10,11,12],'Fourth click disables unmarked');
- assert.ok(d.getElementById('itemsTable').classList.contains('show-plus-col'));
  sales.click();assert.deepEqual(rows(),[8,11],'Re-enable sales immediately');
  relevant.click();assert.deepEqual(rows(),[8]);
- assert.ok(!d.getElementById('itemsTable').classList.contains('show-plus-col'),'One click re-enables relevance and hides plus');
  const chk=d.querySelector('[data-plus-row="8"]');chk.checked=true;chk.dispatchEvent(new w.Event('change',{bubbles:true}));
  assert.deepEqual(rows(),[],'Live marking hides the current row immediately');
  for(const button of [sales,relevant])for(let i=0;i<4;i++)button.click();
@@ -49,34 +47,22 @@ thsAll.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW0.get(i),top:0
  for(const timer of intervals.filter(t=>t.ms===180000))timer.cb();
  await tick();
  assert.equal(calls.filter(c=>c.path==='api/properties' && c.body.save).length,0,'No periodic property saves');
- // Переключение «Актуально» не должно разъезжать столбцы: фактические ширины
- // видимых столбцов переносятся на новую раскладку, меняется только узкий «+».
+ // Батч-34: столбец «+» первый и всегда виден — «Актуально» не трогает раскладку.
  const ths=[...d.querySelectorAll('#itemsTable thead th')];
- const plusIdx=ths.findIndex(th=>th.classList.contains('plus-col'));
- assert.ok(plusIdx>=0,'Plus column exists in the header');
+ assert.equal(ths.findIndex(th=>th.classList.contains('plus-col')),0,'Plus column stays first in the header');
  const colWidths=()=>[...d.querySelectorAll('#itemsTable > colgroup > col')].map(c=>c.style.width);
- const dataMeasured=dataIdxs0.map(i=>fakeW0.get(i));
- const sum=dataMeasured.reduce((a,b)=>a+b,0);
- const sumPlus=sum+32;
- // Col-узлы данных не меняются вовсе: при скрытии «+» их проценты остаются прежними
- // (свободные ~1.8% распределяет браузер, визуально столбцы неподвижны).
- const shownExpected=dataMeasured.map(w=>w*100/sumPlus);
- const hiddenExpected=shownExpected;
- const sameWidths=(actual,expected)=>actual.length===expected.length&&actual.every((v,i)=>Math.abs(parseFloat(v)-expected[i])<1e-6);
+ const sameWidths=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
  const cgBefore=d.querySelector('#itemsTable > colgroup');
  assert.ok(cgBefore,'Colgroup exists before toggling');
- relevant.click(); // один клик снова включает «Актуально» — столбец «+» скрыт
+ const widthsBefore=colWidths();
+ assert.equal(widthsBefore.length,ths.length,'Colgroup covers every column (plus always visible)');
+ assert.ok(d.querySelector('#tableBody tr[data-row]')?.firstElementChild?.classList.contains('plus-cell'),'First body cell is the plus checkbox');
+ relevant.click();await tick();
  assert.equal(d.querySelector('#itemsTable > colgroup'),cgBefore,'Colgroup node must survive toggling (no layout teardown)');
- assert.equal(colWidths().length,ths.length-1,'Hidden plus: colgroup covers data columns only');
- assert.ok(sameWidths(colWidths(),hiddenExpected),'Data columns keep their measured widths with plus hidden');
- for(let i=0;i<4;i++)relevant.click(); // четвёртым нажатием выключаем — «+» появляется
- const widths=colWidths();
- assert.equal(widths.length,ths.length,'Shown plus: colgroup covers all columns');
- assert.ok(Math.abs(parseFloat(widths[plusIdx])-32*100/sumPlus)<1e-6,'Plus column keeps its narrow slot');
- assert.ok(sameWidths(widths.filter((_,i)=>i!==plusIdx),shownExpected),'Data columns unchanged when plus appears');
- relevant.click(); // снова включено
+ assert.ok(sameWidths(colWidths(),widthsBefore),'Column widths unchanged when relevance is re-enabled');
+ relevant.click();await tick();
  assert.equal(d.querySelector('#itemsTable > colgroup'),cgBefore,'Colgroup node still the same');
- assert.ok(sameWidths(colWidths(),hiddenExpected),'Data columns unchanged when plus hides again');
+ assert.ok(sameWidths(colWidths(),widthsBefore),'Column widths unchanged when relevance is disabled');
  for(const th of ths)delete th.getBoundingClientRect;
  assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/\.btn\.property-filter-active \{ background:#bde5c4/,'Top-bar green buttons share one colour');
  console.log('Full-base and optional sales/unmarked filter tests passed');w.close();

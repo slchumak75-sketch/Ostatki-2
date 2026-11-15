@@ -1772,11 +1772,6 @@ body.col-resize-active * {
   padding: 2px 5px;
 }
 
-#itemsTable:not(.show-plus-col) th.plus-col,
-#itemsTable:not(.show-plus-col) td.plus-cell {
-  display: none;
-}
-
 .data-table td.plus-cell {
   cursor: pointer;
 }
