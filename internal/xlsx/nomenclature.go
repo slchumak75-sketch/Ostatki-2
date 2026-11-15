@@ -114,6 +114,12 @@ func DecodeNomenclatureCatalog(raw []byte) (model.NomenclatureCatalog, error) {
 			c.Properties[k] = r.Checked
 		}
 		c.Nomenclature[k] = r
+		if r.Checked && r.MarkStock > 0 {
+			if c.MarkStocks == nil {
+				c.MarkStocks = map[string]float64{}
+			}
+			c.MarkStocks[k] = r.MarkStock
+		}
 	}
 	return c, nil
 }

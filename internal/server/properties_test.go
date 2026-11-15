@@ -65,3 +65,52 @@ func TestIndependentNomenclatureProperties(t *testing.T) {
 		t.Fatal("removed checkmark returned after restart")
 	}
 }
+
+// Батч-35: база остатка отметки «+» (markStocks) сохраняется в каталоге свойств
+// и переживает перезапуск; снятие отметки удаляет её базу.
+func TestMarkStocksRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	app := server.New(false)
+	app.SetSaveDir(dir)
+	request := func(a *server.AppServer, method, body string) map[string]json.RawMessage {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		a.Handler().ServeHTTP(rec, httptest.NewRequest(method, "/api/properties", bytes.NewBufferString(body)))
+		if rec.Code != 200 {
+			t.Fatalf("properties: %d %s", rec.Code, rec.Body.String())
+		}
+		var result map[string]json.RawMessage
+		if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	request(app, http.MethodPost, `{"properties":{"sku:X":true},"markStocks":{"sku:X":5.5}}`)
+	result := request(app, http.MethodGet, "")
+	var stocks map[string]float64
+	if err := json.Unmarshal(result["markStocks"], &stocks); err != nil {
+		t.Fatal(err)
+	}
+	if stocks["sku:X"] != 5.5 {
+		t.Fatalf("markStock in memory lost: %v", stocks)
+	}
+	request(app, http.MethodPost, `{"save":true}`)
+	app2 := server.New(false)
+	app2.SetSaveDir(dir)
+	result = request(app2, http.MethodGet, "")
+	stocks = nil
+	if err := json.Unmarshal(result["markStocks"], &stocks); err != nil {
+		t.Fatal(err)
+	}
+	if stocks["sku:X"] != 5.5 {
+		t.Fatalf("markStock did not survive restart: %v", stocks)
+	}
+	// Снятие отметки удаляет базу.
+	request(app2, http.MethodPost, `{"properties":{"sku:X":false},"markStocks":{"sku:X":1}}`)
+	result = request(app2, http.MethodGet, "")
+	stocks = nil
+	_ = json.Unmarshal(result["markStocks"], &stocks)
+	if _, ok := stocks["sku:X"]; ok {
+		t.Fatalf("unmarked item must not keep a stock baseline: %v", stocks)
+	}
+}

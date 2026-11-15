@@ -36,21 +36,27 @@ func (s *AppServer) catalogLocked() model.NomenclatureCatalog {
 			}
 		}
 		r.Checked = checked
+		r.MarkStock = s.markStocks[key]
 		s.nomenclature[key] = r
 	}
 	if report != nil {
 		for _, it := range report.Items {
 			key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
-			s.nomenclature[key] = model.NomenclatureRecord{Warehouse: it.Warehouse, SKU: it.SKU, Name: it.Name, Group: it.Group, Checked: s.properties[key], Rating: it.SalesSegment, Stock: it.ClosingStock}
+			s.nomenclature[key] = model.NomenclatureRecord{Warehouse: it.Warehouse, SKU: it.SKU, Name: it.Name, Group: it.Group, Checked: s.properties[key], Rating: it.SalesSegment, Stock: it.ClosingStock, MarkStock: s.markStocks[key]}
 		}
 	}
-	c := model.NomenclatureCatalog{Version: 2, Properties: map[string]bool{}, Nomenclature: map[string]model.NomenclatureRecord{}}
+	c := model.NomenclatureCatalog{Version: 2, Properties: map[string]bool{}, MarkStocks: map[string]float64{}, Nomenclature: map[string]model.NomenclatureRecord{}}
 	for key, checked := range s.properties {
 		c.Properties[key] = checked
 	}
 	for key, r := range s.nomenclature {
 		c.Nomenclature[key] = r
 		c.Properties[key] = r.Checked
+	}
+	for key, stock := range s.markStocks {
+		if stock > 0 && c.Properties[key] {
+			c.MarkStocks[key] = stock
+		}
 	}
 	return c
 }

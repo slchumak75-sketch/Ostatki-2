@@ -257,6 +257,10 @@ func (s *AppServer) handleFullRestore(w http.ResponseWriter, r *http.Request) {
 	if selectedSet["properties.json"] {
 		s.properties = props.Properties
 		s.nomenclature = props.Nomenclature
+		s.markStocks = props.MarkStocks
+		if s.markStocks == nil {
+			s.markStocks = make(map[string]float64)
+		}
 		s.propertiesSavedAt = props.SavedAt
 		s.propertiesFileName = props.FileName
 	}
