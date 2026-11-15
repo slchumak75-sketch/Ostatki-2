@@ -1,9 +1,6 @@
-// Регрессия (батч-27): «разъезд» колонок от кнопки «Актуально».
-// Воспроизводит сценарий из жизни: таблица загружена с %-раскладкой (ширины
-// восстановлены/нормированы), dataset.pxBase в свежей сессии НЕ существует.
-// Прежний код вставлял в %-мир колонку «+» литеральными '32px', наивная
-// нормировка parseFloat смешивала единицы — «+» раздувался до ~24% и
-// расталкивал соседние колонки; при обратном переключении всё съезжало назад.
+// Батч-34: столбец «+» (пометка для выгрузки «Старьё») — всегда первый и
+// всегда видимый; кнопка «Актуально» меняет только фильтрацию строк, а не
+// раскладку таблицы. Регрессия прежних «разъездов» колонок при переключении.
 const {JSDOM}=require('jsdom');
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
@@ -15,52 +12,67 @@ w.fetch=async()=>({ok:true,json:async()=>({report:{items,warehouses:[],groups:[]
 w.scrollTo=()=>{};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,50));
-const plusIdx=()=>[...d.querySelectorAll('#itemsTable thead th')].findIndex(th=>th.classList.contains('plus-col'));
-const colsNow=()=>{const cg=d.getElementById('itemsTable').querySelector(':scope > colgroup');return cg?[...cg.querySelectorAll('col')]:[];};
-const assertAllPct=(label)=>{
-  for(const c of colsNow())assert.ok(c.style.width.endsWith('%'),label+': в colgroup не-% ширина: '+c.style.width);
-};
-const assertPlusNarrow=(label)=>{
-  const col=colsNow()[plusIdx()];
-  const v=parseFloat(col.style.width);
-  assert.ok(v>0.3&&v<6,label+`: столбец «+» ${col.style.width} должен быть узким (~2-3%)`);
-};
+const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number(tr.dataset.row)).sort((a,b)=>a-b);
 (async()=>{
   await tick();
   const t=d.getElementById('itemsTable');
   const relevant=d.getElementById('btnRelevant');
-  // Сценарий 1: СВЕЖАЯ СЕССИЯ, %-раскладка (14 колонок, «+» скрыт), pxBase отсутствует.
+  const ths=()=>[...t.querySelectorAll('thead tr th')];
+  const colWidths=()=>[...t.querySelectorAll(':scope > colgroup > col')].map(c=>c.style.width);
+
+  assert.equal(ths().findIndex(th=>th.classList.contains('plus-col')),0,'Plus column is the first header');
+  assert.ok(t.querySelector('#tableBody tr[data-row]').firstElementChild.classList.contains('plus-cell'),'First body cell is the plus checkbox');
+
+  // %-раскладка (как после нормировки ширин)
   let cg=d.createElement('colgroup');
-  const n=14,base=100/n;
+  const n=ths().length,base=100/n;
   for(let i=0;i<n;i++){const c=d.createElement('col');c.style.width=base+'%';cg.appendChild(c);}
   t.insertBefore(cg,t.firstChild);
   t.classList.add('table-manual-cols');
-  // 4 клика — «Актуально» выключен, «+» появляется
+  const widthsPct=colWidths();
+
+  // Выключаем «Актуально» (4 клика) — раскладка неизменна, помеченные строки видны
   for(let i=0;i<4;i++){relevant.click();await tick();}
-  assert.equal(colsNow().length,15,'показ «+»: 15 колонок');
-  assertAllPct('показ «+»');
-  assertPlusNarrow('показ «+»');
-  // Обратно: включили «Актуально» — «+» скрылся, колонки не изменились
+  assert.equal(t.querySelector(':scope > colgroup'),cg,'colgroup node survives toggling');
+  assert.ok(colWidths().every((v,i)=>v===widthsPct[i]),'widths unchanged after 4 toggles');
+  assert.equal(colWidths().length,ths().length,'colgroup covers all columns');
+
+  // Включаем обратно — то же самое
   relevant.click();await tick();
-  assert.equal(colsNow().length,14,'скрытие «+»: 14 колонок');
-  assertAllPct('после скрытия');
-  // Ещё цикл — стабильность
-  for(let i=0;i<4;i++){relevant.click();await tick();}
-  assert.equal(colsNow().length,15,'повторный показ: 15 колонок');
-  assertAllPct('повторный показ');
-  assertPlusNarrow('повторный показ');
-  // Сценарий 2: px-раскладка (после перетаскивания колонок) — тот же инвариант.
-  relevant.click();await tick();
-  cg=d.getElementById('itemsTable').querySelector(':scope > colgroup');
-  cg.remove();
+  assert.equal(t.querySelector(':scope > colgroup'),cg,'colgroup node still the same');
+  assert.ok(colWidths().every((v,i)=>v===widthsPct[i]),'widths unchanged after re-enable');
+
+  // px-раскладка (после перетаскивания колонок) — тот же инвариант
+  cg=t.querySelector(':scope > colgroup');cg.remove();
   cg=d.createElement('colgroup');
-  for(let i=0;i<14;i++){const c=d.createElement('col');c.style.width=(80+(i%5)*7)+'px';cg.appendChild(c);}
+  for(let i=0;i<n;i++){const c=d.createElement('col');c.style.width=(80+(i%5)*7)+'px';cg.appendChild(c);}
   t.insertBefore(cg,t.firstChild);
-  for(let i=0;i<4;i++){relevant.click();await tick();}
-  assert.equal(colsNow().length,15,'px-мир: 15 колонок');
-  assertAllPct('px-мир после нормировки');
-  assertPlusNarrow('px-мир');
+  const widthsPx=colWidths();
   relevant.click();await tick();
-  assert.equal(colsNow().length,14,'px-мир: скрытие — 14 колонок');
-  console.log('PLUS-COLUMN-DRIFT: OK');
+  assert.ok(colWidths().every((v,i)=>v===widthsPx[i]),'px-layout widths unchanged');
+  relevant.click();await tick();
+  assert.ok(colWidths().every((v,i)=>v===widthsPx[i]),'px-layout widths unchanged back');
+
+  // Поведение фильтра: зелёное «Актуально» скрывает только помеченные строки
+  const pressed=()=>relevant.getAttribute('aria-pressed');
+  // Кнопка защищена от случайного выключения: активная кнопка отвечает на 4-й клик.
+  const enable=async()=>{for(let i=0;i<4&&pressed()!=='true';i++){relevant.click();await tick();}};
+  const disable=async()=>{for(let i=0;i<4&&pressed()!=='false';i++){relevant.click();await tick();}};
+  await disable();
+  const chk=d.querySelector('[data-plus-row="9"]');
+  chk.checked=true;chk.dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert.ok(rows().includes(9),'Disabled relevance shows marked rows');
+  assert.ok(chk.checked,'Marked row shows its checkbox');
+  await enable();
+  assert.ok(!rows().includes(9),'Active relevance hides marked rows');
+  await disable();
+  assert.ok(rows().includes(9),'Marked row visible again when disabled');
+  const shown=d.querySelector('[data-plus-row="9"]');
+  assert.ok(shown&&shown.checked,'Its checkbox is checked');
+  await enable();
+  const visibleChk=d.querySelector('[data-plus-row="8"]');
+  assert.ok(visibleChk,'Unmarked rows still show empty checkboxes');
+  assert.ok(!visibleChk.checked,'Their checkboxes are empty');
+  console.log('PLUS-COLUMN-ALWAYS-FIRST: OK');
+  process.exit(0);
 })().catch(e=>{console.error('FAIL:',e.message);process.exit(1);});

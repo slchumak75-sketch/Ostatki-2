@@ -401,18 +401,18 @@ func TestServerAPIEndpoints(t *testing.T) {
 		}
 	}
 
-	// Проверка порядка столбцов в таблице «Ведомость»:
-	// Группа -> Артикул -> Номенклатура -> Ед. -> + -> Рейтинг, а также Цена -> Розница -> Сумма.
+	// Проверка порядка столбцов в таблице «Ведомость» (батч-34: «+» первым):
+	// + -> Группа -> Артикул -> Номенклатура -> Ед. -> Рейтинг, а также Цена -> Розница -> Сумма.
 	// Столбец «Запас» (surplusStock) удалён из ведомости.
+	plusColIdx := strings.Index(htmlBody, `data-sort="_staryoChecked" data-col="plus" class="plus-col"`)
 	groupColIdx := strings.Index(htmlBody, `data-sort="group" data-col="group"`)
 	skuColIdx := strings.Index(htmlBody, `data-sort="sku" data-col="sku"`)
 	nameIdx := strings.Index(htmlBody, `data-sort="name" data-col="name"`)
 	unitIdx := strings.Index(htmlBody, `data-sort="unit" data-col="unit"`)
-	plusColIdx := strings.Index(htmlBody, `data-sort="_staryoChecked" data-col="plus" class="plus-col"`)
 	ratingIdx := strings.Index(htmlBody, `data-sort="salesSegment" data-col="salesSegment" class="seg-col"`)
-	if !(groupColIdx > 0 && skuColIdx > groupColIdx && nameIdx > skuColIdx && unitIdx > nameIdx && plusColIdx > unitIdx && ratingIdx > plusColIdx) {
-		t.Fatalf("expected column order Группа -> Артикул -> Номенклатура -> Ед. -> + -> Рейтинг, got indices %d, %d, %d, %d, %d, %d",
-			groupColIdx, skuColIdx, nameIdx, unitIdx, plusColIdx, ratingIdx)
+	if !(plusColIdx > 0 && groupColIdx > plusColIdx && skuColIdx > groupColIdx && nameIdx > skuColIdx && unitIdx > nameIdx && ratingIdx > unitIdx) {
+		t.Fatalf("expected column order + -> Группа -> Артикул -> Номенклатура -> Ед. -> Рейтинг, got indices %d, %d, %d, %d, %d, %d",
+			plusColIdx, groupColIdx, skuColIdx, nameIdx, unitIdx, ratingIdx)
 	}
 	if surplusIdx := strings.Index(htmlBody, `data-sort="surplusStock"`); surplusIdx != -1 {
 		t.Fatalf("Запас column must stay removed from the statement, found index %d", surplusIdx)
@@ -465,7 +465,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"--sticky-toolbar-top",
 		"#view-overstock .data-table thead th { top: 0; }",
 		".budget-inline-card",
-		"#itemsTable:not(.show-plus-col) th.plus-col",
+		".data-table td.plus-cell",
 		".plus-input",
 		"width: 20px",
 		"height: 20px",
@@ -484,6 +484,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 
 	if strings.Contains(cssBody, "--auto-order-bg") || strings.Contains(cssBody, "--auto-order-cell") {
 		t.Fatal("orders must not add green row/cell highlighting")
+	}
+	// Батч-34: столбец «+» больше не скрывается — механики show-plus-col в CSS нет.
+	if strings.Contains(cssBody, "show-plus-col") {
+		t.Fatal("plus column must be always visible: no show-plus-col rules expected")
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/app.js", nil)

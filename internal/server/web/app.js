@@ -818,62 +818,25 @@
     table.style.width = '100%';
   }
 
-  // Появление/скрытие столбца «+» («Актуально») без разрушения раскладки:
-  // в живом colgroup добавляется/убирается только узкий col «+» (32px), ширины
-  // столбцов данных не меняются — таблица ни на один кадр не остаётся без
-  // colgroup, поэтому нет ни «разлёта» столбцов, ни сброса прокрутки.
-  function syncPlusColumn(table) {
+  // Батч-34: столбец «+» (пометка для выгрузки «Старьё») перенесён первым и
+  // отображается всегда — механизм добавления/удаления колонки (syncPlusColumn,
+  // класс show-plus-col) удалён вместе с классом проблем раскладки. Раскладка
+  // при первом показе строится по фактическим ширинам заголовков (как раньше
+  // делал syncPlusColumn для «живой» вставки «+»).
+  function ensureItemsColgroup(table) {
     if (!table || table.id!=='itemsTable') return;
+    if (table.querySelector(':scope > colgroup')) return;
     const allThs=[...table.querySelectorAll('thead tr th')];
-    const plusIndex=allThs.findIndex(h=>h.classList.contains('plus-col'));
-    if(plusIndex<0) return;
-    const hasPlus=table.classList.contains('show-plus-col');
-    const thPlus=allThs[plusIndex];
-    thPlus.style.width=hasPlus?'32px':'';
-    let colgroup=table.querySelector(':scope > colgroup');
-    let cols=colgroup?[...colgroup.querySelectorAll('col')]:[];
-    const expected=hasPlus?allThs.length:allThs.length-1;
-    if(colgroup && cols.length!==expected){
-      if(!hasPlus && cols.length===expected+1){
-        // Скрываем «+»: в colgroup ровно один лишний col — плюс.
-        cols[plusIndex]?.remove();cols.splice(plusIndex,1);
-      } else if(hasPlus && cols.length===expected-1){
-        // Показываем «+»: вставляем узкий col на своё место. В %-раскладке «+»
-        // занимает ровно остаток до 100% — данные колонки неподвижны, таблица
-        // остаётся ровно 100%. Раньше сюда попадал литеральный '32px', который
-        // после наивной нормировки parseFloat раздувался до ~24% и расталкивал
-        // колонки при каждом переключении «Актуально».
-        let plusWidth='2.4%';
-        const styles=cols.map(c=>c.style.width);
-        if(!styles.every(v=>v.endsWith('%'))){
-          plusWidth='32px';
-        } else {
-          const sumPct=styles.reduce((a,v)=>a+(parseFloat(v)||0),0);
-          const rest=100-sumPct;
-          if(rest>0.3&&rest<8)plusWidth=`${rest}%`;
-        }
-        const col=document.createElement('col');col.style.width=plusWidth;
-        colgroup.insertBefore(col,cols[plusIndex]||null);cols.splice(plusIndex,0,col);
-      } else {
-        colgroup.remove();colgroup=null;cols=[];
-      }
-    }
-    if(!colgroup){
-      // Раскладки ещё нет — собираем по фактическим ширинам заголовков.
-      // Без измеримых ширин (скрытая/нулевая таблица) раскладку не навязываем.
-      const sources=hasPlus?allThs:allThs.filter((_,i)=>i!==plusIndex);
-      const widths=sources.map(th=>parseFloat(th.style.width)||Math.round(th.getBoundingClientRect().width)||0);
-      if(!widths.some(w=>w>0))return;
-      colgroup=document.createElement('colgroup');
-      widths.forEach((w)=>{
-        const col=document.createElement('col');
-        if(w>0)col.style.width=`${w}px`;
-        colgroup.appendChild(col);
-      });
-      table.insertBefore(colgroup,table.firstChild);
-      table.classList.add('table-manual-cols');
-      cols=[...colgroup.querySelectorAll('col')];
-    }
+    const widths=allThs.map(th=>parseFloat(th.style.width)||Math.round(th.getBoundingClientRect().width)||0);
+    if(!widths.some(w=>w>0))return;
+    const colgroup=document.createElement('colgroup');
+    widths.forEach((w)=>{
+      const col=document.createElement('col');
+      if(w>0)col.style.width=`${w}px`;
+      colgroup.appendChild(col);
+    });
+    table.insertBefore(colgroup,table.firstChild);
+    table.classList.add('table-manual-cols');
     fitTableToViewport(table);
   }
 
@@ -884,14 +847,7 @@
     const allThs = [...headRow.querySelectorAll('th')];
     // Считаем целевые столбцы ДО удаления colgroup: при несоответствии длины ширин
     // существующая раскладка сохраняется, таблица не остаётся без colgroup.
-    const targetThs = table.id === 'itemsTable' && !state.staryoMode
-      ? allThs.filter((h) => !h.classList.contains('plus-col'))
-      : allThs;
-    if(table.id==='itemsTable') {
-      const plusIndex=allThs.findIndex(h=>h.classList.contains('plus-col'));
-      if(!state.staryoMode && widths.length===allThs.length)widths=widths.filter((_,i)=>i!==plusIndex);
-      else if(state.staryoMode && widths.length===allThs.length-1){widths=[...widths];widths.splice(plusIndex,0,32);}
-    }
+    const targetThs = allThs;
     if (targetThs.length !== widths.length) return;
     table.querySelector(':scope > colgroup')?.remove();
     const colgroup = document.createElement('colgroup');
@@ -912,16 +868,27 @@
   function restoreSavedFields() {
     try {
       const saved = savedColumnWidths;
-      const itemsWidths = saved.itemsTable;
-      if (Array.isArray(itemsWidths) && itemsWidths.every(n => Number.isFinite(n) && n > 0)) {
+      // Батч-34: «+» теперь первая колонка и всегда в сохранённых ширинах.
+      // Маркер __plusFirst есть только у новых сохранений; старые форматы:
+      //   count-1 — массив вовсе без «+» (зелёный режим): вставляем первым с шириной «№»;
+      //   count   — «+» стоял шестой (старьё-режим / старая миграция «Запаса»): переносим вперёд;
+      //   count+1 — наследие «Запаса» (слот 6 «Запас», слот 7 «+»): плюс первым, без «Запаса».
+      if (!saved.__plusFirst) {
         const count = el('itemsTable')?.querySelector('thead tr')?.querySelectorAll('th').length || 0;
-        // Widths saved before the «Запас» column was removed hold one extra entry: drop its slot (7th column).
-        if (count && itemsWidths.length === count + 1) {
-          saved.itemsTable = itemsWidths.filter((_, i) => i !== 6);
-          if (!legacyWidthMigrationDone) {
-            legacyWidthMigrationDone = true;
-            apiPost('api/column-widths', {widths:saved}).catch(() => {});
+        const itemsWidths = saved.itemsTable;
+        if (count && Array.isArray(itemsWidths) && itemsWidths.every(n => Number.isFinite(n) && n > 0)) {
+          if (itemsWidths.length === count - 1) {
+            saved.itemsTable = [itemsWidths[0], ...itemsWidths];
+          } else if (itemsWidths.length === count) {
+            saved.itemsTable = [itemsWidths[6], ...itemsWidths.slice(0, 6), ...itemsWidths.slice(7)];
+          } else if (itemsWidths.length === count + 1) {
+            saved.itemsTable = [itemsWidths[7], ...itemsWidths.slice(0, 6), ...itemsWidths.slice(8)];
           }
+        }
+        saved.__plusFirst = true;
+        if (!legacyWidthMigrationDone) {
+          legacyWidthMigrationDone = true;
+          apiPost('api/column-widths', {widths:saved}).catch(() => {});
         }
       }
       for (const id of ['itemsTable','suppliersTable']) {
@@ -944,6 +911,7 @@
         const widths = cols.length ? cols.map(col => parseFloat(col.style.width)) : [...table.querySelectorAll('thead tr:first-child th')].map(th => th.getBoundingClientRect().width);
         if (widths.length && widths.every(n => Number.isFinite(n) && n > 0)) saved[id] = widths;
       }
+      saved.__plusFirst = true;
       await apiPost('api/column-widths', {widths:saved});
       savedColumnWidths = saved;
       try { localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(saved)); } catch (_) {}
@@ -1073,7 +1041,6 @@
 
     if (el('itemsTable')) {
       resetTableColumnWidths(el('itemsTable'));
-      el('itemsTable').classList.toggle('show-plus-col',!state.unmarkedOnly);
     }
     if (el('suppliersTable')) {
       resetTableColumnWidths(el('suppliersTable'));
@@ -1170,7 +1137,6 @@
       state.hasUnsavedChanges = true;
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
-      el('itemsTable')?.classList.toggle('show-plus-col',!state.unmarkedOnly);
       if (el('fltSupplier')) el('fltSupplier').value = '';
       if (el('inpSupplierFilter')) el('inpSupplierFilter').value = '';
       if (el('inpSearch')) el('inpSearch').value = '';
@@ -1239,7 +1205,6 @@
       state.colFilters = {};
       resetTableColumnWidths(el('itemsTable'));
       resetTableColumnWidths(el('suppliersTable'));
-      el('itemsTable')?.classList.toggle('show-plus-col', state.staryoMode);
 
       const activePreset = ui.activePreset || 'standard';
       document.querySelectorAll('.preset-chip').forEach((c) => {
@@ -1873,7 +1838,7 @@
     el('paginationInfo').textContent =
       `Отображены все строки: ${fmtInt(total)} из ${fmtInt(allTotal)} • К закупке: ${fmtInt(orderRows)} SKU / ${fmtInt(orderUnits)} шт. • Сумма закупки: ${fmtMoney(roundedOrderSum)} руб.`;
 
-    const leadColspan = state.staryoMode ? 10 : 9;
+    const leadColspan = 10; // «+» (пометка «Старьё») + №..Остаток — колонки слева от числовых итого
     if (tfoot) {
       tfoot.innerHTML = `<tr>
         <td colspan="${leadColspan}" style="text-align:right;color:var(--text-muted)">Итого (к закупке: ${fmtInt(orderRows)} поз.):</td>
@@ -1914,13 +1879,13 @@
     ].filter(Boolean).join(' ');
 
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
+      <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочку" /></td>
       <td class="row-number-cell">${index + 1}</td>
       <td class="wh-cell${whCellTintClass(it.warehouse)}" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
       <td class="sku-cell">${esc(it.sku)}</td>
       <td class="name-cell" data-stock-row="${it.excelRow}" tabindex="0" aria-describedby="warehouseStockPopover">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
       <td class="unit-cell">шт.</td>
-            <td class="plus-cell"><input type="checkbox" class="plus-input${hasPlus ? ' has-plus' : ''}" ${hasPlus ? 'checked' : ''} data-plus-row="${it.excelRow}" title="Отметить галочкой для выгрузки «Старьё»" aria-label="Отметить галочкой" /></td>
       <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
       <td class="num-col col-5digits">${fmtInt(it.sumSalesLast12M)}</td>
       <td class="num-col col-5digits">${fmtStock(it.closingStock)}</td>
@@ -2948,15 +2913,7 @@
 
   function syncPropertyFilters() {
     state.staryoMode = !state.unmarkedOnly;
-    const table=el('itemsTable');
-    if(table && table.classList.contains('show-plus-col')!==state.staryoMode){
-      // Столбцы не должны «разъезжаться», а прокрутка — сбрасываться при появлении/скрытии
-      // столбца «+» («Актуально»). Colgroup больше не сносится: ширины данных столбцов
-      // остаются в нём без изменений, добавляется или убирается только узкий col «+».
-      table.classList.toggle('show-plus-col',state.staryoMode);
-      syncPlusColumn(table);
-    }
-
+    ensureItemsColgroup(el('itemsTable'));
     for (const [id, active] of [['btnSales12', state.sales12Only], ['btnRelevant', state.unmarkedOnly]]) {
       el(id)?.classList.toggle('property-filter-active', active);
       el(id)?.setAttribute('aria-pressed', String(active));
