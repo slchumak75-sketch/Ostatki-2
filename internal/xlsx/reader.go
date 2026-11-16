@@ -141,6 +141,7 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 	colExpense := 6
 	colStock := 7
 	colOrder := 8
+	orderColFound := false
 	colPrice := 9
 	colRetail := 10
 	colSupplier := 11
@@ -176,17 +177,35 @@ func ParseBytes(raw []byte, fileName string) (*model.WorkbookData, error) {
 			colName = c
 		case strings.Contains(h, "расход"):
 			colExpense = c
-		case strings.Contains(h, "остаток"):
+		case strings.Contains(h, "конечн") && strings.Contains(h, "остаток"):
+			colStock = c
+		case strings.Contains(h, "остаток") && !strings.Contains(h, "начальн"):
 			colStock = c
 		case strings.Contains(h, "закуп"):
 			colOrder = c
 			wb.OrderHeader = strings.TrimSpace(cellText)
+			orderColFound = true
 		case strings.Contains(h, "цена") && strings.Contains(h, "поставщ"):
 			colPrice = c
 		case strings.Contains(h, "рознич") && strings.Contains(h, "цена"):
 			colRetail = c
 		case strings.Contains(h, "поставщик") && !strings.Contains(h, "цена"):
 			colSupplier = c
+		}
+	}
+	if !orderColFound {
+		// Формат выгрузки от 16.11.2026: столбца «К закупкам» в шапке нет, а на
+		// позиции 8 — «Приход». Позиция по умолчанию (8) сохраняется только для
+		// старых выгрузок с пустой ячейкой шапки на месте 8; иначе заказы пишутся
+		// в новый столбец сразу после последнего заполненного столбца шапки.
+		lastHeaderCol := 0
+		for c := 1; c <= maxCol; c++ {
+			if strings.TrimSpace(headerCells[c]) != "" {
+				lastHeaderCol = c
+			}
+		}
+		if len(headerCells) > 8 && strings.TrimSpace(headerCells[8]) != "" && lastHeaderCol >= 8 {
+			colOrder = lastHeaderCol + 1
 		}
 	}
 	wb.OrderCol = colOrder

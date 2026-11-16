@@ -19,6 +19,7 @@ import (
 var (
 	sstCountRe  = regexp.MustCompile(`\bcount="(\d+)"`)
 	sstUniqueRe = regexp.MustCompile(`\buniqueCount="(\d+)"`)
+	dimensionRe = regexp.MustCompile(`<dimension ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\s*/?>`)
 )
 
 // WriteOrderColumnLossless записывает заголовок и расчётные значения столбца 8 ("К закупкам")
@@ -186,6 +187,17 @@ func patchWorksheetColumn(
 ) []byte {
 	src := string(rawSheet)
 	colPrefix := ColIndexToLetters(targetCol)
+
+	// Батч-39: если столбец заказа лежит за пределами текущей области листа
+	// (формат выгрузки 16.11.2026 — заказы пишутся в новый столбец после
+	// последнего), расширяем <dimension>, иначе Excel может проигнорировать ячейки.
+	if loc := dimensionRe.FindStringSubmatchIndex(src); loc != nil {
+		endCol := LettersToColIndex(src[loc[6]:loc[7]])
+		if endCol < targetCol {
+			newRef := src[loc[2]:loc[3]] + src[loc[4]:loc[5]] + ":" + colPrefix + src[loc[8]:loc[9]]
+			src = src[:loc[0]] + `<dimension ref="` + newRef + `"/>` + src[loc[1]:]
+		}
+	}
 
 	var out strings.Builder
 	out.Grow(len(src) + len(ordersByRow)*16)
