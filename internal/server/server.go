@@ -80,6 +80,15 @@ type stateEnvelope struct {
 	SelectedSuppliers       []string                 `json:"selectedSuppliers,omitempty"`
 	UIState                 model.SavedUIState       `json:"uiState"`
 	Report                  *model.CalculationReport `json:"report,omitempty"`
+	ImportSummary           *importSummary           `json:"importSummary,omitempty"`
+}
+
+// importSummary — итог загрузки заказа в ведомость (батч-36).
+type importSummary struct {
+	Applied   int      `json:"applied"`
+	Cleared   int      `json:"cleared"`
+	Unmatched []string `json:"unmatched,omitempty"`
+	Total     int      `json:"total"`
 }
 
 // New создаёт новый экземпляр AppServer.
@@ -320,6 +329,7 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/supplier-override", s.handleSupplierOverride)
 	mux.HandleFunc("/api/selected-suppliers", s.handleSelectedSuppliers)
 	mux.HandleFunc("/api/upload", s.handleUpload)
+	mux.HandleFunc("/api/import/order", s.handleImportOrder)
 	mux.HandleFunc("/api/clear", s.handleClearDatabase)
 	mux.HandleFunc("/api/db/save", s.handleSaveDatabase)
 	mux.HandleFunc("/api/db/list", s.handleListSavedDatabases)

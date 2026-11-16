@@ -34,7 +34,8 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  for(const id of ['btnSaveEtalon','btnExportEtalon','btnBackupEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
  assert.ok(d.getElementById('etalonFileInput').accept.includes('.json'));
  assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnFillOrder');
- assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnHighlightOrder');
+ assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnImportOrder');
+ assert.equal(d.getElementById('btnImportOrder').nextElementSibling.id,'btnHighlightOrder');
  assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
  assert.equal(d.getElementById('btnUpload').disabled,false,'Workbook buttons are available without a reference');
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,false,'Saved workbook button is available without a reference');

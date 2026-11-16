@@ -41,6 +41,7 @@
 
       <div class="topbar-actions">
         <input type="file" id="fileInput" accept=".xlsx" class="hidden" />
+        <input type="file" id="orderImportInput" accept=".xlsx" class="hidden" />
         <input type="file" id="savedDbFileInput" accept=".xlsx" class="hidden" />
         <form id="staryoExportForm" method="POST" action="api/export/staryo" class="hidden">
           <input type="hidden" name="rows" id="staryoExportRows" value="" />
@@ -61,6 +62,7 @@
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
         <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон</button>
         <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать автозаказ</button>
+        <button type="button" class="btn btn-beige" id="btnImportOrder" title="Загрузить сохранённый файл заказа и перезаписать значения в столбце «Заказ» текущей ведомости">Загрузить заказ</button>
         <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
       </div>
