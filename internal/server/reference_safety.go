@@ -46,13 +46,15 @@ func (s *AppServer) handleReferencePreview(w http.ResponseWriter, r *http.Reques
 		items = s.report.Items
 		source = s.report.FileName
 	}
+	idx := s.propertyBridgeIndexLocked()
 	for _, it := range items {
 		old, ok := lookup(it)
 		if !ok {
 			added++
 			continue
 		}
-		if old.Checked != s.properties[xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)] {
+		key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
+		if old.Checked != propertyBridgeChecked(s.properties, idx, key, xlsx.NomenclaturePropertyKey("", it.Group, it.Name, it.Warehouse)) {
 			marks++
 		}
 		if old.Stock != it.ClosingStock {
