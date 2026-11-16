@@ -17,7 +17,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.ok(d.getElementById('btnStockSearchMode').disabled,'Mode button is disabled while hints are off');
  d.getElementById('btnStockHintsOff').click();
  assert.equal(state.stockHintsDisabled,false);
- assert.equal(fill.nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnToggleAdvanced');
+ assert.equal(fill.nextElementSibling.id,'btnImportOrder');assert.equal(d.getElementById('btnImportOrder').nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnToggleAdvanced');
  const beforeInvalid=calls.length;fill.click();await tick();assert.equal(calls.length,beforeInvalid,'Ambiguous selection must not call fill endpoint');
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const before=JSON.stringify(items),beforeBudget=d.getElementById('kpiOrderCost').textContent,beforeCalls=calls.length;

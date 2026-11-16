@@ -1943,7 +1943,7 @@
       <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
       <td class="num-col">${fmtRetail(it)}</td>
       <td class="num-col" data-sum-row="${it.excelRow}" style="font-weight:${lineSum > 0 ? '700' : '400'}">${fmtMoney(lineSum)}</td>
-      <td class="sup-cell" title="${esc(it.supplier)}"><span class="sup-name">${esc(it.supplier || '')}</span><button type="button" class="sup-swap-btn" data-supswap-row="${it.excelRow}" title="Заменить поставщика в строке" aria-label="Заменить поставщика в строке">+</button></td>
+      <td class="sup-cell" title="${esc(it.supplier)}"><button type="button" class="sup-swap-btn" data-supswap-row="${it.excelRow}" title="Заменить поставщика в строке" aria-label="Заменить поставщика в строке">+</button><span class="sup-name">${esc(it.supplier || '')}</span></td>
     </tr>`;
   }
 
@@ -3379,6 +3379,35 @@
     el('btnHighlightOrder').addEventListener('click',()=>{
       try {const scope=highlightScope();const rows=state.report.items.filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses));if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
+    // «Загрузить заказ» (батч-36): файл заказа -> значения столбца «Заказ» ведомости.
+    el('btnImportOrder').addEventListener('click', () => { el('orderImportInput').click(); });
+    el('orderImportInput').addEventListener('change', async (e) => {
+      const input = e.target;
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      const button = el('btnImportOrder');
+      button.disabled = true;
+      try {
+        if (!state.report) throw new Error('Сначала загрузите ведомость');
+        const form = new FormData();
+        form.append('file', file);
+        const response = await fetch('api/import/order', { method: 'POST', body: form });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Ошибка загрузки заказа');
+        if (result.state) applyEnvelope(result.state);
+        const sum = result.importSummary || {};
+        let msg = `Заказ загружен: применено ${sum.applied ?? 0}`;
+        if (sum.cleared) msg += `, обнулено ${sum.cleared}`;
+        if (sum.unmatched?.length) msg += `, не сопоставлено ${sum.unmatched.length}${sum.total ? ` из ${sum.total}` : ''}`;
+        if (sum.unmatched?.length) msg += `. Не сопоставлено: ${sum.unmatched.slice(0, 3).join('; ')}${sum.unmatched.length > 3 ? '…' : ''}`;
+        showToast(msg);
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
     el('btnFillOrder').addEventListener('click',async()=>{
       const button=el('btnFillOrder');
       try {
@@ -3913,7 +3942,13 @@
     document.addEventListener('click', (e) => {
       if (supplierSwapRow !== null && !e.target.closest('#supplierSwapPopover') && !e.target.closest('[data-supswap-row]')) hideSupplierSwapPopover();
     });
-    document.addEventListener('scroll', hideSupplierSwapPopover, true);
+    // Батч-36: прокрутка ВНУТРИ окна выбора поставщика не закрывает его
+    // (список длинный — без прокрутки до поставщика не добраться).
+    document.addEventListener('scroll', (e) => {
+      if (supplierSwapRow === null) return;
+      if (e.target && e.target.closest && e.target.closest('#supplierSwapPopover')) return;
+      hideSupplierSwapPopover();
+    }, true);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && supplierSwapRow !== null) { hideSupplierSwapPopover(); } });
 
     function updateRowSumLive(rowNum, qty) {
