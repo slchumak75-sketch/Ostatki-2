@@ -3395,7 +3395,8 @@
         const response = await fetch('api/import/order', { method: 'POST', body: form });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Ошибка загрузки заказа');
-        if (result.state) applyEnvelope(result.state);
+        // Ответ сервера — конверт состояния в корне (как у пересчёта параметров).
+        applyEnvelope(result);
         const sum = result.importSummary || {};
         let msg = `Заказ загружен: применено ${sum.applied ?? 0}`;
         if (sum.cleared) msg += `, обнулено ${sum.cleared}`;
@@ -3881,8 +3882,15 @@
     // простой перечень поставщиков ведомости (только имена, без сумм и галочек).
     let supplierSwapRow = null;
     let supplierSwapNames = [];
+    let supplierSwapChoice = null;
+    function syncSupplierSwapOk() {
+      const ok = el('supplierSwapOk');
+      if (ok) ok.disabled = supplierSwapChoice === null;
+    }
     function hideSupplierSwapPopover() {
       supplierSwapRow = null;
+      supplierSwapChoice = null;
+      syncSupplierSwapOk();
       const pop = el('supplierSwapPopover');
       pop.classList.add('hidden');
       pop.setAttribute('aria-hidden', 'true');
@@ -3893,12 +3901,14 @@
       const filtered = supplierSwapNames.filter((n) => n.toLowerCase() !== String(current || '').trim().toLowerCase() && (!q || n.toLowerCase().includes(q)));
       const list = el('supplierSwapList');
       list.innerHTML = filtered.length
-        ? filtered.map((n) => `<button type="button" class="ssp-item" role="option" data-ssp-supplier="${esc(n)}" title="${esc(n)}">${esc(n)}</button>`).join('')
+        ? filtered.map((n) => `<button type="button" class="ssp-item${n === supplierSwapChoice ? ' ssp-selected' : ''}" role="option" aria-selected="${n === supplierSwapChoice}" data-ssp-supplier="${esc(n)}" title="${esc(n)}">${esc(n)}</button>`).join('')
         : '<div class="ssp-empty">Поставщик не найден</div>';
     }
     function openSupplierSwapPopover(row, anchor) {
       const items = state.report?.items || [];
       supplierSwapNames = [...new Set([...items.map((it) => String(it.supplier || '').trim()).filter(Boolean), ...Object.values(state.supplierOriginals || {}).map((n) => String(n || '').trim()).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'ru'));
+      supplierSwapChoice = null;
+      syncSupplierSwapOk();
       supplierSwapRow = row;
       el('supplierSwapSearch').value = '';
       renderSupplierSwapList();
@@ -3924,20 +3934,43 @@
       else openSupplierSwapPopover(row, btn);
     });
     el('supplierSwapSearch').addEventListener('input', renderSupplierSwapList);
-    el('supplierSwapList').addEventListener('click', async (e) => {
+    function applySupplierSwap(row, supplier) {
+      const epoch = state.clientEpoch;
+      return (async () => {
+        try {
+          const env = await apiPost('api/supplier-override', { excelRow: row, supplier });
+          if (epoch !== state.clientEpoch) return;
+          hideSupplierSwapPopover();
+          applyEnvelope(env);
+          refreshExcelTable();
+          showToast(`Поставщик заменён: ${supplier}`);
+        } catch (err) {
+          showToast(err.message);
+        }
+      })();
+    }
+    // Батч-37: клик по поставщику выбирает его (подсветка), «ОК» применяет;
+    // двойной клик — быстрое применение; Esc/клик мимо закрывают без изменений.
+    el('supplierSwapList').addEventListener('click', (e) => {
       const item = e.target.closest('[data-ssp-supplier]');
       if (!item || supplierSwapRow === null) return;
-      const row = supplierSwapRow, supplier = item.dataset.sspSupplier, epoch = state.clientEpoch;
-      try {
-        const env = await apiPost('api/supplier-override', { excelRow: row, supplier });
-        if (epoch !== state.clientEpoch) return;
-        hideSupplierSwapPopover();
-        applyEnvelope(env);
-        refreshExcelTable();
-        showToast(`Поставщик заменён: ${supplier}`);
-      } catch (err) {
-        showToast(err.message);
+      supplierSwapChoice = item.dataset.sspSupplier;
+      // Подсветка БЕЗ пересборки списка: перерисовка innerHTML отрывает кликнутый
+      // элемент от DOM, и document-обработчик «клик мимо» закрывал окно (батч-37).
+      for (const it of el('supplierSwapList').querySelectorAll('.ssp-item')) {
+        const on = it.dataset.sspSupplier === supplierSwapChoice;
+        it.classList.toggle('ssp-selected', on);
+        it.setAttribute('aria-selected', String(on));
       }
+      syncSupplierSwapOk();
+    });
+    el('supplierSwapList').addEventListener('dblclick', (e) => {
+      const item = e.target.closest('[data-ssp-supplier]');
+      if (!item || supplierSwapRow === null) return;
+      applySupplierSwap(supplierSwapRow, item.dataset.sspSupplier);
+    });
+    el('supplierSwapOk').addEventListener('click', () => {
+      if (supplierSwapRow !== null && supplierSwapChoice !== null) applySupplierSwap(supplierSwapRow, supplierSwapChoice);
     });
     document.addEventListener('click', (e) => {
       if (supplierSwapRow !== null && !e.target.closest('#supplierSwapPopover') && !e.target.closest('[data-supswap-row]')) hideSupplierSwapPopover();
