@@ -1,6 +1,6 @@
-// Подмена поставщика в отдельной строке: «+» справа от поставщика в столбце
-// «Поставщик» (только таблица Номенклатуры) открывает простой перечень
-// поставщиков (без сумм и галочек); выбор заменяет поставщика в этой строке.
+// Подмена поставщика в отдельной строке: «+» слева от поставщика в столбце
+// «Поставщик» (только таблица Номенклатуры) открывает перечень; клик выбирает,
+// «ОК» применяет, двойной клик — сразу (батч-37).
 const {JSDOM}=require('jsdom');
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
@@ -40,6 +40,7 @@ const toastText=()=>d.getElementById('toast').classList.contains('hidden')?'':d.
  assert.ok(!pop().classList.contains('hidden'),'Popover opens from the plus button');
  assert.equal(d.querySelectorAll('#supplierSwapList input[type="checkbox"]').length,0,'No checkboxes in the list');
  assert.deepEqual(listItems(),['Другой','Третий'],'Plain supplier names only, current one excluded');
+ assert.ok(d.getElementById('supplierSwapOk').disabled,'OK is disabled until a supplier is chosen');
  assert.ok(!/\d/.test(listItems().join('')),'No numeric sums in the list');
  // 3) Поиск фильтрует перечень.
  const search=d.getElementById('supplierSwapSearch');
@@ -49,11 +50,14 @@ const toastText=()=>d.getElementById('toast').classList.contains('hidden')?'':d.
  // 4) Esc закрывает поповер.
  d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
  assert.ok(pop().classList.contains('hidden'),'Escape closes the popover');
- // 5) Выбор поставщика заменяет его в конкретной строке.
+ // 5) Клик выбирает поставщика (без запроса), «ОК» применяет (батч-37).
  btns[0].click();
  d.querySelector('#supplierSwapList [data-ssp-supplier="Другой"]').click();
+ assert.ok(d.querySelector('#supplierSwapList [data-ssp-supplier="Другой"]').classList.contains('ssp-selected'),'Selected supplier is highlighted');
+ assert.equal(overrideRequests,0,'Selection alone does not send anything');
+ d.getElementById('supplierSwapOk').click();
  await tick();
- assert.equal(overrideRequests,1,'Substitution is sent to the server');
+ assert.equal(overrideRequests,1,'OK sends the substitution');
  const body=JSON.parse(calls.find(c=>c.path==='api/supplier-override').options.body);
  assert.deepEqual(body,{excelRow:8,supplier:'Другой'});
  const cell8=d.querySelector('[data-qty-row="8"]').closest('tr').querySelector('.sup-cell');
@@ -68,9 +72,17 @@ const toastText=()=>d.getElementById('toast').classList.contains('hidden')?'':d.
  assert.ok(!pop().classList.contains('hidden'),'The plus button stays available for re-substitution');
  assert.deepEqual(listItems(),['Поставщик','Третий'],'Current supplier is excluded on re-swap');
  d.querySelector('#supplierSwapList [data-ssp-supplier="Поставщик"]').click();
+ assert.equal(overrideRequests,1,'Re-substitution waits for OK');
+ d.getElementById('supplierSwapOk').click();
  await tick();
  assert.equal(overrideRequests,2);
  assert.equal(d.querySelector('[data-qty-row="8"]').closest('tr').querySelector('.sup-cell').textContent.replace('+','').trim(),'Поставщик','Re-substitution applies');
+ // 7b) Двойной клик применяет сразу (быстрый путь).
+ const btn8c=d.querySelector('[data-qty-row="8"]').closest('tr').querySelector('[data-supswap-row]');
+ btn8c.click();
+ d.querySelector('#supplierSwapList [data-ssp-supplier="Третий"]').dispatchEvent(new w.MouseEvent('dblclick',{bubbles:true}));
+ await tick();
+ assert.equal(overrideRequests,3,'Double click applies immediately');
  // 8) Клик мимо поповера закрывает его.
  const btn8b=d.querySelector('[data-qty-row="8"]').closest('tr').querySelector('[data-supswap-row]');
  btn8b.click();
