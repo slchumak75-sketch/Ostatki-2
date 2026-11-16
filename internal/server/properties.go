@@ -373,8 +373,10 @@ func (s *AppServer) handleImportProperties(w http.ResponseWriter, r *http.Reques
 func (s *AppServer) orderExclusionsLocked(wb *model.WorkbookData) map[int]bool {
 	rows := map[int]bool{}
 	if wb != nil {
+		idx := s.propertyBridgeIndexLocked()
 		for _, it := range wb.Items {
-			if s.properties[xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)] {
+			key := xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)
+			if propertyBridgeChecked(s.properties, idx, key, xlsx.NomenclaturePropertyKey("", it.Group, it.Name, it.Warehouse)) {
 				rows[it.ExcelRow] = true
 			}
 		}

@@ -223,3 +223,96 @@ func TestComparisonReferenceMarksSurviveCorrectionAndReload(t *testing.T) {
 		t.Fatal("reference file changed without explicit save")
 	}
 }
+
+// Батч-40: выгрузка 1С от 16.11.2026 оставила «Артикул» пустым у части позиций.
+// Эталон, сохранённый по старым файлам (ключи «sku»+склад), должен узнавать
+// те же позиции в новой выгрузке по «группа+наименование+склад» — без ложных
+// «новинок» (у пользователя их было 6364).
+func TestComparisonBridgesReferenceWithMissingSKU(t *testing.T) {
+	app := New(false)
+	dir := t.TempDir()
+	app.SetSaveDir(dir)
+	app.propertiesLoaded = true
+	app.properties = map[string]bool{}
+	app.etalon = map[string]model.NomenclatureRecord{}
+	app.report = &model.CalculationReport{}
+
+	const sku, group, name, wh = "АРТ-1", "ХОЗГРУППА", "Блюдо овал. жарост. 2,1л", "Склад Мир"
+	oldKey := xlsx.NomenclaturePropertyKey(sku, group, name, wh)
+	app.etalon[oldKey] = model.NomenclatureRecord{SKU: sku, Group: group, Name: name, Warehouse: wh, Stock: 10, Rating: 3, Checked: true}
+
+	// Та же позиция в новой выгрузке: артикул пуст, ключ «имя»-формы.
+	it := model.CalculatedItem{RawItem: model.RawItem{ExcelRow: 8, SKU: "", Group: group, Name: name, Warehouse: wh, ClosingStock: 11}, SalesSegment: 3}
+	app.report.Items = append(app.report.Items, it)
+	app.properties[xlsx.NomenclaturePropertyKey(it.SKU, it.Group, it.Name, it.Warehouse)] = true
+
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/etalon/compare", nil))
+	if rec.Code != 200 {
+		t.Fatal(rec.Code, rec.Body.String())
+	}
+	var got struct {
+		Rows  []etalonComparisonRow `json:"rows"`
+		Count int                   `json:"matchedCount"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows = %d, ожидалась 1 (без ложных новинок)", len(got.Rows))
+	}
+	r := got.Rows[0]
+	if r.IsNew {
+		t.Fatal("позиция с пропавшим артикулом помечена как новая")
+	}
+	if !r.Matches || !r.StockIncreased || !r.EtalonChecked {
+		t.Fatalf("semantics: %+v", r)
+	}
+	if r.EtalonStock != 10 || r.EtalonRating != 3 || r.CurrentRating != 3 {
+		t.Fatalf("reference fields: %+v", r)
+	}
+}
+
+// Обратное направление: эталон сохранён по новой выгрузке (ключ «имя»-формы),
+// текущий файл — старого формата (позиция с артикулом).
+func TestReferenceLookupBridgesNameKeys(t *testing.T) {
+	const group, name, wh = "ХОЗГРУППА", "Блюдо овал. жарост. 2,1л", "Склад Мир"
+	nameKey := xlsx.NomenclaturePropertyKey("", group, name, wh)
+	records := map[string]model.NomenclatureRecord{
+		nameKey: {SKU: "", Group: group, Name: name, Warehouse: wh, Stock: 5, Rating: 2, Checked: false},
+	}
+	lookup := referenceLookup(records)
+	it := model.CalculatedItem{RawItem: model.RawItem{ExcelRow: 9, SKU: "АРТ-9", Group: group, Name: name, Warehouse: wh, ClosingStock: 5}, SalesSegment: 2}
+	ref, ok := lookup(it)
+	if !ok || ref.Stock != 5 || ref.Rating != 2 {
+		t.Fatalf("fallback name-key: ok=%v rec=%+v", ok, ref)
+	}
+}
+
+// Мостик пометок/исключений: свойство записано по старому sku-ключу
+// (метаданные в каталоге), позиция в новой выгрузке без артикула.
+func TestOrderExclusionsBridgeMissingSKU(t *testing.T) {
+	app := New(false)
+	const sku, group, name, wh = "АРТ-1", "ХОЗГРУППА", "Блюдо овал. жарост. 2,1л", "Склад Мир"
+	skuKey := xlsx.NomenclaturePropertyKey(sku, group, name, wh)
+	app.properties = map[string]bool{skuKey: true}
+	app.nomenclature = map[string]model.NomenclatureRecord{
+		skuKey: {SKU: sku, Group: group, Name: name, Warehouse: wh},
+	}
+	wb := &model.WorkbookData{Items: []model.RawItem{
+		{ExcelRow: 5, SKU: "", Group: group, Name: name, Warehouse: wh},
+		{ExcelRow: 6, SKU: "", Group: group, Name: "Другой товар", Warehouse: wh},
+	}}
+	rows := app.orderExclusionsLocked(wb)
+	if !rows[5] {
+		t.Fatal("исключение по старому sku-ключу не найдено для позиции без артикула")
+	}
+	if rows[6] {
+		t.Fatal("чужая позиция ошибочно исключена")
+	}
+	// Кэш индекса валиден при повторном вызове (набор ключей не менялся).
+	rows2 := app.orderExclusionsLocked(wb)
+	if !rows2[5] || rows2[6] {
+		t.Fatal("повторный вызов дал другой результат")
+	}
+}

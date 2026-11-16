@@ -31,6 +31,8 @@ type AppServer struct {
 	properties              map[string]bool
 	markStocks              map[string]float64
 	nomenclature            map[string]model.NomenclatureRecord
+	propBridgeIdx           map[string][]string
+	propBridgeLen           int
 	etalon                  map[string]model.NomenclatureRecord
 	etalonSource            string
 	etalonSavedAt           string
