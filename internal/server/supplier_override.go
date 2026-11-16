@@ -94,6 +94,7 @@ func (s *AppServer) handleSupplierOverride(w http.ResponseWriter, r *http.Reques
 
 	s.mu.Lock()
 	s.report = rep
+	s.dirtySinceSave = true
 	s.epoch.Add(1)
 	env := s.buildStateEnvelopeLocked()
 	s.mu.Unlock()

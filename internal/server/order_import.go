@@ -105,6 +105,9 @@ func (s *AppServer) handleImportOrder(w http.ResponseWriter, r *http.Request) {
 			delete(s.overrides, target)
 		}
 	}
+	if applied > 0 || cleared > 0 {
+		s.dirtySinceSave = true
+	}
 
 	wb := s.wb
 	params := s.params
