@@ -55,6 +55,7 @@ type AppServer struct {
 	customSaveDir           string
 	uiState                 model.SavedUIState
 	report                  *model.CalculationReport
+	dirtySinceSave          bool
 	desktopMode             bool
 
 	hbMu             sync.Mutex
@@ -210,6 +211,7 @@ func (s *AppServer) LoadWorkbookFromBytes(raw []byte, fileName string) error {
 	s.lastSavedAt = ""
 	s.params = p
 	s.report = rep
+	s.dirtySinceSave = false
 	return nil
 }
 
@@ -291,9 +293,28 @@ func (s *AppServer) triggerShutdown() {
 				fmt.Fprintf(os.Stderr, "Сохранение свойств при выходе: %v\n", err)
 			}
 		}
+		// Батч-38: несохранённые правки ведомости (заказы, параметры, замены
+		// поставщиков) не должны пропадать при закрытии окна крестиком или
+		// завершении процесса: страница в этот момент уже не отвечает и
+		// клиентское сохранение (кнопка «Сохранить» в диалоге) не выполняется.
+		if s.dirtySinceSave && s.wb != nil && s.report != nil && len(s.rawXLSX) > 0 {
+			res, err := s.saveDatabaseCoreLocked()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Автосохранение ведомости при закрытии: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "Ведомость сохранена при закрытии: %s (%s)\n", res.FileName, res.FilePath)
+			}
+		}
 		s.mu.Unlock()
 		close(s.shutdownCh)
 	})
+}
+
+// Shutdown инициирует завершение: сохранение свойств и несохранённых правок
+// ведомости (батч-38), затем закрытие ShutdownChan. Вызывается из main при
+// получении сигнала завершения процесса и из watchdog/desktop-пути.
+func (s *AppServer) Shutdown() {
+	s.triggerShutdown()
 }
 
 // Handler возвращает настроенный HTTP-маршрутизатор со встроенным HTML GUI и REST API.
@@ -389,6 +410,7 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	startEpoch := s.epoch.Load()
 	s.params = normParams
+	s.dirtySinceSave = true
 	wb := s.wb
 	excludedRows := s.orderExclusionsLocked(wb)
 	var overridesCopy map[int]int
@@ -454,6 +476,7 @@ func (s *AppServer) handleOverride(w http.ResponseWriter, r *http.Request) {
 		}
 		s.overrides[req.ExcelRow] = req.Value
 	}
+	s.dirtySinceSave = true
 	wb := s.wb
 	params := s.params
 	excludedRows := s.orderExclusionsLocked(wb)

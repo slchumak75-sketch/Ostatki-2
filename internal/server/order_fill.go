@@ -110,6 +110,7 @@ func (s *AppServer) handleFillOrder(w http.ResponseWriter, r *http.Request) {
 	s.params = params
 	s.overrides = overrides
 	s.report = rep
+	s.dirtySinceSave = true
 	writeJSONForRequest(w, r, http.StatusOK, s.buildStateEnvelopeLocked())
 }
 

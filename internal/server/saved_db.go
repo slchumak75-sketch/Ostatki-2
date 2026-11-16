@@ -142,14 +142,39 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 		s.report = forecast.CalculateExplicit(s.wb, s.params, s.overrides, s.orderExclusionsLocked(s.wb))
 	}
 
+	res, err := s.saveDatabaseCoreLocked()
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":             true,
+		"fileName":       res.FileName,
+		"filePath":       res.FilePath,
+		"savedAt":        res.SavedAt,
+		"warehouseLabel": res.WarehouseLabel,
+	})
+}
+
+type savedDatabaseResult struct {
+	FileName       string
+	FilePath       string
+	SavedAt        string
+	WarehouseLabel string
+}
+
+// saveDatabaseCoreLocked формирует и записывает файл «Ведомость сохраненная».
+// Вызывается с удержанным s.mu: и из HTTP-обработчика /api/db/save, и из
+// triggerShutdown (сохранение при закрытии окна/процесса, батч-38).
+func (s *AppServer) saveDatabaseCoreLocked() (savedDatabaseResult, error) {
 	now := time.Now()
 	whLabel := resolveWarehouseLabel(s.wb, s.uiState)
 	fileName := xlsx.FormatSavedDatabaseFilename(whLabel, now)
 	saveDir := s.resolveSaveDirLocked()
 	if err := os.MkdirAll(saveDir, 0o755); err != nil {
-		s.mu.Unlock()
-		writeError(w, http.StatusInternalServerError, "не удалось подготовить каталог сохранения: "+err.Error())
-		return
+		return savedDatabaseResult{}, fmt.Errorf("не удалось подготовить каталог сохранения: %w", err)
 	}
 	targetPath := filepath.Join(saveDir, fileName)
 
@@ -189,23 +214,17 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 		snap,
 	)
 	if err != nil {
-		s.mu.Unlock()
-		writeError(w, http.StatusInternalServerError, "ошибка формирования файла ведомости: "+err.Error())
-		return
+		return savedDatabaseResult{}, fmt.Errorf("ошибка формирования файла ведомости: %w", err)
 	}
 
 	tmpPath := targetPath + ".tmp"
 	if err := os.WriteFile(tmpPath, outBytes, 0o644); err != nil {
-		s.mu.Unlock()
-		writeError(w, http.StatusInternalServerError, "ошибка записи файла ведомости: "+err.Error())
-		return
+		return savedDatabaseResult{}, fmt.Errorf("ошибка записи файла ведомости: %w", err)
 	}
 	if err := os.Rename(tmpPath, targetPath); err != nil {
 		_ = os.Remove(tmpPath)
 		if err2 := os.WriteFile(targetPath, outBytes, 0o644); err2 != nil {
-			s.mu.Unlock()
-			writeError(w, http.StatusInternalServerError, "не удалось перезаписать сохранённую ведомость (возможно, файл открыт в Excel): "+err2.Error())
-			return
+			return savedDatabaseResult{}, fmt.Errorf("не удалось перезаписать сохранённую ведомость (возможно, файл открыт в Excel): %w", err2)
 		}
 	}
 
@@ -238,15 +257,8 @@ func (s *AppServer) handleSaveDatabase(w http.ResponseWriter, r *http.Request) {
 	s.savedDBPath = targetPath
 	s.savedDBName = fileName
 	s.lastSavedAt = snap.SavedAt
-	s.mu.Unlock()
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":             true,
-		"fileName":       fileName,
-		"filePath":       targetPath,
-		"savedAt":        snap.SavedAt,
-		"warehouseLabel": whLabel,
-	})
+	s.dirtySinceSave = false
+	return savedDatabaseResult{FileName: fileName, FilePath: targetPath, SavedAt: snap.SavedAt, WarehouseLabel: whLabel}, nil
 }
 
 func (s *AppServer) handleListSavedDatabases(w http.ResponseWriter, r *http.Request) {
@@ -469,6 +481,7 @@ func (s *AppServer) restoreSavedDatabaseBytes(raw []byte, displayName string, di
 	s.savedDBName = displayName
 	s.lastSavedAt = savedAt
 	s.report = rep
+	s.dirtySinceSave = false
 	return nil
 }
 
