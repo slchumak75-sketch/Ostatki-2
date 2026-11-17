@@ -3046,32 +3046,33 @@
       const months = Number(el('stockAnalysisMonths').value) || 12;
       return `whA=${encodeURIComponent(whA)}&whB=${encodeURIComponent(whB)}&months=${months}`;
     }
-    function stockAnalysisVerdictClass(v) {
-      if (v.startsWith('Заказ не требуется')) return 'color:#164d25;font-weight:600';
-      if (v.startsWith('Излишек')) return 'color:#8a6d3b';
-      return 'color:var(--text)';
-    }
     function renderStockAnalysis() {
       const data = stockAnalysisData;
       if (!data) return;
       const rows = data.rows || [];
-      el('stockAnalysisSummary').textContent = `Совпадений: ${data.matched} (по артикулу: ${data.bySku}, по названию: ${data.byName}) • показано строк: ${rows.length} • порог излишка: ${data.months} мес.`;
+      el('stockAnalysisSummary').textContent = `Совпадений: ${data.matched} (по артикулу: ${data.bySku}, по названию: ${data.byName}) • пар с перемещением: ${rows.length} • порог излишка: ${data.months} мес.`;
       if (!rows.length) {
-        el('stockAnalysisResults').innerHTML = '<div style="padding:18px;color:var(--text-muted)">Подходящих пар не найдено</div>';
+        el('stockAnalysisResults').innerHTML = '<div style="padding:18px;color:var(--text-muted)">Пар с перемещением не найдено</div>';
         return;
       }
-      const head = `<tr><th>Артикул</th><th>Номенклатура</th><th>Совпадение</th><th>${esc(data.whA)}: остаток</th><th>Запас, мес</th><th>Излишек, шт</th><th>Излишек, руб</th><th>${esc(data.whB)}: остаток</th><th>Заказ, шт</th><th>Вывод</th></tr>`;
+      const arrowCell = (r) => {
+        if (r.arrow === 'AtoB') {
+          return `<span style="font-size:18px;font-weight:700;color:#164d25" title="Переместить со склада «${esc(data.whA)}» на «${esc(data.whB)}»: излишек ${fmtInt(r.excessUnits)} шт ≈ ${fmtMoney(r.excessValue)} р.">→</span>`;
+        }
+        if (r.arrow === 'BtoA') {
+          return `<span style="font-size:18px;font-weight:700;color:#164d25" title="Переместить со склада «${esc(data.whB)}» на «${esc(data.whA)}»: излишек ${fmtInt(r.excessUnits)} шт ≈ ${fmtMoney(r.excessValue)} р.">←</span>`;
+        }
+        return '<span style="color:var(--text-muted)">—</span>';
+      };
+      const head = `<tr><th>Группа</th><th>Артикул</th><th>Номенклатура</th><th>Совпадение</th><th style="text-align:right">${esc(data.whA)}</th><th style="text-align:center">Перемещение</th><th style="text-align:right">${esc(data.whB)}</th></tr>`;
       const body = rows.map((r) => `<tr>
+        <td>${esc(r.group || '—')}</td>
         <td>${esc(r.sku || '—')}</td>
-        <td title="${esc(r.group || '')}">${esc(r.name)}</td>
-        <td>${r.matchBy === 'артикул' ? '100% (артикул)' : `${r.matchScore}% (название)`}</td>
+        <td title="${esc(r.name)}">${esc(r.name)}</td>
+        <td>${r.matchScore}%</td>
         <td style="text-align:right">${fmtInt(r.whAStock)}</td>
-        <td style="text-align:right">${r.whAMonths >= 999 ? '∞' : Number(r.whAMonths).toFixed(1)}</td>
-        <td style="text-align:right">${r.whAExcessUnits > 0 ? fmtInt(r.whAExcessUnits) : '—'}</td>
-        <td style="text-align:right">${r.whAExcessValue > 0 ? fmtMoney(r.whAExcessValue) + ' р.' : '—'}</td>
+        <td style="text-align:center">${arrowCell(r)}</td>
         <td style="text-align:right">${fmtInt(r.whBStock)}</td>
-        <td style="text-align:right">${r.whBOrderQty > 0 ? fmtInt(r.whBOrderQty) : (r.whBNeedOrder ? 'заказ' : '—')}</td>
-        <td style="${stockAnalysisVerdictClass(r.verdict)}">${esc(r.verdict)}</td>
       </tr>`).join('');
       el('stockAnalysisResults').innerHTML = `<table class="v4-table" style="width:100%;border-collapse:collapse;font-size:12px">${head}${body}</table>`;
     }

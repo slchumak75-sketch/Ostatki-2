@@ -18,8 +18,8 @@ w.fetch=async(path,options={})=>{
  calls.push({path,options});
  if(path.startsWith('api/stock-analysis?'))return {ok:true,json:async()=>({
    rows:[
-    {sku:'A1',name:'Дрель ударная',group:'Группа',matchScore:100,matchBy:'артикул',whAStock:20,whAMonths:20,whAExcessUnits:8,whAExcessValue:80,whBStock:0,whBOrderQty:5,whBNeedOrder:true,verdict:'Заказ не требуется: закрыть перетоком со склада А (излишек 8 шт ≈ 80.00 руб.)'},
-    {sku:'',name:'Перчатки рабочие',group:'Группа',matchScore:64,matchBy:'название',whAStock:50,whAMonths:999,whAExcessUnits:50,whAExcessValue:400,whBStock:1,whBOrderQty:2,whBNeedOrder:true,verdict:'Заказ не требуется: закрыть перетоком со склада А (излишек 50 шт ≈ 400.00 руб.)'}
+    {group:'Группа',sku:'A1',name:'Дрель ударная',matchScore:100,whAStock:20,whAMonths:20,whBStock:0,whBMonths:0,arrow:'AtoB',excessUnits:8,excessValue:80},
+    {group:'Группа',sku:'',name:'Перчатки рабочие',matchScore:64,whAStock:50,whAMonths:999,whBStock:1,whBMonths:2,arrow:'BtoA',excessUnits:50,excessValue:400}
    ],matched:2,bySku:1,byName:1,months:9,whA:'Склад Мир',whB:'Склад Кореличи'})};
  if(path.startsWith('api/stock-analysis/export'))return {ok:true,blob:async()=>new w.Blob(['xlsx'])};
  if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:false})};
@@ -29,39 +29,43 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,60));
 (async()=>{try{
  await tick();
- // Б41: пять старых кнопок удалены, новая — на их месте в «Конфигурации».
  for(const id of ['btnBackupEtalon','btnReferenceHistory','btnCompareExport','btnFullBackup','btnFullRestore','fullRestoreInput'])assert.equal(d.getElementById(id),null,'Б41: '+id+' удалён');
  assert.ok(d.getElementById('btnStockAnalysis').closest('#paramsPanel'),'Анализ остатков сидит в панели конфигурации');
- // Открытие окна: селекторы заполняются складами ведомости, месяцы — настройка.
  d.getElementById('btnStockAnalysis').click();await tick();
  assert.ok(!d.getElementById('stockAnalysisModal').classList.contains('hidden'),'Окно анализа открылось');
  const whA=d.getElementById('stockAnalysisWhA'),whB=d.getElementById('stockAnalysisWhB');
  assert.equal(whA.options.length,2);assert.equal(whB.options.length,2);
  assert.equal(whA.value,'Склад Кореличи','склады в селекторах по алфавиту');assert.equal(whB.value,'Склад Мир');
  assert.equal(d.getElementById('stockAnalysisMonths').value,'12','Месяцы по умолчанию 12');
- // Запуск анализа: параметры уходят в запрос (норма месяцев = 9), таблица рендерится.
  d.getElementById('stockAnalysisMonths').value='9';
- d.getElementById('btnStockAnalysisRun').click();await tick();
+ d.getElementById('btnStockAnalysisRun').click();
+ assert.match(d.getElementById('stockAnalysisSummary').textContent,/Анализирую/,'индикатор сразу после нажатия (синхронно, до ответа)');
+ await tick();
  const req=calls.find(c=>c.path.startsWith('api/stock-analysis?'));
  assert.ok(req,'запрос анализа выполнен');
  assert.ok(req.path.includes('months=9'),'порог месяцев из настройки: '+req.path);
- assert.ok(req.path.includes(encodeURIComponent('Склад Мир'))&&req.path.includes(encodeURIComponent('Склад Кореличи')));
+ // Б43: таблица Группа/Артикул/Наименование/Совпадение/Склады + жирная стрелка.
  const table=d.getElementById('stockAnalysisResults').querySelector('table');
  assert.ok(table,'таблица результатов построена');
+ const head=table.querySelector('tr').textContent;
+ assert.match(head,/Группа/);assert.match(head,/Артикул/);assert.match(head,/Номенклатура/);
+ assert.match(head,/Совпадение/);assert.match(head,/Склад Мир/);assert.match(head,/Склад Кореличи/);assert.match(head,/Перемещение/);
  assert.match(table.textContent,/Дрель ударная/);
- assert.match(table.textContent,/100% \(артикул\)/);
- assert.match(table.textContent,/64% \(название\)/);
- assert.match(table.textContent,/Заказ не требуется: закрыть перетоком со склада А/);
+ assert.match(table.textContent,/100%/);
+ const arrow=table.querySelector('span[style*="font-weight:700"]');
+ assert.ok(arrow && arrow.textContent==='→','жирная стрелка направления А→Б');
+ assert.match(table.textContent,/←/,'обратная стрелка Б→А присутствует');
  assert.match(d.getElementById('stockAnalysisSummary').textContent,/Совпадений: 2/);
  assert.equal(d.getElementById('btnStockAnalysisExport').disabled,false);
- // Настройка месяцев запоминается.
  assert.equal(w.localStorage.getItem('ostatki_stock_analysis_months'),'9');
- // Выгрузка в Excel.
  d.getElementById('btnStockAnalysisExport').click();await tick();
  assert.ok(downloads.includes('Анализ остатков.xlsx'),'Excel-выгрузка скачивается');
- // Esc закрывает окно (строго no-op по данным).
  d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
  await tick();
  assert.ok(d.getElementById('stockAnalysisModal').classList.contains('hidden'),'Esc закрывает окно анализа');
- console.log('STOCK-ANALYSIS UI + б41 button removal: OK');
+ // Б43: таблица на всю высоту экрана (CSS).
+ const css=fs.readFileSync('internal/server/web/styles.css','utf8');
+ assert.match(css,/#stockAnalysisResults\s*\{\s*max-height: calc\(100vh - 250px\);/,'таблица на всю высоту экрана');
+ assert.match(css,/position: sticky/,'шапка таблицы прилипает при прокрутке');
+ console.log('STOCK-ANALYSIS UI (б43 arrows + fullscreen table): OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();
