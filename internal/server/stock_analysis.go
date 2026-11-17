@@ -15,10 +15,12 @@ import (
 // Батч-41: «Анализ остатков» — сопоставление товаров двух складов.
 // Совпадение: в первую очередь по артикулу (100%), иначе по названию
 // (нормализованное сравнение с процентом совпадения, порог 60%).
-// «Излишки» на складе А: товарный запас превышает N месяцев (настройка
-// пользователя, месяцы = остаток / средние продажи в месяц за 12 мес).
-// «Необходим заказ» на складе Б: та же логика, что у «Подсветить заказ» —
-// расчётный заказ > 0 либо рейтинг 3+ при остатке ≤ 0.
+// Батч-42: производительность — токенизация один раз, инвертированный
+// индекс, сравнение без аллокаций (полный перебор на ведомости в
+// 33 тысячи позиций давал 12+ минут).
+// Батч-43: таблица Группа | Артикул | Наименование | Совпадение, % |
+// [Склад А] | стрелка | [Склад Б]: излишек (запас больше нормы месяцев)
+// перемещается туда, где запас меньше.
 
 const stockAnalysisNameThreshold = 60
 
@@ -60,14 +62,14 @@ func isAllDigits(r []rune) bool {
 
 // stockAnalysisTokenize: уникальные отсортированные токены нормализованного
 // названия (одна токенизация на позицию — это критично на ведомостях в
-// десятки тысяч строк, батч-42).
+// десятки тысяч строк, батч-42). Осмысленные токены: от двух символов либо
+// только цифры (размеры «2», «18»); одиночные буквы-предлоги («в», «с»)
+// отбрасываются.
 func stockAnalysisTokenize(norm string) []string {
 	fields := strings.Fields(norm)
 	set := make(map[string]struct{}, len(fields))
 	for _, f := range fields {
 		runes := []rune(f)
-		// Осмысленные токены: от двух символов либо только цифры (размеры
-		// «2», «18»); одиночные буквы-предлоги («в», «с») отбрасываются.
 		if len(runes) >= 2 || isAllDigits(runes) {
 			set[f] = struct{}{}
 		}
@@ -81,7 +83,7 @@ func stockAnalysisTokenize(norm string) []string {
 }
 
 // Процент совпадения названий: доля Жаккара по заранее отсортированным
-// уникальным токенам (0..100), без аллокаций. Точное совпадение множеств = 100.
+// уникальным токенам (0..100), без аллокаций.
 func stockAnalysisJaccard(a, b []string) int {
 	i, j, inter := 0, 0, 0
 	for i < len(a) && j < len(b) {
@@ -173,26 +175,6 @@ func (s *AppServer) handleStockAnalysis(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, 200, map[string]any{"rows": rows, "matched": matched, "bySku": bySku, "byName": byName, "months": months, "whA": whA, "whB": whB})
 }
 
-func stockAnalysisVerdict(excessA, needB bool, units, value float64) string {
-	switch {
-	case excessA && needB:
-		return "Заказ не требуется: закрыть перетоком со склада А (излишек " + stockAnalysisNum(units) + " шт ≈ " + strconv.FormatFloat(value, 'f', 2, 64) + " руб.)"
-	case excessA:
-		return "Излишек на складе А; заказ на складе Б не требуется"
-	case needB:
-		return "Обычный заказ на складе Б"
-	default:
-		return ""
-	}
-}
-
-func stockAnalysisNum(v float64) string {
-	if v == math.Trunc(v) {
-		return strconv.FormatInt(int64(v), 10)
-	}
-	return strconv.FormatFloat(v, 'f', 1, 64)
-}
-
 func stockAnalysisBuild(itemsA, itemsB []model.CalculatedItem, months float64) (rows []xlsx.StockAnalysisRow, matched, bySku, byName int) {
 	consumedB := make([]bool, len(itemsB))
 	skuIdxB := make(map[string][]int, len(itemsB))
@@ -202,39 +184,55 @@ func stockAnalysisBuild(itemsA, itemsB []model.CalculatedItem, months float64) (
 		}
 	}
 
-	needOrder := func(it model.CalculatedItem) bool {
-		return it.FinalOrderQty > 0 || (it.SalesSegment >= 2 && it.ClosingStock <= 0)
-	}
-	isExcess := func(it model.CalculatedItem) (bool, float64, float64, float64) {
-		m := stockAnalysisMonthsOf(it.ClosingStock, it.SumSalesLast12M)
-		if it.ClosingStock <= 0 || m <= months {
-			return false, m, 0, 0
+	// Батч-43: пары обе стороны получают запас в месяцах; стрелка показывает
+	// направление перемещения: излишек (запас > нормы) — туда, где запас меньше.
+	makeRow := func(a, b model.CalculatedItem, score int) xlsx.StockAnalysisRow {
+		monthsA := stockAnalysisMonthsOf(a.ClosingStock, a.SumSalesLast12M)
+		monthsB := stockAnalysisMonthsOf(b.ClosingStock, b.SumSalesLast12M)
+		excessA := a.ClosingStock > 0 && monthsA > months
+		excessB := b.ClosingStock > 0 && monthsB > months
+		excessOf := func(it model.CalculatedItem) (float64, float64) {
+			avg := it.SumSalesLast12M / 12
+			units := it.ClosingStock
+			if avg > 1e-9 {
+				units = it.ClosingStock - months*avg
+			}
+			if units < 0 {
+				units = 0
+			}
+			value := units * it.PurchasePrice
+			if value < 0 {
+				value = 0
+			}
+			return math.Round(units*100) / 100, math.Round(value*100) / 100
 		}
-		avg := it.SumSalesLast12M / 12
-		units := it.ClosingStock
-		if avg > 1e-9 {
-			units = it.ClosingStock - months*avg
+		arrow := ""
+		units, value := 0.0, 0.0
+		// Направление: излишек перемещается туда, где запас меньше. Если
+		// излишек с обеих сторон (например, нулевые продажи на обоих складах
+		// дают «бесконечный» запас) — стрелка от большего остатка к меньшему.
+		switch {
+		case excessA && excessB:
+			if a.ClosingStock > b.ClosingStock {
+				arrow = "AtoB"
+				units, value = excessOf(a)
+			} else if b.ClosingStock > a.ClosingStock {
+				arrow = "BtoA"
+				units, value = excessOf(b)
+			}
+		case excessA:
+			arrow = "AtoB"
+			units, value = excessOf(a)
+		case excessB:
+			arrow = "BtoA"
+			units, value = excessOf(b)
 		}
-		if units < 0 {
-			units = 0
-		}
-		value := units * it.PurchasePrice
-		if value < 0 {
-			value = 0
-		}
-		return true, m, units, math.Round(value*100) / 100
-	}
-
-	makeRow := func(a, b model.CalculatedItem, score int, matchBy string) xlsx.StockAnalysisRow {
-		excess, monthsA, units, value := isExcess(a)
-		need := needOrder(b)
 		return xlsx.StockAnalysisRow{
-			SKU: strings.TrimSpace(b.SKU), Name: b.Name, Group: b.Group,
-			MatchScore: score, MatchBy: matchBy,
-			WhAStock: a.ClosingStock, WhAMonths: monthsA,
-			WhAExcessUnits: math.Round(units*100) / 100, WhAExcessValue: value,
-			WhBStock: b.ClosingStock, WhBOrderQty: b.FinalOrderQty, WhBNeedOrder: need,
-			Verdict: stockAnalysisVerdict(excess, need, math.Round(units*100)/100, value),
+			Group: b.Group, SKU: strings.TrimSpace(b.SKU), Name: b.Name,
+			MatchScore: score,
+			WhAStock:   a.ClosingStock, WhAMonths: monthsA,
+			WhBStock: b.ClosingStock, WhBMonths: monthsB,
+			Arrow: arrow, ExcessUnits: units, ExcessValue: value,
 		}
 	}
 
@@ -246,7 +244,7 @@ func stockAnalysisBuild(itemsA, itemsB []model.CalculatedItem, months float64) (
 			for _, j := range js {
 				if !consumedB[j] {
 					consumedB[j] = true
-					rows = append(rows, makeRow(itemsA[i], itemsB[j], 100, "артикул"))
+					rows = append(rows, makeRow(itemsA[i], itemsB[j], 100))
 					bySku++
 					matched++
 					sku = ""
@@ -334,26 +332,23 @@ func stockAnalysisBuild(itemsA, itemsB []model.CalculatedItem, months float64) (
 			continue
 		}
 		consumedB[bestJ] = true
-		rows = append(rows, makeRow(itemsA[i], itemsB[bestJ], bestScore, "название"))
+		rows = append(rows, makeRow(itemsA[i], itemsB[bestJ], bestScore))
 		byName++
 		matched++
 	}
 
-	// В таблице остаются только осмысленные пары: излишек на А или заказ на Б;
+	// Батч-43: в таблице — только пары с перемещением (есть стрелка);
 	// первыми — самые крупные излишки в рублях.
 	filtered := make([]xlsx.StockAnalysisRow, 0, len(rows))
 	for _, r := range rows {
-		if r.WhAExcessUnits > 0 || r.WhBNeedOrder {
+		if r.Arrow != "" {
 			filtered = append(filtered, r)
 		}
 	}
 	sort.SliceStable(filtered, func(i, j int) bool {
 		a, b := filtered[i], filtered[j]
-		if a.WhAExcessValue != b.WhAExcessValue {
-			return a.WhAExcessValue > b.WhAExcessValue
-		}
-		if a.WhBNeedOrder != b.WhBNeedOrder {
-			return a.WhBNeedOrder
+		if a.ExcessValue != b.ExcessValue {
+			return a.ExcessValue > b.ExcessValue
 		}
 		return a.Name < b.Name
 	})

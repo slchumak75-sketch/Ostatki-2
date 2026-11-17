@@ -2727,3 +2727,17 @@ body {
 .chart-trends-table.data-table thead tr:nth-child(1) th:nth-child(6) { background-color: #fff8ee; }
 .chart-trends-table.data-table thead tr:nth-child(1) th:nth-child(7) { background-color: #f0f7ff; }
 .chart-trends-table.data-table tbody tr:hover td { background-color: var(--surface-hover); }
+
+/* Батч-43: таблица «Анализ остатков» — на всю высоту экрана с прокруткой
+   внутри окна; шапка прилипает, чтобы не теряться при прокрутке. */
+#stockAnalysisResults {
+  max-height: calc(100vh - 250px);
+  min-height: 220px;
+  overflow: auto;
+}
+#stockAnalysisResults table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
