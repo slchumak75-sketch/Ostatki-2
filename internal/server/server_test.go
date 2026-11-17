@@ -395,9 +395,12 @@ func TestServerAPIEndpoints(t *testing.T) {
 		}
 	}
 	panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
-	for _, id := range []string{"btnBackupEtalon"} {
+	for _, id := range []string{"btnStockAnalysis"} {
 		if strings.Index(htmlBody, `id="`+id+`"`) < panelIdx {
 			t.Fatalf("button %s must be inside parameters", id)
+		}
+		if strings.Contains(htmlBody, `id="btnBackupEtalon"`) {
+			t.Fatalf("btnBackupEtalon must be removed (batch-41)")
 		}
 	}
 

@@ -78,18 +78,13 @@
             <button type="button" class="btn btn-beige" id="btnSaveEtalon" title="Сохранить в программе: зафиксировать текущие рейтинг и остаток без скачивания файла">Сохранить эталон Номенклатуры</button>
             <button type="button" class="btn btn-beige" id="btnExportEtalon">Выгрузить эталон Номенклатуры (Excel)</button>
             <button type="button" class="btn btn-beige" id="btnCompareEtalon" aria-pressed="false">Сравнить с эталоном</button>
-            <button type="button" class="btn btn-beige" id="btnBackupEtalon">Резервная копия свойств (JSON) для эталона</button>
             <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
             <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
             <button type="button" class="btn btn-beige" id="btnOverstockTab" title="Открыть вкладку Неликвиды">Неликвиды <span class="tab-counter" id="cntTabOverstock">0</span></button>
           </div>
           <div class="presets-bar">
- <button type="button" class="btn btn-beige" id="btnReferenceHistory">История эталонов</button>
- <button type="button" class="btn btn-beige" id="btnCompareExport">Выгрузить сравнение (Excel)</button>
- <button type="button" class="btn btn-beige" id="btnFullBackup">Резервная копия программы (ZIP)</button>
- <button type="button" class="btn btn-beige" id="btnFullRestore">Восстановить из ZIP</button>
- <input type="file" id="fullRestoreInput" accept=".zip" hidden>
- </div>
+            <button type="button" class="btn btn-beige" id="btnStockAnalysis" title="Сопоставление товаров двух складов: излишки и необходимые заказы">Анализ остатков</button>
+          </div>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
         </div>
         <div class="presets-bar">
@@ -655,6 +650,29 @@
         <button type="button" class="btn btn-beige" id="btnPickSavedDbFile">Выбрать файл с компьютера (.xlsx)…</button>
       </div>
       <div class="v4-saved-db-list" id="savedDbList"></div>
+    </div>
+  </div>
+
+
+  <!-- Батч-41: анализ остатков двух складов -->
+  <div id="stockAnalysisModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="stockAnalysisTitle">
+    <div class="v4-modal-card v4-modal-wide">
+      <div class="v4-modal-head">
+        <div>
+          <h3 id="stockAnalysisTitle">Анализ остатков</h3>
+          <div class="v4-modal-sub">Сопоставление товаров двух складов (по артикулу, затем по названию с процентом совпадения): излишки на одном складе и необходимые заказы на другом</div>
+        </div>
+        <button type="button" class="btn btn-ghost icon-only" id="btnCloseStockAnalysis" aria-label="Закрыть окно">✕</button>
+      </div>
+      <div class="v4-modal-toolbar">
+        <label>Излишки: <select id="stockAnalysisWhA"></select></label>
+        <label>Заказ: <select id="stockAnalysisWhB"></select></label>
+        <label>Излишек от (мес.): <input type="number" id="stockAnalysisMonths" min="0.5" max="60" step="0.5" value="12" style="width:70px"></label>
+        <button type="button" class="btn btn-beige" id="btnStockAnalysisRun">Анализировать</button>
+        <button type="button" class="btn btn-beige" id="btnStockAnalysisExport" disabled>Выгрузить (Excel)</button>
+      </div>
+      <div class="v4-modal-sub" id="stockAnalysisSummary"></div>
+      <div id="stockAnalysisResults" class="v4-saved-db-list"></div>
     </div>
   </div>
 

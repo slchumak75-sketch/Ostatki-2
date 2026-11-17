@@ -343,6 +343,8 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/etalon/save", s.handleSaveEtalon)
 	mux.HandleFunc("/api/etalon/export", s.handleExportEtalon)
 	mux.HandleFunc("/api/etalon/compare", s.handleCompareEtalon)
+	mux.HandleFunc("/api/stock-analysis/export", s.handleStockAnalysis)
+	mux.HandleFunc("/api/stock-analysis", s.handleStockAnalysis)
 	mux.HandleFunc("/api/etalon/import", s.handleImportEtalon)
 	mux.HandleFunc("/api/state", s.handleGetState)
 	mux.HandleFunc("/api/action-history", s.handleActionHistory)

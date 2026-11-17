@@ -3008,55 +3008,93 @@
       } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
       finally {button.disabled=false;}
     });
-    el('btnReferenceHistory').addEventListener('click',async()=>{
-      try {
-        const data=await apiGet('api/etalon/history');if(!data.entries?.length){showToast('История эталонов пока пуста');return;}
-        const preview=await apiGet('api/etalon/preview');
-        const fields=`<label>Версия: <select id="historyChoice">${data.entries.map(e=>`<option value="${esc(e.id)}">${esc(e.savedAt||e.id)} • ${esc(e.source||'источник неизвестен')} • ${e.items} поз.</option>`).join('')}</select></label>`;
-        if(!await safetyDialog('Восстановить предыдущий эталон?','Будет заменён только эталон. Текущая ведомость и рабочие отметки не изменятся. Действующий эталон останется в истории.',fields))return;
-        const result=await apiPost('api/etalon/history',{id:el('historyChoice').value,token:preview.token});updateEtalon(result);exitComparison(true);showToast('Эталон восстановлен');
-      }catch(err){showToast(err.message);}
-    });
-    el('btnCompareExport').addEventListener('click',async()=>{try{await downloadSafetyFile('api/etalon/compare/export','Сравнение с эталоном.xlsx');}catch(err){showToast(err.message);}});
-    el('btnFullBackup').addEventListener('click',async()=>{try{await syncProperties();await downloadSafetyFile('api/backup/full','Ostatki2-backup.zip');}catch(err){showToast(err.message);}});
-    el('btnFullRestore').addEventListener('click',()=>el('fullRestoreInput').click());
-    el('fullRestoreInput').addEventListener('change',async e=>{
-      const file=e.target.files?.[0];if(!file)return;
-      try {
-        await propertiesQueue.catch(()=>{});
-        const preview=await apiGet('api/etalon/preview');
-        const fields=[['etalon.json','Эталон'],['properties.json','Рабочие отметки'],['settings.json','Параметры расчёта'],['column-widths.json','Ширины столбцов']].map(([id,title])=>`<label style="display:block"><input type="checkbox" data-restore-part="${id}"> ${title}</label>`).join('');
-        if(!await safetyDialog('Восстановление из резервной копии',`Файл: ${file.name}\nВыберите разделы. Выбранные данные будут заменены. Ведомость не входит в этот архив. Перед восстановлением рекомендуется скачать текущую резервную копию.`,fields))return;
-        const selected=[...el('safetyDialogFields').querySelectorAll('input:checked')].map(c=>c.dataset.restorePart);if(!selected.length){showToast('Ни один раздел не выбран');return;}
-        const form=new FormData();form.append('file',file);form.append('selected',JSON.stringify(selected));form.append('token',preview.token);
-        const response=await fetch('api/backup/restore',{method:'POST',body:form});const result=await response.json();if(!response.ok)throw new Error(result.error||'Ошибка восстановления');
-        const props=await apiGet('api/properties');nomenclatureProperties=props.properties||{};markStocks=props.markStocks||{};nomenclatureRecords=props.nomenclature||{};acknowledgedProperties={...nomenclatureProperties};propertiesRevision++;propertiesDirty=false;updateEtalon(props);if(selected.includes('etalon.json')&&etalonLoaded)approveReferenceLoad();
-        const widths=await apiGet('api/column-widths');savedColumnWidths=widths.widths||{};exitComparison();applyEnvelope(await apiGet('api/state'));applyNomenclatureProperties();if(state.report)state.hasUnsavedChanges=true;refreshExcelTable();renderSafetyStatus();showToast('Выбранные разделы восстановлены');
-      }catch(err){showToast(err.message);}finally{e.target.value='';}
-    });
-    el('btnBackupEtalon').addEventListener('click',async()=>{
-      try {
-        if(state.desktopMode) {
-          try {
-            const backupResult=await apiPost('api/etalon/backup',{}, {unabortable:true});
-            // Keep the dated Excel copy next to the JSON with the same fresh time.
-            let excelName='';
-            try {excelName=(await apiPost('api/etalon/export',{}, {unabortable:true}))?.fileName||'';}
-            catch(exportErr){showToast(`JSON-копия сохранена: Загрузки / Эталон. Не удалось обновить Excel: ${exportErr.message}`);return;}
-            showToast(`Эталон сохранён в «Загрузки / Эталон»: JSON-копия${excelName?` и ${excelName}`:''} обновлены`);
-            return;
-          }
-          catch(err){showToast(`Не удалось сохранить в папку Эталон: ${err.message}. Пробуем скачивание через браузер.`);}
-        }
-        const res=await fetch('api/etalon/backup');
-        if(!res.ok){const data=await res.json();throw new Error(data.error||'Не удалось получить эталон');}
-        const url=URL.createObjectURL(await res.blob()),link=document.createElement('a');
-        link.href=url;link.download='Эталон, резервная копия.json';
-        isDownloadingFile=true;document.body.appendChild(link);link.click();link.remove();
-        setTimeout(()=>{URL.revokeObjectURL(url);isDownloadingFile=false;},1500);
-        showToast('JSON-копия сохранённого эталона выгружена');
+    // Батч-41: «Анализ остатков» — сопоставление товаров двух складов
+    // (по артикулу, затем по названию с процентом совпадения); излишки
+    // (запас больше N месяцев — настройка) и необходимые заказы (логика
+    // «Подсветить заказ»: расчётный заказ > 0 либо рейтинг 3+ при остатке 0).
+    let stockAnalysisData = null;
+    const SA_MONTHS_KEY = 'ostatki_stock_analysis_months';
+    const stockAnalysisEscape = (e) => { if (e.key === 'Escape' && !el('stockAnalysisModal').classList.contains('hidden')) closeStockAnalysis(); };
+    function openStockAnalysis() {
+      if (!state.report) { showToast('Сначала загрузите ведомость'); return; }
+      const whs = [...new Set((state.report.items || []).map((it) => it.warehouse || ''))].filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      if (whs.length < 2) { showToast('Для анализа нужно минимум два склада в ведомости'); return; }
+      const opts = whs.map((wh) => `<option value="${esc(wh)}">${esc(wh)}</option>`).join('');
+      el('stockAnalysisWhA').innerHTML = opts;
+      el('stockAnalysisWhB').innerHTML = opts;
+      const prevA = el('stockAnalysisWhA').dataset.prev || whs[0];
+      const prevB = el('stockAnalysisWhB').dataset.prev || whs[1] || whs[0];
+      el('stockAnalysisWhA').value = whs.includes(prevA) ? prevA : whs[0];
+      el('stockAnalysisWhB').value = whs.includes(prevB) ? prevB : (whs[1] || whs[0]);
+      const savedMonths = Number(localStorage.getItem(SA_MONTHS_KEY));
+      if (savedMonths >= 0.5 && savedMonths <= 60) el('stockAnalysisMonths').value = savedMonths;
+      el('stockAnalysisSummary').textContent = '';
+      el('stockAnalysisResults').innerHTML = '<div style="padding:18px;color:var(--text-muted)">Выберите склады и нажмите «Анализировать»</div>';
+      el('btnStockAnalysisExport').disabled = true;
+      stockAnalysisData = null;
+      el('stockAnalysisModal').classList.remove('hidden');
+      document.addEventListener('keydown', stockAnalysisEscape);
+    }
+    function closeStockAnalysis() {
+      el('stockAnalysisModal').classList.add('hidden');
+      el('stockAnalysisWhA').dataset.prev = el('stockAnalysisWhA').value;
+      el('stockAnalysisWhB').dataset.prev = el('stockAnalysisWhB').value;
+      document.removeEventListener('keydown', stockAnalysisEscape);
+    }
+    function stockAnalysisQuery() {
+      const whA = el('stockAnalysisWhA').value, whB = el('stockAnalysisWhB').value;
+      const months = Number(el('stockAnalysisMonths').value) || 12;
+      return `whA=${encodeURIComponent(whA)}&whB=${encodeURIComponent(whB)}&months=${months}`;
+    }
+    function stockAnalysisVerdictClass(v) {
+      if (v.startsWith('Заказ не требуется')) return 'color:#164d25;font-weight:600';
+      if (v.startsWith('Излишек')) return 'color:#8a6d3b';
+      return 'color:var(--text)';
+    }
+    function renderStockAnalysis() {
+      const data = stockAnalysisData;
+      if (!data) return;
+      const rows = data.rows || [];
+      el('stockAnalysisSummary').textContent = `Совпадений: ${data.matched} (по артикулу: ${data.bySku}, по названию: ${data.byName}) • показано строк: ${rows.length} • порог излишка: ${data.months} мес.`;
+      if (!rows.length) {
+        el('stockAnalysisResults').innerHTML = '<div style="padding:18px;color:var(--text-muted)">Подходящих пар не найдено</div>';
+        return;
       }
-      catch(err){showToast(`Ошибка резервной копии: ${err.message}`);}
+      const head = `<tr><th>Артикул</th><th>Номенклатура</th><th>Совпадение</th><th>${esc(data.whA)}: остаток</th><th>Запас, мес</th><th>Излишек, шт</th><th>Излишек, руб</th><th>${esc(data.whB)}: остаток</th><th>Заказ, шт</th><th>Вывод</th></tr>`;
+      const body = rows.map((r) => `<tr>
+        <td>${esc(r.sku || '—')}</td>
+        <td title="${esc(r.group || '')}">${esc(r.name)}</td>
+        <td>${r.matchBy === 'артикул' ? '100% (артикул)' : `${r.matchScore}% (название)`}</td>
+        <td style="text-align:right">${fmtInt(r.whAStock)}</td>
+        <td style="text-align:right">${r.whAMonths >= 999 ? '∞' : Number(r.whAMonths).toFixed(1)}</td>
+        <td style="text-align:right">${r.whAExcessUnits > 0 ? fmtInt(r.whAExcessUnits) : '—'}</td>
+        <td style="text-align:right">${r.whAExcessValue > 0 ? fmtMoney(r.whAExcessValue) + ' р.' : '—'}</td>
+        <td style="text-align:right">${fmtInt(r.whBStock)}</td>
+        <td style="text-align:right">${r.whBOrderQty > 0 ? fmtInt(r.whBOrderQty) : (r.whBNeedOrder ? 'заказ' : '—')}</td>
+        <td style="${stockAnalysisVerdictClass(r.verdict)}">${esc(r.verdict)}</td>
+      </tr>`).join('');
+      el('stockAnalysisResults').innerHTML = `<table class="v4-table" style="width:100%;border-collapse:collapse;font-size:12px">${head}${body}</table>`;
+    }
+    el('btnStockAnalysis').addEventListener('click', openStockAnalysis);
+    el('btnCloseStockAnalysis').addEventListener('click', closeStockAnalysis);
+    el('stockAnalysisModal').addEventListener('click', (e) => { if (e.target === el('stockAnalysisModal')) closeStockAnalysis(); });
+    el('btnStockAnalysisRun').addEventListener('click', async () => {
+      const button = el('btnStockAnalysisRun');button.disabled = true;
+      try {
+        if (!state.report) throw new Error('Сначала загрузите ведомость');
+        localStorage.setItem(SA_MONTHS_KEY, el('stockAnalysisMonths').value);
+        const data = await apiGet(`api/stock-analysis?${stockAnalysisQuery()}`);
+        if (state.clientEpoch !== (data.epoch ?? state.clientEpoch)) return;
+        stockAnalysisData = data;
+        renderStockAnalysis();
+        el('btnStockAnalysisExport').disabled = !(data.rows || []).length;
+      } catch (err) { showToast(err.message); }
+      finally { button.disabled = false; }
+    });
+    el('btnStockAnalysisExport').addEventListener('click', async () => {
+      if (!stockAnalysisData) return;
+      try { await downloadSafetyFile(`api/stock-analysis/export?${stockAnalysisQuery()}`, 'Анализ остатков.xlsx'); }
+      catch (err) { showToast(err.message); }
     });
     el('btnSaveEtalon').addEventListener('click', async () => {
       const epoch=state.clientEpoch;
