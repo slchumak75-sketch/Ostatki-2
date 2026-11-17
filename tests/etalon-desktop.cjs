@@ -30,14 +30,5 @@ const toastText=()=>d.getElementById('toast').textContent;
  const exports=()=>calls.filter(c=>c.path==='api/etalon/export');
  assert.equal(exports().length,1);assert.equal(exports()[0].method,'POST');
  assert.match(toastText(),/Загрузки \/ Эталон • Эталон, 26\.10\.2026\.xlsx/);
- // Backup refreshes both files so a same-minute export and backup keep the same time.
- d.getElementById('btnBackupEtalon').click();await tick();
- assert.ok(calls.some(c=>c.path==='api/etalon/backup'&&c.method==='POST'));
- assert.equal(exports().length,2,'Backup must refresh the dated Excel copy too');
- assert.match(toastText(),/JSON-копия/);assert.match(toastText(),/Эталон, 26\.10\.2026\.xlsx/);
- // If the Excel refresh fails the JSON is still kept and the reason is shown.
- failExport=true;d.getElementById('btnBackupEtalon').click();await tick();
- assert.equal(exports().length,3);
- assert.match(toastText(),/JSON-копия сохранена/);assert.match(toastText(),/эталон повреждён/);
- console.log('Desktop etalon export and backup with same-time Excel refresh passed');
+ console.log('Desktop etalon export passed; б41: резервная копия удалена');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();

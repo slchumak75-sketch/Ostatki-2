@@ -31,7 +31,8 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
 const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(blob);});
 (async()=>{
  await tick();
- for(const id of ['btnSaveEtalon','btnExportEtalon','btnBackupEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
+ for(const id of ['btnSaveEtalon','btnExportEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
+ assert.equal(d.getElementById('btnBackupEtalon'),null,'Б41: резервная копия удалена');
  assert.ok(d.getElementById('etalonFileInput').accept.includes('.json'));
  assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnFillOrder');
  assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnImportOrder');
@@ -62,10 +63,6 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(calls.filter(c=>c.path==='api/etalon/export').length,1,'Only the separate export button downloads a snapshot');
  assert.equal(downloads[0],'Эталон, 20.10.2026.xlsx','Download preserves the saved snapshot date from the server');
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Export must never save/update the reference');
- d.getElementById('btnBackupEtalon').click();await tick();
- assert.ok(calls.some(c=>c.path==='api/etalon/backup'));
- assert.match(downloads.at(-1),/Эталон.*json$/);
- assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,1,'Backup must not save current changes into reference');
  const input=d.getElementById('etalonFileInput');
  Object.defineProperty(input,'files',{value:[new w.File(['xlsx'],'Эталон.xlsx')],configurable:true});
  input.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
@@ -76,6 +73,6 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(d.getElementById('etalonFileInput').value,'');
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');
  assert.match(css,/#paramsPanel button\s*\{\s*zoom: 0\.6666666667;/,'New buttons retain the 1.5x size reduction');
- console.log('Reference actions, failed/successful import gating, blocked file load and JSON backup passed');
+ console.log('Reference actions, failed/successful import gating, blocked file load passed; б41: JSON-копия удалена');
  dom.window.close();
 })().catch(err=>{console.error(err);process.exitCode=1;dom.window.close();});
