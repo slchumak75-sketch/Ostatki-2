@@ -22,8 +22,6 @@ import (
 
 const stockAnalysisNameThreshold = 60
 
-type stockAnalysisTokens = map[string]bool
-
 func stockAnalysisNorm(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.ReplaceAll(s, "ё", "е")
@@ -51,37 +49,57 @@ func stockAnalysisNorm(s string) string {
 	return strings.TrimSpace(b.String())
 }
 
-func stockAnalysisTokenSet(norm string) stockAnalysisTokens {
-	tokens := stockAnalysisTokens{}
-	for _, t := range strings.Fields(norm) {
-		if len(t) >= 2 {
-			tokens[t] = true
+func isAllDigits(r []rune) bool {
+	for _, c := range r {
+		if c < '0' || c > '9' {
+			return false
 		}
 	}
-	return tokens
+	return len(r) > 0
 }
 
-// Процент совпадения названий: точное совпадение нормализованных строк = 100,
-// иначе доля Жаккара по токенам (0..100). Пары ниже порога отбрасываются.
-func stockAnalysisSimilarity(a, b string) int {
-	na, nb := stockAnalysisNorm(a), stockAnalysisNorm(b)
-	if na == nb {
-		return 100
-	}
-	if na == "" || nb == "" {
-		return 0
-	}
-	ta, tb := stockAnalysisTokenSet(na), stockAnalysisTokenSet(nb)
-	if len(ta) == 0 || len(tb) == 0 {
-		return 0
-	}
-	inter := 0
-	for t := range ta {
-		if tb[t] {
-			inter++
+// stockAnalysisTokenize: уникальные отсортированные токены нормализованного
+// названия (одна токенизация на позицию — это критично на ведомостях в
+// десятки тысяч строк, батч-42).
+func stockAnalysisTokenize(norm string) []string {
+	fields := strings.Fields(norm)
+	set := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		runes := []rune(f)
+		// Осмысленные токены: от двух символов либо только цифры (размеры
+		// «2», «18»); одиночные буквы-предлоги («в», «с») отбрасываются.
+		if len(runes) >= 2 || isAllDigits(runes) {
+			set[f] = struct{}{}
 		}
 	}
-	union := len(ta) + len(tb) - inter
+	out := make([]string, 0, len(set))
+	for t := range set {
+		out = append(out, t)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Процент совпадения названий: доля Жаккара по заранее отсортированным
+// уникальным токенам (0..100), без аллокаций. Точное совпадение множеств = 100.
+func stockAnalysisJaccard(a, b []string) int {
+	i, j, inter := 0, 0, 0
+	for i < len(a) && j < len(b) {
+		switch {
+		case a[i] == b[j]:
+			inter++
+			i++
+			j++
+		case a[i] < b[j]:
+			i++
+		default:
+			j++
+		}
+	}
+	union := len(a) + len(b) - inter
+	if union == 0 {
+		return 0
+	}
 	return int(math.Round(float64(inter) / float64(union) * 100))
 }
 
@@ -242,39 +260,81 @@ func stockAnalysisBuild(itemsA, itemsB []model.CalculatedItem, months float64) (
 		remainingA = append(remainingA, i)
 	}
 
-	// 2. Совпадение по названию: детерминированный перебор оставшихся А,
-	// для каждого — лучший свободный кандидат из Б по проценту.
-	var remainingB []int
+	// 2. Совпадение по названию: инвертированный индекс по токенам склада Б —
+	// кандидаты только у позиций с общими словами (батч-42: вместо полного
+	// перебора O(nA*nB) на ведомости в 33 тысячи позиций).
+	toksA := make([][]string, len(itemsA))
+	normA := make([]string, len(itemsA))
+	toksB := make([][]string, len(itemsB))
+	normB := make([]string, len(itemsB))
+	invB := make(map[string][]int, len(itemsB))
+	for i := range itemsA {
+		normA[i] = stockAnalysisNorm(itemsA[i].Name)
+		toksA[i] = stockAnalysisTokenize(normA[i])
+	}
 	for j := range itemsB {
-		if !consumedB[j] {
-			remainingB = append(remainingB, j)
+		normB[j] = stockAnalysisNorm(itemsB[j].Name)
+		toksB[j] = stockAnalysisTokenize(normB[j])
+		for _, t := range toksB[j] {
+			invB[t] = append(invB[t], j)
 		}
 	}
-	normsB := make([]string, len(remainingB))
-	for k, j := range remainingB {
-		normsB[k] = stockAnalysisNorm(itemsB[j].Name)
-	}
-	sort.Slice(remainingA, func(i, j int) bool {
-		return stockAnalysisNorm(itemsA[remainingA[i]].Name) < stockAnalysisNorm(itemsA[remainingA[j]].Name)
+	sort.Slice(remainingA, func(p, q int) bool {
+		return normA[remainingA[p]] < normA[remainingA[q]]
 	})
-	usedB := make([]bool, len(remainingB))
+	// Метки поколений обнуляют кандидатов без пересоздания структур.
+	candGen := make([]int32, len(itemsB))
+	candPair := make([]int32, len(itemsB))
+	candScore := make([]int, len(itemsB))
+	var gen, pairGen int32
+	var candList []int
 	for _, i := range remainingA {
-		normA := stockAnalysisNorm(itemsA[i].Name)
-		bestScore, bestK := 0, -1
-		for k := range remainingB {
-			if usedB[k] {
+		gen++
+		pairGen++
+		candList = candList[:0]
+		la := len(toksA[i])
+		for _, t := range toksA[i] {
+			for _, j := range invB[t] {
+				if consumedB[j] {
+					continue
+				}
+				if candGen[j] != gen {
+					candGen[j] = gen
+					candList = append(candList, j)
+					candPair[j] = 0
+				}
+				if candPair[j] == pairGen {
+					continue
+				}
+				candPair[j] = pairGen
+				lb := len(toksB[j])
+				// Верхняя граница Жаккара min(|A|,|B|)/max(|A|,|B|): пары, у
+				// которых она ниже порога, не проверяем вовсе.
+				lo, hi := la, lb
+				if lo > hi {
+					lo, hi = hi, lo
+				}
+				if hi == 0 || lo*100 < stockAnalysisNameThreshold*hi {
+					continue
+				}
+				candScore[j] = stockAnalysisJaccard(toksA[i], toksB[j])
+			}
+		}
+		bestScore, bestJ := 0, -1
+		for _, j := range candList {
+			sc := candScore[j]
+			if sc < stockAnalysisNameThreshold {
 				continue
 			}
-			score := stockAnalysisSimilarity(normA, normsB[k])
-			if score >= stockAnalysisNameThreshold && (score > bestScore || (score == bestScore && bestK >= 0 && normsB[k] < normsB[bestK])) {
-				bestScore, bestK = score, k
+			if bestJ < 0 || sc > bestScore || (sc == bestScore && normB[j] < normB[bestJ]) {
+				bestScore, bestJ = sc, j
 			}
 		}
-		if bestK < 0 {
+		if bestJ < 0 {
 			continue
 		}
-		usedB[bestK] = true
-		rows = append(rows, makeRow(itemsA[i], itemsB[remainingB[bestK]], bestScore, "название"))
+		consumedB[bestJ] = true
+		rows = append(rows, makeRow(itemsA[i], itemsB[bestJ], bestScore, "название"))
 		byName++
 		matched++
 	}

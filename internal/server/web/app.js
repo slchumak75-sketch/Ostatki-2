@@ -3083,6 +3083,9 @@
       try {
         if (!state.report) throw new Error('Сначала загрузите ведомость');
         localStorage.setItem(SA_MONTHS_KEY, el('stockAnalysisMonths').value);
+        // Индикатор: на больших ведомостях анализ занимает несколько секунд.
+        el('stockAnalysisSummary').textContent = 'Анализирую…';
+        el('stockAnalysisResults').innerHTML = '';
         const data = await apiGet(`api/stock-analysis?${stockAnalysisQuery()}`);
         if (state.clientEpoch !== (data.epoch ?? state.clientEpoch)) return;
         stockAnalysisData = data;
