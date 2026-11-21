@@ -2977,3 +2977,12 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 #stockSimilarityPercent::-webkit-outer-spin-button,
 #stockSimilarityPercent::-webkit-inner-spin-button { -webkit-appearance: inner-spin-button; display: block; opacity: 1; }
 #stockSimilarityPercent:focus-visible { outline: none; }
+
+/* Батч-57: шапка таблицы «Аналитика» при прокрутке больше не пропускает
+   строки сквозь себя: separate-модель границ (канонический фикс sticky-
+   шапок в Chrome), точная геометрия двух липких строк (28px + 28px,
+   border-box) и гарантированно непрозрачный фон каждой ячейки шапки
+   (чередующиеся тона кварталов заданы правилами выше по специфичности). */
+.chart-trends-table { border-collapse: separate; border-spacing: 0; }
+.chart-trends-table thead th { background-color: var(--surface); background-clip: padding-box; }
+.chart-trends-table thead tr:nth-child(1) th { height: 28px; box-sizing: border-box; }

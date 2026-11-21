@@ -227,6 +227,10 @@ assert.match(d.querySelector('#analyticsContent .chart-trends').textContent,/Д�
 // Оформление: закреплённая шапка, вертикальные линии, группа в одну строку, числа справа, узкие столбцы.
 const css=fs.readFileSync('internal/server/web/styles.css','utf8');
 assert.match(css,/\.chart-trends-table thead tr:nth-child\(2\) th \{ position: sticky; top: 28px/,'Second header row is pinned below the first');
+// Б57: шапка при прокрутке непрозрачна — строки не проходят сквозь неё.
+assert.match(css,/\.chart-trends-table \{ border-collapse: separate; border-spacing: 0; \}/,'Б57: separate-модель границ для липкой шапки');
+assert.match(css,/\.chart-trends-table thead th \{ background-color: var\(--surface\); background-clip: padding-box; \}/,'Б57: непрозрачный фон ячеек шапки');
+assert.match(css,/\.chart-trends-table thead tr:nth-child\(1\) th \{ height: 28px; box-sizing: border-box; \}/,'Б57: первая строка шапки ровно 28px');
 assert.match(css,/\.ct-scroll \{ overflow: auto; max-height: 60vh; \}/,'Table scrolls inside a capped container');
 assert.match(css,/border-left: 1px solid var\(--border\); padding: 3px 5px; \}/,'Vertical rules and narrow cells');
 assert.match(css,/\.chart-trends-table td:first-child \{ white-space: nowrap; \}/,'Group column stays on one line');
