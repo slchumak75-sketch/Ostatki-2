@@ -450,7 +450,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "font-size: 8px", "td.seg-cell.seg-"} {
+	// Батч-52: «font-size: 8px» из запрета убран — пользователь вернул мелкие
+	// двухстрочные «Склад»/«Группа» макета №6 (только islands, wh/grp-ячейки).
+	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "td.seg-cell.seg-"} {
 		if strings.Contains(cssBody, removedCSS) {
 			t.Fatalf("styles.css still contains removed selector: %q", removedCSS)
 		}
@@ -472,16 +474,13 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"border-radius: 50%",
 		"color: #000000 !important",
 		"#5fae77",                  /* б47: приглушённые цвета рейтинга (оттенки прежние) */
-		"[data-theme=\"islands\"]", /* б50: вторая пятёрка дизайнов (макеты №6–10) */
-		"[data-theme=\"ribbon\"]",
-		"[data-theme=\"console\"]",
-		"[data-theme=\"excelbook\"]",
-		"[data-theme=\"terminal\"]",
-		"[data-theme=\"islands\"] .topbar-actions .btn { border-radius: 99px", /* б50: острова-пилюли */
-		"[data-theme=\"ribbon\"] .data-table thead th {\n  background: var(--primary);", /* б50: тёмная шапка ленты */
-		"[data-theme=\"console\"] .tabs-order-summary { order: -1", /* б50: полоса показателей сверху */
-		"[data-theme=\"excelbook\"] .tabs-bar {\n  position: fixed;", /* б50: листы снизу */
-		".data-table td { border-right: 1px solid #d7e0e9; }", /* б50: вертикальные границы во всех вариантах */
+		"[data-theme=\"islands\"]", /* б52: единственный дизайн — «Острова+» (макет №6) */
+		"[data-theme=\"islands\"] .topbar-actions .btn { border-radius: 99px", /* острова: кнопки-пилюли */
+		"[data-theme=\"islands\"] .data-table td { border-right: 1px solid #d7e0e9; }", /* вертикальные границы */
+		"[data-theme=\"islands\"] .order-cell { background: transparent; }", /* б52: без заливки вокруг заказа */
+		".topbar-actions #btnFillOrder", /* б52: все кнопки плашки одного цвета */
+		".qty-input.order-highlighted.wh-mir { background: #e4f0e7;", /* б51/52: подсветка = цвет склада */
+		"background-color: #4c6e8b;", /* б52: отмеченные «птички» не красные */
 		".topbar-actions .btn { white-space: nowrap", /* б48: кнопки в одну линию */
 		"--btnbar-bg", /* б49: единый цвет кнопок плашки */
 		".topbar-actions .btn.property-filter-active[aria-pressed=\"false\"]", /* б49: выключенные белеют */

@@ -27,12 +27,11 @@ import (
 //go:embed web/*
 var embeddedWeb embed.FS
 
-// uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/50: пять
-// концептуально разных вариантов программы публикуются отдельными
-// релизами (variant-7.1…7.5), каждый — своей сборкой. Значение
-// переопределяется при сборке:
+// uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/52: дизайн
+// вшивается в сборку при отдаче index.html; с батча-52 вариант один —
+// «Острова+» (макет №6, релиз variant-7.1). Значение переопределяется:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
-// Доступные значения: islands, ribbon, console, excelbook, terminal.
+// Доступное значение: islands (warm — только fallback-токены :root).
 var uiTheme = "warm"
 
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.

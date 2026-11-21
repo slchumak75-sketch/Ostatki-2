@@ -425,10 +425,6 @@ jobs:
       matrix:
         include:
           - { suffix: "7.1", theme: islands,  design: "острова+" }
-          - { suffix: "7.2", theme: ribbon,   design: "лента-карточка" }
-          - { suffix: "7.3", theme: console,  design: "пульт" }
-          - { suffix: "7.4", theme: excelbook, design: "книга Excel" }
-          - { suffix: "7.5", theme: terminal, design: "терминал сетки" }
 
     steps:
       - name: Клонирование репозитория
