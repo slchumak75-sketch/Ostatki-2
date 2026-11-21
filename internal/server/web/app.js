@@ -21,6 +21,19 @@
   let isDownloadingFile = false;
   let vScrollRaf = null;
 
+  // Батч-47: пять светлых тем оформления (тёплая — по умолчанию).
+  // Темы меняют не только цвета, но и стилистику: радиусы, тени,
+  // плотность строк, форму кнопок, оформление шапки таблицы.
+  const THEME_KEY = 'ostatki_theme';
+  const THEMES = ['warm', 'nordic', 'sage', 'lavender', 'sand'];
+  const applyTheme = (t) => {
+    const theme = THEMES.includes(t) ? t : 'warm';
+    document.body.setAttribute('data-theme', theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch (_) {}
+    const sel = el('themeSelect');
+    if (sel) sel.value = theme;
+  };
+
   const state = {
     colFilters: {},
     clientEpoch: 0,
@@ -3304,6 +3317,9 @@
       syncPlanningChrome(!el('paramsPanel').classList.contains('hidden'), opening);
     }
     el('btnToggleAdvanced').addEventListener('click', () => setParamsPanelVisible(el('paramsPanel').classList.contains('hidden')));
+    // Батч-47: выбор темы оформления (5 светлых тем, выбор запоминается).
+    applyTheme((() => { try { return localStorage.getItem(THEME_KEY) || 'warm'; } catch (_) { return 'warm'; } })());
+    el('themeSelect').addEventListener('change', (e) => applyTheme(e.target.value));
     el('btnConfigurePanel').addEventListener('click', () => setPlanningBodyVisible(el('paramsBody').classList.contains('hidden')));
 
     [

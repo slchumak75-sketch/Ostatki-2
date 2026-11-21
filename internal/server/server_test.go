@@ -404,6 +404,12 @@ func TestServerAPIEndpoints(t *testing.T) {
 		if hlIdx < 0 || panelIdx < 0 || badgeIdx < hlIdx || badgeIdx > panelIdx || sepIdx < hlIdx || sepIdx > badgeIdx {
 			t.Fatalf("orderHintBadge must be inside btnHighlightOrder in the header, after the separator")
 		}
+		// Батч-47: селектор пяти светлых тем — после btnToggleAdvanced.
+		advIdx := strings.Index(htmlBody, `id="btnToggleAdvanced"`)
+		themeIdx := strings.Index(htmlBody, `id="themeSelect"`)
+		if advIdx < 0 || themeIdx < advIdx {
+			t.Fatalf("themeSelect must follow btnToggleAdvanced in the header")
+		}
 	}
 	{
 		if strings.Contains(htmlBody, `id="btnBackupEtalon"`) {
@@ -466,11 +472,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".seg-pill",
 		"border-radius: 50%",
 		"color: #000000 !important",
-		"#22c55e",
-		"#a3e635",
-		"#ffeb3b",
-		"#fef9c3",
-		"#f9a8d4",
+		"#5fae77", /* б47: приглушённые цвета рейтинга (оттенки прежние) */
+		"#a6c05f",
+		"#e0d058",
+		"#ece5bf",
+		"#d9a3bf",
 		"#ef4444",
 		".unit-col",
 		"#fltSupplier",
