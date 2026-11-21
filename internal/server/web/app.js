@@ -10,6 +10,14 @@
   const activeControllers = new Set();
   let isClearingDatabase = false;
   let isClosingConfirmed = false;
+  // Батч-44: режим подсказки рекомендованного заказа у «Подсветить заказ».
+  let orderHintActive = false;
+  let orderHintRow = null;
+  const hideOrderHint = () => {
+    orderHintRow = null;
+    const pop = el('orderHintPopover');
+    if (pop) pop.classList.add('hidden');
+  };
   let isDownloadingFile = false;
   let vScrollRaf = null;
 
@@ -3008,98 +3016,6 @@
       } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
       finally {button.disabled=false;}
     });
-    // Батч-41: «Анализ остатков» — сопоставление товаров двух складов
-    // (по артикулу, затем по названию с процентом совпадения); излишки
-    // (запас больше N месяцев — настройка) и необходимые заказы (логика
-    // «Подсветить заказ»: расчётный заказ > 0 либо рейтинг 3+ при остатке 0).
-    let stockAnalysisData = null;
-    const SA_MONTHS_KEY = 'ostatki_stock_analysis_months';
-    const stockAnalysisEscape = (e) => { if (e.key === 'Escape' && !el('stockAnalysisModal').classList.contains('hidden')) closeStockAnalysis(); };
-    function openStockAnalysis() {
-      if (!state.report) { showToast('Сначала загрузите ведомость'); return; }
-      const whs = [...new Set((state.report.items || []).map((it) => it.warehouse || ''))].filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      if (whs.length < 2) { showToast('Для анализа нужно минимум два склада в ведомости'); return; }
-      const opts = whs.map((wh) => `<option value="${esc(wh)}">${esc(wh)}</option>`).join('');
-      el('stockAnalysisWhA').innerHTML = opts;
-      el('stockAnalysisWhB').innerHTML = opts;
-      const prevA = el('stockAnalysisWhA').dataset.prev || whs[0];
-      const prevB = el('stockAnalysisWhB').dataset.prev || whs[1] || whs[0];
-      el('stockAnalysisWhA').value = whs.includes(prevA) ? prevA : whs[0];
-      el('stockAnalysisWhB').value = whs.includes(prevB) ? prevB : (whs[1] || whs[0]);
-      const savedMonths = Number(localStorage.getItem(SA_MONTHS_KEY));
-      if (savedMonths >= 0.5 && savedMonths <= 60) el('stockAnalysisMonths').value = savedMonths;
-      el('stockAnalysisSummary').textContent = '';
-      el('stockAnalysisResults').innerHTML = '<div style="padding:18px;color:var(--text-muted)">Выберите склады и нажмите «Анализировать»</div>';
-      el('btnStockAnalysisExport').disabled = true;
-      stockAnalysisData = null;
-      el('stockAnalysisModal').classList.remove('hidden');
-      document.addEventListener('keydown', stockAnalysisEscape);
-    }
-    function closeStockAnalysis() {
-      el('stockAnalysisModal').classList.add('hidden');
-      el('stockAnalysisWhA').dataset.prev = el('stockAnalysisWhA').value;
-      el('stockAnalysisWhB').dataset.prev = el('stockAnalysisWhB').value;
-      document.removeEventListener('keydown', stockAnalysisEscape);
-    }
-    function stockAnalysisQuery() {
-      const whA = el('stockAnalysisWhA').value, whB = el('stockAnalysisWhB').value;
-      const months = Number(el('stockAnalysisMonths').value) || 12;
-      return `whA=${encodeURIComponent(whA)}&whB=${encodeURIComponent(whB)}&months=${months}`;
-    }
-    function renderStockAnalysis() {
-      const data = stockAnalysisData;
-      if (!data) return;
-      const rows = data.rows || [];
-      el('stockAnalysisSummary').textContent = `Совпадений: ${data.matched} (по артикулу: ${data.bySku}, по названию: ${data.byName}) • пар с перемещением: ${rows.length} • порог излишка: ${data.months} мес.`;
-      if (!rows.length) {
-        el('stockAnalysisResults').innerHTML = '<div style="padding:18px;color:var(--text-muted)">Пар с перемещением не найдено</div>';
-        return;
-      }
-      const arrowCell = (r) => {
-        if (r.arrow === 'AtoB') {
-          return `<span style="font-size:18px;font-weight:700;color:#164d25" title="Переместить со склада «${esc(data.whA)}» на «${esc(data.whB)}»: излишек ${fmtInt(r.excessUnits)} шт ≈ ${fmtMoney(r.excessValue)} р.">→</span>`;
-        }
-        if (r.arrow === 'BtoA') {
-          return `<span style="font-size:18px;font-weight:700;color:#164d25" title="Переместить со склада «${esc(data.whB)}» на «${esc(data.whA)}»: излишек ${fmtInt(r.excessUnits)} шт ≈ ${fmtMoney(r.excessValue)} р.">←</span>`;
-        }
-        return '<span style="color:var(--text-muted)">—</span>';
-      };
-      const head = `<tr><th>Группа</th><th>Артикул</th><th>Номенклатура</th><th>Совпадение</th><th style="text-align:right">${esc(data.whA)}</th><th style="text-align:center">Перемещение</th><th style="text-align:right">${esc(data.whB)}</th></tr>`;
-      const body = rows.map((r) => `<tr>
-        <td>${esc(r.group || '—')}</td>
-        <td>${esc(r.sku || '—')}</td>
-        <td title="${esc(r.name)}">${esc(r.name)}</td>
-        <td>${r.matchScore}%</td>
-        <td style="text-align:right">${fmtInt(r.whAStock)}</td>
-        <td style="text-align:center">${arrowCell(r)}</td>
-        <td style="text-align:right">${fmtInt(r.whBStock)}</td>
-      </tr>`).join('');
-      el('stockAnalysisResults').innerHTML = `<table class="v4-table" style="width:100%;border-collapse:collapse;font-size:12px">${head}${body}</table>`;
-    }
-    el('btnStockAnalysis').addEventListener('click', openStockAnalysis);
-    el('btnCloseStockAnalysis').addEventListener('click', closeStockAnalysis);
-    el('stockAnalysisModal').addEventListener('click', (e) => { if (e.target === el('stockAnalysisModal')) closeStockAnalysis(); });
-    el('btnStockAnalysisRun').addEventListener('click', async () => {
-      const button = el('btnStockAnalysisRun');button.disabled = true;
-      try {
-        if (!state.report) throw new Error('Сначала загрузите ведомость');
-        localStorage.setItem(SA_MONTHS_KEY, el('stockAnalysisMonths').value);
-        // Индикатор: на больших ведомостях анализ занимает несколько секунд.
-        el('stockAnalysisSummary').textContent = 'Анализирую…';
-        el('stockAnalysisResults').innerHTML = '';
-        const data = await apiGet(`api/stock-analysis?${stockAnalysisQuery()}`);
-        if (state.clientEpoch !== (data.epoch ?? state.clientEpoch)) return;
-        stockAnalysisData = data;
-        renderStockAnalysis();
-        el('btnStockAnalysisExport').disabled = !(data.rows || []).length;
-      } catch (err) { showToast(err.message); }
-      finally { button.disabled = false; }
-    });
-    el('btnStockAnalysisExport').addEventListener('click', async () => {
-      if (!stockAnalysisData) return;
-      try { await downloadSafetyFile(`api/stock-analysis/export?${stockAnalysisQuery()}`, 'Анализ остатков.xlsx'); }
-      catch (err) { showToast(err.message); }
-    });
     el('btnSaveEtalon').addEventListener('click', async () => {
       const epoch=state.clientEpoch;
       const button=el('btnSaveEtalon');button.disabled=true;
@@ -3421,6 +3337,48 @@
     el('btnHighlightOrder').addEventListener('click',()=>{
       try {const scope=highlightScope();const rows=state.report.items.filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses));if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
+
+    // Батч-44: «+» у «Подсветить заказ» — при наведении на подсвеченную
+    // ячейку заказа справа появляется маленькое окно с рекомендованным
+    // заказом (autoOrderQty — расчёт алгоритма автозаказа). Состояние
+    // (orderHintActive/orderHintRow/hideOrderHint) объявлено на верхнем
+    // уровне: его использует и refreshExcelTable.
+    function showOrderHint(inputEl) {
+      if (!orderHintActive || !state.report) return;
+      const rowNum = Number(inputEl.dataset.qtyRow);
+      if (!state.highlightedOrderRows.has(rowNum)) { hideOrderHint(); return; }
+      const it = state.rowMap.get(rowNum) || state.report.items.find((x) => x.excelRow === rowNum);
+      if (!it) return;
+      orderHintRow = rowNum;
+      const pop = el('orderHintPopover');
+      const rec = Math.max(0, Math.round(it.autoOrderQty || 0));
+      const inOrder = Math.round(it.finalOrderQty || 0);
+      pop.innerHTML = `<div class="oh-main">Рекомендованный заказ: ${fmtInt(rec)} шт</div>` +
+        (inOrder !== rec ? `<div class="oh-sub">В заказе: ${fmtInt(inOrder)} шт</div>` : '');
+      pop.classList.remove('hidden');
+      const rect = inputEl.getBoundingClientRect();
+      const left = Math.max(8, Math.min(rect.right + 8, window.innerWidth - pop.offsetWidth - 8));
+      pop.style.left = `${left}px`;
+      pop.style.top = `${Math.max(8, Math.min(rect.top - 2, window.innerHeight - pop.offsetHeight - 8))}px`;
+    }
+    el('btnOrderHint').addEventListener('click', () => {
+      if (!orderHintActive && !(state.report && state.highlightedOrderRows.size > 0)) {
+        showToast('Сначала включите «Подсветить заказ»');
+        return;
+      }
+      orderHintActive = !orderHintActive;
+      const button = el('btnOrderHint');
+      button.setAttribute('aria-pressed', String(orderHintActive));
+      button.classList.toggle('btn-active-toggle', orderHintActive);
+      if (!orderHintActive) { hideOrderHint(); showToast('Подсказка рекомендованного заказа выключена'); }
+      else showToast('Наведите курсор на подсвеченную ячейку заказа');
+    });
+    el('tableBody').addEventListener('mouseover', (e) => {
+      const input = e.target.closest('input[data-qty-row]');
+      if (!input) { if (orderHintRow !== null) hideOrderHint(); return; }
+      showOrderHint(input);
+    });
+    el('tableScrollContainer').addEventListener('scroll', () => { if (orderHintRow !== null) hideOrderHint(); }, { passive: true });
     // «Загрузить заказ» (батч-36): файл заказа -> значения столбца «Заказ» ведомости.
     el('btnImportOrder').addEventListener('click', () => { el('orderImportInput').click(); });
     el('orderImportInput').addEventListener('change', async (e) => {
@@ -4724,6 +4682,7 @@
   }
   function refreshExcelTable(anchor=null) {
     state.hasUnsavedChanges = true;
+    if (orderHintRow !== null) hideOrderHint();
     recomputeFilteredList();
     if (state.report) { renderKPIs(state.report); populateFilterDropdowns(state.report); }
     renderTable();
