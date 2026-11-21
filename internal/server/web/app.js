@@ -3338,45 +3338,61 @@
       try {const scope=highlightScope();const rows=state.report.items.filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses));if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
 
-    // Батч-44: «+» у «Подсветить заказ» — при наведении на подсвеченную
-    // ячейку заказа справа появляется маленькое окно с рекомендованным
-    // заказом (autoOrderQty — расчёт алгоритма автозаказа). Состояние
-    // (orderHintActive/orderHintRow/hideOrderHint) объявлено на верхнем
-    // уровне: его использует и refreshExcelTable.
-    function showOrderHint(inputEl) {
+    // Батч-44/45: «+» у «Подсветить заказ» — при наведении курсора на
+    // подсвеченную ячейку заказа (вся ячейка td.order-cell: паддинги,
+    // qty-editor и сам input) справа появляется маленькое окно с
+    // рекомендованным заказом (autoOrderQty — расчёт алгоритма
+    // автозаказа). Состояние (orderHintActive/orderHintRow/
+    // hideOrderHint) объявлено на верхнем уровне: его использует и
+    // refreshExcelTable.
+    function showOrderHint(cellEl) {
       if (!orderHintActive || !state.report) return;
-      const rowNum = Number(inputEl.dataset.qtyRow);
+      const input = cellEl.querySelector('input[data-qty-row]');
+      if (!input) { hideOrderHint(); return; }
+      const rowNum = Number(input.dataset.qtyRow);
       if (!state.highlightedOrderRows.has(rowNum)) { hideOrderHint(); return; }
       const it = state.rowMap.get(rowNum) || state.report.items.find((x) => x.excelRow === rowNum);
       if (!it) return;
-      orderHintRow = rowNum;
       const pop = el('orderHintPopover');
-      const rec = Math.max(0, Math.round(it.autoOrderQty || 0));
-      const inOrder = Math.round(it.finalOrderQty || 0);
-      pop.innerHTML = `<div class="oh-main">Рекомендованный заказ: ${fmtInt(rec)} шт</div>` +
-        (inOrder !== rec ? `<div class="oh-sub">В заказе: ${fmtInt(inOrder)} шт</div>` : '');
+      if (orderHintRow === rowNum && !pop.classList.contains('hidden')) return;
+      orderHintRow = rowNum;
+      // Подсвеченная строка не должна показывать нуль: рекомендация
+      // алгоритма автозаказа, при нуле — фактическое количество в
+      // заказе; если рекомендации нет совсем — окошко не показывается.
+      const recAuto = Math.round(it.autoOrderQty || 0);
+      const rec = recAuto > 0 ? recAuto : Math.round(it.finalOrderQty || 0);
+      if (rec <= 0) { hideOrderHint(); return; }
+      pop.textContent = fmtInt(rec);
       pop.classList.remove('hidden');
-      const rect = inputEl.getBoundingClientRect();
+      const rect = cellEl.getBoundingClientRect();
       const left = Math.max(8, Math.min(rect.right + 8, window.innerWidth - pop.offsetWidth - 8));
       pop.style.left = `${left}px`;
       pop.style.top = `${Math.max(8, Math.min(rect.top - 2, window.innerHeight - pop.offsetHeight - 8))}px`;
     }
-    el('btnOrderHint').addEventListener('click', () => {
+    el('orderHintBadge').addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
       if (!orderHintActive && !(state.report && state.highlightedOrderRows.size > 0)) {
         showToast('Сначала включите «Подсветить заказ»');
         return;
       }
       orderHintActive = !orderHintActive;
-      const button = el('btnOrderHint');
-      button.setAttribute('aria-pressed', String(orderHintActive));
-      button.classList.toggle('btn-active-toggle', orderHintActive);
-      if (!orderHintActive) { hideOrderHint(); showToast('Подсказка рекомендованного заказа выключена'); }
+      const badge = el('orderHintBadge');
+      badge.setAttribute('aria-pressed', String(orderHintActive));
+      badge.classList.toggle('active', orderHintActive);
+      if (!orderHintActive) { hideOrderHint(); showToast('Подсказка выключена'); }
       else showToast('Наведите курсор на подсвеченную ячейку заказа');
     });
     el('tableBody').addEventListener('mouseover', (e) => {
-      const input = e.target.closest('input[data-qty-row]');
-      if (!input) { if (orderHintRow !== null) hideOrderHint(); return; }
-      showOrderHint(input);
+      const cell = e.target.closest && e.target.closest('td.order-cell');
+      if (!cell) { if (orderHintRow !== null) hideOrderHint(); return; }
+      showOrderHint(cell);
+    });
+    el('tableBody').addEventListener('mouseout', (e) => {
+      if (orderHintRow === null) return;
+      if (!(e.target && e.target.closest && e.target.closest('td.order-cell'))) return;
+      const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('td.order-cell') : null;
+      if (to !== e.target.closest('td.order-cell')) hideOrderHint();
     });
     el('tableScrollContainer').addEventListener('scroll', () => { if (orderHintRow !== null) hideOrderHint(); }, { passive: true });
     // «Загрузить заказ» (батч-36): файл заказа -> значения столбца «Заказ» ведомости.

@@ -2729,10 +2729,28 @@ body {
 .chart-trends-table.data-table tbody tr:hover td { background-color: var(--surface-hover); }
 
 /* Батч-44: кнопка «+» у «Подсветить заказ» и окно рекомендации автозаказа */
-.btn-plus-hint {
-  min-width: 34px;
-  padding-left: 10px;
-  padding-right: 10px;
+.order-hint-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 7px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+.order-hint-badge.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 .order-hint-popover {
   position: fixed;
@@ -2741,16 +2759,9 @@ body {
   border: 1px solid #e6d9c3;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(51, 38, 26, 0.18);
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
   pointer-events: none;
   white-space: nowrap;
-}
-.order-hint-popover .oh-main {
-  font-weight: 700;
-  color: #164d25;
-}
-.order-hint-popover .oh-sub {
-  color: var(--text-muted);
-  margin-top: 2px;
 }
