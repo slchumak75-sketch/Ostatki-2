@@ -394,14 +394,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("removed button still present: %s", removed)
 		}
 	}
-	panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
-	// Батч-44: «+» рекомендации сидит в шапке рядом с «Подсветить заказ»,
-	// поэтому позиция относительно paramsPanel не проверяется.
-	if strings.Index(htmlBody, `id="btnOrderHint"`) > panelIdx {
-		t.Fatalf("btnOrderHint must sit in the header next to btnHighlightOrder")
-	}
-	if strings.Index(htmlBody, `id="btnOrderHint"`) < strings.Index(htmlBody, `id="btnHighlightOrder"`) {
-		t.Fatalf("btnOrderHint must be to the right of btnHighlightOrder")
+	// Батч-45: «+» подсказки — окошечко на самой кнопке «Подсветить заказ» (справа).
+	{
+		hlIdx := strings.Index(htmlBody, `id="btnHighlightOrder"`)
+		badgeIdx := strings.Index(htmlBody, `id="orderHintBadge"`)
+		panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
+		if hlIdx < 0 || panelIdx < 0 || badgeIdx < hlIdx || badgeIdx > panelIdx {
+			t.Fatalf("orderHintBadge must be inside btnHighlightOrder in the header")
+		}
 	}
 	{
 		if strings.Contains(htmlBody, `id="btnBackupEtalon"`) {
