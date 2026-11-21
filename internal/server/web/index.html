@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Остатки 2 (Вариант 7 PRO) — Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
-  <link rel="stylesheet" href="styles.css?v=4.16" />
+  <link rel="stylesheet" href="styles.css?v=4.17" />
 </head>
 <body>
   <div id="dropOverlay" class="drop-overlay hidden">
@@ -65,6 +65,7 @@
         <button type="button" class="btn btn-beige" id="btnImportOrder" title="Загрузить сохранённый файл заказа и перезаписать значения в столбце «Заказ» текущей ведомости">Загрузить заказ</button>
         <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ<span class="order-hint-sep" aria-hidden="true"></span><span id="orderHintBadge" aria-pressed="false" title="Показывать рекомендованный заказ при наведении курсора на подсвеченную ячейку">+</span></button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
+        <select id="themeSelect" class="btn btn-ghost theme-select" title="Тема оформления" aria-label="Тема оформления"><option value="warm">Тема: тёплая</option><option value="nordic">Тема: скандинавская</option><option value="sage">Тема: шалфейная</option><option value="lavender">Тема: лавандовая</option><option value="sand">Тема: песочная</option></select>
       </div>
     </header>
 
@@ -727,7 +728,7 @@
   </div>
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=17"></script>
-  <script src="app.js?v=5.18"></script>
+  <script src="app.js?v=5.19"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>

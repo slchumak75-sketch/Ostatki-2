@@ -1482,12 +1482,12 @@ body.col-resize-active * {
 /* Цветные кружочки с чёрными цифрами в столбце «Рейтинг»:
    5 — ярко-зелёный, 4 — салатовый, 3 — ярко-жёлтый,
    2 — бледно-жёлтый, 1 — розовый, 0 — ярко-красный */
-.seg-pill.seg-5 { background-color: #22c55e !important; color: #000000 !important; }
-.seg-pill.seg-4 { background-color: #a3e635 !important; color: #000000 !important; }
-.seg-pill.seg-3 { background-color: #ffeb3b !important; color: #000000 !important; }
-.seg-pill.seg-2 { background-color: #fef9c3 !important; color: #000000 !important; }
-.seg-pill.seg-1 { background-color: #f9a8d4 !important; color: #000000 !important; }
-.seg-pill.seg-0 { background-color: #ef4444 !important; color: #000000 !important; }
+.seg-pill.seg-5 { background-color: #5fae77 !important; color: #000000 !important; }
+.seg-pill.seg-4 { background-color: #a6c05f !important; color: #000000 !important; }
+.seg-pill.seg-3 { background-color: #e0d058 !important; color: #000000 !important; }
+.seg-pill.seg-2 { background-color: #ece5bf !important; color: #000000 !important; }
+.seg-pill.seg-1 { background-color: #d9a3bf !important; color: #000000 !important; }
+.seg-pill.seg-0 { background-color: #cf5f5b !important; color: #000000 !important; }
 
 .data-table td.seg-cell .seg-pill {
   cursor: pointer;
@@ -2781,3 +2781,183 @@ body {
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ===== Батч-47: пять светлых тем оформления =====
+   warm — по умолчанию (токены :root); nordic, sage, lavender, sand.
+   Кроме палитры темы отличаются стилистикой: скругления, тени,
+   плотность строк, форма кнопок, оформление шапки таблицы. */
+
+[data-theme="nordic"] {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-alt: #f7f9fb;
+  --surface-hover: #eef2f6;
+  --border: #e1e7ed;
+  --border-strong: #c9d4de;
+  --text: #333c46;
+  --text-muted: #8493a1;
+  --primary: #5e7f9c;
+  --primary-hover: #4c6e8b;
+  --primary-soft: #e1eaf2;
+  --success: #4f8a71;
+  --success-hover: #3f7a61;
+  --success-soft: #dfefe7;
+  --warn: #6e8aa2;
+  --warn-soft: #e5eef6;
+  --danger: #c25650;
+  --danger-soft: #f7e3e1;
+  --order-col-bg: #eef3f8;
+  --beige-bg: #eef2f6;
+  --beige-hover: #e3eaf1;
+  --beige-active: #d7e1ea;
+  --beige-border: #c9d4de;
+  --beige-text: #2f3a44;
+  --shadow: none;
+  --radius: 4px;
+}
+
+[data-theme="sage"] {
+  --bg: #f3f5f0;
+  --surface: #ffffff;
+  --surface-alt: #f6f8f2;
+  --surface-hover: #eef2e8;
+  --border: #dfe5d8;
+  --border-strong: #c3cfc0;
+  --text: #36402f;
+  --text-muted: #87917c;
+  --primary: #6f8d67;
+  --primary-hover: #5c7a55;
+  --primary-soft: #e5efe0;
+  --success: #5f9c6e;
+  --success-hover: #4f8a5e;
+  --success-soft: #e2efe5;
+  --warn: #8aa06a;
+  --warn-soft: #e9f0df;
+  --danger: #c25e55;
+  --danger-soft: #f6e4e0;
+  --order-col-bg: #edf3ea;
+  --beige-bg: #eef2e8;
+  --beige-hover: #e2ead9;
+  --beige-active: #d5e0c5;
+  --beige-border: #c3cfc0;
+  --beige-text: #333d2c;
+  --shadow: 0 1px 3px rgba(58, 72, 44, 0.08), 0 1px 2px rgba(58, 72, 44, 0.05);
+  --radius: 10px;
+}
+
+[data-theme="lavender"] {
+  --bg: #f5f4f7;
+  --surface: #ffffff;
+  --surface-alt: #f8f7fa;
+  --surface-hover: #f1eff5;
+  --border: #e5e3ea;
+  --border-strong: #cfcbdb;
+  --text: #37333f;
+  --text-muted: #8d8898;
+  --primary: #7d6f9c;
+  --primary-hover: #6a5c8a;
+  --primary-soft: #eae6f2;
+  --success: #5f9c7a;
+  --success-hover: #4f8a68;
+  --success-soft: #e2efe7;
+  --warn: #9184ab;
+  --warn-soft: #ece8f4;
+  --danger: #c25a5f;
+  --danger-soft: #f7e2e3;
+  --order-col-bg: #f0eef6;
+  --beige-bg: #efedf4;
+  --beige-hover: #e4e1ed;
+  --beige-active: #d6d2e2;
+  --beige-border: #cfcbdb;
+  --beige-text: #363044;
+  --shadow: 0 1px 2px rgba(55, 48, 70, 0.08);
+  --radius: 5px;
+}
+
+[data-theme="sand"] {
+  --bg: #faf8f3;
+  --surface: #ffffff;
+  --surface-alt: #fbf9f3;
+  --surface-hover: #f6f2e8;
+  --border: #e7e2d6;
+  --border-strong: #d2c9b6;
+  --text: #3b3a34;
+  --text-muted: #8f8a7c;
+  --primary: #6e93b1;
+  --primary-hover: #557e9e;
+  --primary-soft: #e3edf4;
+  --success: #6d9c7a;
+  --success-hover: #5a8a68;
+  --success-soft: #e3efe6;
+  --warn: #7f9cb4;
+  --warn-soft: #e8eff5;
+  --danger: #c25e58;
+  --danger-soft: #f7e4e1;
+  --order-col-bg: #edf3f7;
+  --beige-bg: #f4efe2;
+  --beige-hover: #ebe4d2;
+  --beige-active: #dfd5bd;
+  --beige-border: #d2c9b6;
+  --beige-text: #3a372e;
+  --shadow: 0 1px 3px rgba(93, 84, 62, 0.08), 0 1px 2px rgba(93, 84, 62, 0.05);
+  --radius: 16px;
+}
+
+/* --- стилистика тем --- */
+
+/* Скандинавская: плоско, тонко, строго, плотно. */
+[data-theme="nordic"] .btn { border-radius: 4px; box-shadow: none; }
+[data-theme="nordic"] .toolbar { border-radius: 0; box-shadow: none; }
+[data-theme="nordic"] .data-table thead th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  box-shadow: inset 0 -1px 0 var(--border-strong);
+}
+[data-theme="nordic"] .data-table tbody td { padding: 3px 5px; }
+[data-theme="nordic"] .qty-input, [data-theme="nordic"] .order-hint-popover { border-radius: 2px; }
+[data-theme="nordic"] input, [data-theme="nordic"] select { border-radius: 3px; }
+[data-theme="nordic"] .order-hint-sep { background: var(--border-strong); opacity: 0.9; }
+
+/* Шалфейная: органично, мягко, зелёная шапка таблицы. */
+[data-theme="sage"] .btn { border-radius: 9px; }
+[data-theme="sage"] .toolbar { border-radius: 10px; }
+[data-theme="sage"] .data-table thead th {
+  background: #eaf0e3;
+  color: #5c6e51;
+  border-bottom: 1px solid #c3cfc0;
+  box-shadow: none;
+}
+[data-theme="sage"] .data-table tbody td { padding: 6px 5px; }
+[data-theme="sage"] .qty-input, [data-theme="sage"] .order-hint-popover { border-radius: 7px; }
+[data-theme="sage"] .order-hint-sep { background: #b7c6a9; }
+
+/* Лавандовая: офисная плотность, строгие заглавные шапки. */
+[data-theme="lavender"] .btn { border-radius: 5px; box-shadow: none; }
+[data-theme="lavender"] .toolbar { border-radius: 6px; box-shadow: none; }
+[data-theme="lavender"] .data-table thead th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #77708a;
+  background: #f3f1f7;
+  box-shadow: inset 0 -1px 0 var(--border-strong);
+}
+[data-theme="lavender"] .data-table tbody td { padding: 2px 5px; }
+[data-theme="lavender"] .qty-input, [data-theme="lavender"] .order-hint-popover { border-radius: 3px; }
+
+/* Песочная: пилюли-кнопки, воздушные отступы, тёплая шапка. */
+[data-theme="sand"] .btn { border-radius: 99px; padding-left: 14px; padding-right: 14px; }
+[data-theme="sand"] .toolbar { border-radius: 14px; }
+[data-theme="sand"] .data-table thead th {
+  background: #f6f1e3;
+  color: #7d7660;
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: none;
+}
+[data-theme="sand"] .data-table tbody td { padding: 6px 5px; }
+[data-theme="sand"] .qty-input, [data-theme="sand"] .order-hint-popover { border-radius: 8px; }
+[data-theme="sand"] .order-hint-sep { background: #c9bfa8; }
+
+/* Селектор темы — в одну линию с кнопками панели. */
+.theme-select { height: 27px; padding: 0 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
