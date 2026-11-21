@@ -450,7 +450,9 @@ func TestServerAPIEndpoints(t *testing.T) {
 		t.Fatalf("GET /styles.css code=%d", rec.Code)
 	}
 	cssBody := rec.Body.String()
-	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "font-size: 8px", "td.seg-cell.seg-"} {
+	// Батч-52: «font-size: 8px» из запрета убран — пользователь вернул мелкие
+	// двухстрочные «Склад»/«Группа» макета №6 (только islands, wh/grp-ячейки).
+	for _, removedCSS := range []string{"stock-crit", "inspector-drawer", "table-split-layout", "cell-2lines", "td.seg-cell.seg-"} {
 		if strings.Contains(cssBody, removedCSS) {
 			t.Fatalf("styles.css still contains removed selector: %q", removedCSS)
 		}
