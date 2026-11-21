@@ -207,10 +207,11 @@ html, body {
 
 .topbar-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 5px;
 }
+.topbar-actions .btn { white-space: nowrap; flex: 0 0 auto; }
 
 /* Buttons */
 .btn {
@@ -2782,22 +2783,29 @@ body {
   white-space: nowrap;
 }
 
-/* ===== Батч-47: пять светлых тем оформления =====
-   warm — по умолчанию (токены :root); nordic, sage, lavender, sand.
-   Кроме палитры темы отличаются стилистикой: скругления, тени,
-   плотность строк, форма кнопок, оформление шапки таблицы. */
+/* ===== Батч-48: пять концептуальных дизайнов (variant-7.1…7.5) =====
+   Каждый вариант программы собирается со своим data-theme:
+     7.1 warm    — тёплая классика (по умолчанию, токены :root)
+     7.2 cabinet — строгий кабинет: сетка таблицы, острые углы, акцентная линия
+     7.3 saas    — современный SaaS: плавающая панель, карточка таблицы, безрамочные кнопки
+     7.4 paper   — бумажный минимал: без рамок и панелей, только воздух и типографика
+     7.5 terminal— плотный терминал данных: зебра, моноширинные цифры, сегмент-панель
+   Общие инварианты всех вариантов: высота строк таблицы одинакова (24px,
+   паддинги td не переопределяются), цвета рейтинга приглушены, светлые
+   спокойные палитры без пестроты. */
 
-[data-theme="nordic"] {
+/* ---- 7.2 cabinet: строгий кабинет ---- */
+[data-theme="cabinet"] {
   --bg: #f4f6f8;
   --surface: #ffffff;
   --surface-alt: #f7f9fb;
   --surface-hover: #eef2f6;
-  --border: #e1e7ed;
-  --border-strong: #c9d4de;
-  --text: #333c46;
-  --text-muted: #8493a1;
-  --primary: #5e7f9c;
-  --primary-hover: #4c6e8b;
+  --border: #dfe5eb;
+  --border-strong: #b9c6d2;
+  --text: #2e3742;
+  --text-muted: #7c8a98;
+  --primary: #4c6e8b;
+  --primary-hover: #3d5d78;
   --primary-soft: #e1eaf2;
   --success: #4f8a71;
   --success-hover: #3f7a61;
@@ -2808,156 +2816,183 @@ body {
   --danger-soft: #f7e3e1;
   --order-col-bg: #eef3f8;
   --beige-bg: #eef2f6;
-  --beige-hover: #e3eaf1;
-  --beige-active: #d7e1ea;
-  --beige-border: #c9d4de;
-  --beige-text: #2f3a44;
+  --beige-hover: #e2eaf1;
+  --beige-active: #d5e0ea;
+  --beige-border: #b9c6d2;
+  --beige-text: #2e3742;
   --shadow: none;
-  --radius: 4px;
+  --radius: 2px;
 }
-
-[data-theme="sage"] {
-  --bg: #f3f5f0;
-  --surface: #ffffff;
-  --surface-alt: #f6f8f2;
-  --surface-hover: #eef2e8;
-  --border: #dfe5d8;
-  --border-strong: #c3cfc0;
-  --text: #36402f;
-  --text-muted: #87917c;
-  --primary: #6f8d67;
-  --primary-hover: #5c7a55;
-  --primary-soft: #e5efe0;
-  --success: #5f9c6e;
-  --success-hover: #4f8a5e;
-  --success-soft: #e2efe5;
-  --warn: #8aa06a;
-  --warn-soft: #e9f0df;
-  --danger: #c25e55;
-  --danger-soft: #f6e4e0;
-  --order-col-bg: #edf3ea;
-  --beige-bg: #eef2e8;
-  --beige-hover: #e2ead9;
-  --beige-active: #d5e0c5;
-  --beige-border: #c3cfc0;
-  --beige-text: #333d2c;
-  --shadow: 0 1px 3px rgba(58, 72, 44, 0.08), 0 1px 2px rgba(58, 72, 44, 0.05);
-  --radius: 10px;
-}
-
-[data-theme="lavender"] {
-  --bg: #f5f4f7;
-  --surface: #ffffff;
-  --surface-alt: #f8f7fa;
-  --surface-hover: #f1eff5;
-  --border: #e5e3ea;
-  --border-strong: #cfcbdb;
-  --text: #37333f;
-  --text-muted: #8d8898;
-  --primary: #7d6f9c;
-  --primary-hover: #6a5c8a;
-  --primary-soft: #eae6f2;
-  --success: #5f9c7a;
-  --success-hover: #4f8a68;
-  --success-soft: #e2efe7;
-  --warn: #9184ab;
-  --warn-soft: #ece8f4;
-  --danger: #c25a5f;
-  --danger-soft: #f7e2e3;
-  --order-col-bg: #f0eef6;
-  --beige-bg: #efedf4;
-  --beige-hover: #e4e1ed;
-  --beige-active: #d6d2e2;
-  --beige-border: #cfcbdb;
-  --beige-text: #363044;
-  --shadow: 0 1px 2px rgba(55, 48, 70, 0.08);
-  --radius: 5px;
-}
-
-[data-theme="sand"] {
-  --bg: #faf8f3;
-  --surface: #ffffff;
-  --surface-alt: #fbf9f3;
-  --surface-hover: #f6f2e8;
-  --border: #e7e2d6;
-  --border-strong: #d2c9b6;
-  --text: #3b3a34;
-  --text-muted: #8f8a7c;
-  --primary: #6e93b1;
-  --primary-hover: #557e9e;
-  --primary-soft: #e3edf4;
-  --success: #6d9c7a;
-  --success-hover: #5a8a68;
-  --success-soft: #e3efe6;
-  --warn: #7f9cb4;
-  --warn-soft: #e8eff5;
-  --danger: #c25e58;
-  --danger-soft: #f7e4e1;
-  --order-col-bg: #edf3f7;
-  --beige-bg: #f4efe2;
-  --beige-hover: #ebe4d2;
-  --beige-active: #dfd5bd;
-  --beige-border: #d2c9b6;
-  --beige-text: #3a372e;
-  --shadow: 0 1px 3px rgba(93, 84, 62, 0.08), 0 1px 2px rgba(93, 84, 62, 0.05);
-  --radius: 16px;
-}
-
-/* --- стилистика тем --- */
-
-/* Скандинавская: плоско, тонко, строго, плотно. */
-[data-theme="nordic"] .btn { border-radius: 4px; box-shadow: none; }
-[data-theme="nordic"] .toolbar { border-radius: 0; box-shadow: none; }
-[data-theme="nordic"] .data-table thead th {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 10px;
-  box-shadow: inset 0 -1px 0 var(--border-strong);
-}
-[data-theme="nordic"] .data-table tbody td { padding: 3px 5px; }
-[data-theme="nordic"] .qty-input, [data-theme="nordic"] .order-hint-popover { border-radius: 2px; }
-[data-theme="nordic"] input, [data-theme="nordic"] select { border-radius: 3px; }
-[data-theme="nordic"] .order-hint-sep { background: var(--border-strong); opacity: 0.9; }
-
-/* Шалфейная: органично, мягко, зелёная шапка таблицы. */
-[data-theme="sage"] .btn { border-radius: 9px; }
-[data-theme="sage"] .toolbar { border-radius: 10px; }
-[data-theme="sage"] .data-table thead th {
-  background: #eaf0e3;
-  color: #5c6e51;
-  border-bottom: 1px solid #c3cfc0;
-  box-shadow: none;
-}
-[data-theme="sage"] .data-table tbody td { padding: 6px 5px; }
-[data-theme="sage"] .qty-input, [data-theme="sage"] .order-hint-popover { border-radius: 7px; }
-[data-theme="sage"] .order-hint-sep { background: #b7c6a9; }
-
-/* Лавандовая: офисная плотность, строгие заглавные шапки. */
-[data-theme="lavender"] .btn { border-radius: 5px; box-shadow: none; }
-[data-theme="lavender"] .toolbar { border-radius: 6px; box-shadow: none; }
-[data-theme="lavender"] .data-table thead th {
-  font-size: 10px;
+[data-theme="cabinet"] .btn { border-radius: 2px; box-shadow: none; }
+[data-theme="cabinet"] .btn-beige { border-width: 1px; font-weight: 600; }
+[data-theme="cabinet"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border); }
+[data-theme="cabinet"] .header-controls-strip { border-bottom: 3px solid var(--primary); padding-bottom: 6px; }
+[data-theme="cabinet"] .data-table thead th {
+  background: #e7ecf1;
+  color: #48586a;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #77708a;
-  background: #f3f1f7;
-  box-shadow: inset 0 -1px 0 var(--border-strong);
-}
-[data-theme="lavender"] .data-table tbody td { padding: 2px 5px; }
-[data-theme="lavender"] .qty-input, [data-theme="lavender"] .order-hint-popover { border-radius: 3px; }
-
-/* Песочная: пилюли-кнопки, воздушные отступы, тёплая шапка. */
-[data-theme="sand"] .btn { border-radius: 99px; padding-left: 14px; padding-right: 14px; }
-[data-theme="sand"] .toolbar { border-radius: 14px; }
-[data-theme="sand"] .data-table thead th {
-  background: #f6f1e3;
-  color: #7d7660;
-  border-bottom: 1px solid var(--border-strong);
+  font-size: 10px;
+  border-bottom: 2px solid var(--border-strong);
   box-shadow: none;
 }
-[data-theme="sand"] .data-table tbody td { padding: 6px 5px; }
-[data-theme="sand"] .qty-input, [data-theme="sand"] .order-hint-popover { border-radius: 8px; }
-[data-theme="sand"] .order-hint-sep { background: #c9bfa8; }
+[data-theme="cabinet"] .data-table td { border-right: 1px solid #edf1f5; }
+[data-theme="cabinet"] .data-table thead th { border-right: 1px solid #d8e0e8; }
+[data-theme="cabinet"] .data-table td:last-child, [data-theme="cabinet"] .data-table thead th:last-child { border-right: none; }
+[data-theme="cabinet"] .data-table tbody tr:hover td { background: var(--surface-hover); }
+[data-theme="cabinet"] .qty-input, [data-theme="cabinet"] .order-hint-popover { border-radius: 2px; }
+[data-theme="cabinet"] input, [data-theme="cabinet"] select { border-radius: 2px; }
 
-/* Селектор темы — в одну линию с кнопками панели. */
-.theme-select { height: 27px; padding: 0 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+/* ---- 7.3 saas: современный SaaS ---- */
+[data-theme="saas"] {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --surface-alt: #f8fafb;
+  --surface-hover: #eef5f2;
+  --border: #e6ebef;
+  --border-strong: #d3dde4;
+  --text: #2f3a44;
+  --text-muted: #8595a3;
+  --primary: #2f7d6d;
+  --primary-hover: #276c5e;
+  --primary-soft: #e1f0ec;
+  --success: #4f8a71;
+  --success-hover: #3f7a61;
+  --success-soft: #e1f0e8;
+  --warn: #5f8f84;
+  --warn-soft: #e3f0ed;
+  --danger: #c25650;
+  --danger-soft: #f7e3e1;
+  --order-col-bg: #ecf5f2;
+  --beige-bg: #f0f3f5;
+  --beige-hover: #e5ecf0;
+  --beige-active: #d8e3e9;
+  --beige-border: #d3dde4;
+  --beige-text: #2f3a44;
+  --shadow: 0 1px 2px rgba(31, 58, 82, 0.06), 0 2px 6px rgba(31, 58, 82, 0.05);
+  --radius: 10px;
+}
+[data-theme="saas"] .btn { border-color: transparent; background: transparent; box-shadow: none; border-radius: 8px; font-weight: 600; }
+[data-theme="saas"] .btn:hover { background: var(--primary-soft); }
+[data-theme="saas"] .btn-beige { color: var(--primary); }
+[data-theme="saas"] .toolbar {
+  background: var(--surface);
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(31, 58, 82, 0.10);
+  margin: 6px 10px;
+}
+[data-theme="saas"] .table-container {
+  background: var(--surface);
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(31, 58, 82, 0.10);
+  margin: 0 10px 12px;
+  overflow: hidden;
+}
+[data-theme="saas"] .data-table thead th {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+[data-theme="saas"] .data-table tbody tr:hover td { background: var(--surface-hover); }
+[data-theme="saas"] .qty-input, [data-theme="saas"] .order-hint-popover { border-radius: 7px; }
+
+/* ---- 7.4 paper: бумажный минимал ---- */
+[data-theme="paper"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-alt: #ffffff;
+  --surface-hover: #f7f5f0;
+  --border: #ececec;
+  --border-strong: #dcdcd8;
+  --text: #2f2a24;
+  --text-muted: #948e83;
+  --primary: #4a6478;
+  --primary-hover: #3c5568;
+  --primary-soft: #edf1f4;
+  --success: #5e8f72;
+  --success-hover: #4f8a71;
+  --success-soft: #e9f1ec;
+  --warn: #7f8f9f;
+  --warn-soft: #f0f2f4;
+  --danger: #bd5f5a;
+  --danger-soft: #f8e9e7;
+  --order-col-bg: #f5f7f9;
+  --beige-bg: #f7f5f0;
+  --beige-hover: #efece3;
+  --beige-active: #e7e2d5;
+  --beige-border: #e0ddd3;
+  --beige-text: #33302a;
+  --shadow: none;
+  --radius: 3px;
+}
+[data-theme="paper"] .toolbar { background: transparent; border: none; box-shadow: none; border-radius: 0; }
+[data-theme="paper"] .btn { background: transparent; border-color: transparent; box-shadow: none; border-radius: 4px; font-weight: 600; }
+[data-theme="paper"] .btn:hover { background: #f2efe8; }
+[data-theme="paper"] .btn-beige { color: var(--primary); }
+[data-theme="paper"] .table-container { background: transparent; border: none; box-shadow: none; border-radius: 0; }
+[data-theme="paper"] .data-table thead th {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid #e8e6e0;
+  box-shadow: none;
+}
+[data-theme="paper"] .data-table td { border-bottom-color: #ececec; }
+[data-theme="paper"] .data-table tbody tr:hover td { background: var(--surface-hover); }
+[data-theme="paper"] .qty-input, [data-theme="paper"] .order-hint-popover { border-radius: 3px; }
+
+/* ---- 7.5 terminal: плотный терминал данных ---- */
+[data-theme="terminal"] {
+  --bg: #f2f4f5;
+  --surface: #fbfcfd;
+  --surface-alt: #e9edf0;
+  --surface-hover: #e4ecf3;
+  --border: #dbe1e6;
+  --border-strong: #b8c3cd;
+  --text: #2b3440;
+  --text-muted: #7a8894;
+  --primary: #4f6d8f;
+  --primary-hover: #405c7b;
+  --primary-soft: #e2eaf2;
+  --success: #4f8a71;
+  --success-hover: #3f7a61;
+  --success-soft: #e0efe7;
+  --warn: #63809c;
+  --warn-soft: #e5edf4;
+  --danger: #c25650;
+  --danger-soft: #f7e3e1;
+  --order-col-bg: #edf2f6;
+  --beige-bg: #eaeef2;
+  --beige-hover: #dfe6ec;
+  --beige-active: #d3dde6;
+  --beige-border: #b8c3cd;
+  --beige-text: #2b3440;
+  --shadow: none;
+  --radius: 2px;
+}
+[data-theme="terminal"] .btn { border-radius: 0; box-shadow: none; font-weight: 600; }
+[data-theme="terminal"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border-strong); }
+[data-theme="terminal"] .topbar-actions { gap: 0; }
+[data-theme="terminal"] .topbar-actions .btn { margin-left: -1px; }
+[data-theme="terminal"] .topbar-actions .btn:first-child { margin-left: 0; }
+[data-theme="terminal"] .header-controls-strip { border-left: 4px solid var(--primary); }
+[data-theme="terminal"] .data-table thead th {
+  background: var(--surface-alt);
+  color: #4a5b6c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 9.5px;
+  border-bottom: 2px solid var(--border-strong);
+  box-shadow: none;
+}
+[data-theme="terminal"] .data-table tbody tr:nth-child(even) td { background: #f3f6f8; }
+[data-theme="terminal"] .data-table tbody tr:hover td { background: var(--surface-hover); }
+[data-theme="terminal"] td.num-col, [data-theme="terminal"] .qty-input, [data-theme="terminal"] .order-hint-popover {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="terminal"] .qty-input, [data-theme="terminal"] .order-hint-popover { border-radius: 0; }
