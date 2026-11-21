@@ -16,12 +16,17 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  assert.equal(d.querySelector('body').getAttribute('data-theme'),null,'в статическом index.html нет data-theme');
  assert.ok(!js.includes('THEME_KEY'),'app.js без переключателя тем');
  // Все пять дизайнов объявлены в CSS.
- for(const t of ['cabinet','saas','paper','terminal']){
-   assert.ok(css.includes(`[data-theme="${t}"] {`),`токены ${t}`);
+ for(const t of ['classic','cabinet','saas','paper','terminal']){
+   assert.ok(css.includes(`[data-theme="${t}"]`),`тема ${t} в CSS`);
  }
+ assert.ok(css.includes('--btnbar-bg'),'единый цвет кнопок (btnbar-токены)');
+ assert.ok(css.includes('.topbar-actions .btn.property-filter-active[aria-pressed="false"]'),'выключенные фильтры белеют');
+ assert.ok(!css.includes('.btn.property-filter-active { background:#bde5c4'),'старое зелёное правило фильтров убрано');
+ assert.ok(css.includes('[data-theme="classic"] .btn { border-radius: 8px'),'classic: мягкие скругления');
  assert.ok(css.includes('[data-theme="cabinet"] .data-table td { border-right'),'cabinet: сетка таблицы');
  assert.ok(css.includes('[data-theme="saas"] .toolbar'),'\n'+'saas: плавающая панель' && css.includes('[data-theme="saas"] .table-container'),'saas: карточка таблицы');
- assert.ok(css.includes('[data-theme="paper"] .btn { background: transparent'),'paper: безрамочные кнопки');
+ assert.ok(css.includes('[data-theme="paper"] .toolbar { background: transparent'),'paper: прозрачная панель');
+ assert.ok(css.includes('[data-theme="paper"] .topbar-actions { border-bottom: 1px dotted'),'paper: точечный разделитель');
  assert.ok(css.includes('[data-theme="terminal"] .data-table tbody tr:nth-child(even) td'),'terminal: зебра');
  assert.ok(css.includes('monospace'),'terminal: моноширинные цифры');
  // Высота строк одинакова во всех вариантах: паддинги td темами не переопределяются.

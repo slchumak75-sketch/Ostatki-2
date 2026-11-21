@@ -64,6 +64,8 @@ thsAll.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW0.get(i),top:0
  assert.equal(d.querySelector('#itemsTable > colgroup'),cgBefore,'Colgroup node still the same');
  assert.ok(sameWidths(colWidths(),widthsBefore),'Column widths unchanged when relevance is disabled');
  for(const th of ths)delete th.getBoundingClientRect;
- assert.match(fs.readFileSync('internal/server/web/styles.css','utf8'),/\.btn\.property-filter-active \{ background:#bde5c4/,'Top-bar green buttons share one colour');
+ const css49=fs.readFileSync('internal/server/web/styles.css','utf8');
+ assert.match(css49,/\.topbar-actions \.btn \{\n  background: var\(--btnbar-bg\)/,'Б49: все кнопки верхней плашки одного цвета');
+ assert.match(css49,/\.topbar-actions \.btn\.property-filter-active\[aria-pressed="false"\] \{\n  background: #ffffff/,'Б49: выключенные 12 мес./актуально — белые');
  console.log('Full-base and optional sales/unmarked filter tests passed');w.close();
 })().catch(err=>{console.error(err);w.close();process.exitCode=1;});
