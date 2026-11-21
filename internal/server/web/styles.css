@@ -2660,9 +2660,9 @@ body {
 
 .stock-mode-switch {display:inline-flex;align-items:center;gap:0;}
 .stock-mode-switch > #btnStockSearchMode {border-radius:6px 0 0 6px;}
-.stock-hints-close {height:27px;width:27px;flex:0 0 27px;padding:0;border:1px solid var(--border-strong);border-radius:0 6px 6px 0;background:#c62828;color:#fff;font-size:19px;font-weight:700;cursor:pointer;}
+.stock-hints-close {height:27px;width:27px;flex:0 0 27px;padding:0;border:1px solid var(--border-strong);border-radius:0 6px 6px 0;background:#c0857d;color:#fff;font-size:19px;font-weight:700;cursor:pointer;}
 .stock-hints-disabled > #btnStockSearchMode {opacity:.6;}
-.stock-hints-disabled > .stock-hints-close {background:#2e7d32;color:#fff;}
+.stock-hints-disabled > .stock-hints-close {background:#7fa08b;color:#fff;}
 
 /* Statement, radar and charts share the same compact workspace skin. */
 .statement-surface {

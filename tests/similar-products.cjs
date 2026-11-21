@@ -12,6 +12,7 @@ const tick=()=>new Promise(r=>setTimeout(r,50));
  assert.equal(state.stockHintsDisabled,true,'Stock hints must start disabled (green square)');
  assert.ok(d.getElementById('btnStockSearchMode').disabled,'Mode button is disabled while hints are off');
  assert.ok(d.querySelector('.stock-mode-switch').classList.contains('stock-hints-disabled'),'Square renders green by default');
+ const hintsCss=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(hintsCss.includes('background:#c0857d;'),'Hints square red is muted (batch-54)');assert.ok(hintsCss.includes('.stock-hints-disabled > .stock-hints-close {background:#7fa08b;'),'Hints square green is muted (batch-54)');assert.ok(!hintsCss.includes('#c62828')&&!hintsCss.includes('#2e7d32'),'Bright hints colours removed');
  d.getElementById('btnStockHintsOff').click();
  assert.equal(state.stockHintsDisabled,false);
  const hover=()=>d.querySelector('[data-stock-row="8"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));const rows=()=>[...pop.querySelectorAll('tbody tr')];const setPercent=value=>{percent.value=value;percent.dispatchEvent(new w.Event('input',{bubbles:true}));};
