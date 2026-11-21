@@ -70,5 +70,9 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  assert.ok(css.includes('input[type="number"]::-webkit-inner-spin-button'),'стрелки числовых полей убраны');
  assert.ok(css.includes('.qty-input,')&&css.includes('border-color: transparent; background: transparent;'),'цифры без обводки');
  assert.match(css,/\.toast \{[^}]*display: none/s,'тост на чёрном фоне не показывается');
+ // Б56: фокус без синей обводки; у «Совпадение, %» стрелки возвращены; одна текущая строка.
+ assert.ok(css.includes('input[type="number"]:focus,'),'фокус числовых полей без обводки');
+ assert.ok(css.includes('#stockSimilarityPercent::-webkit-inner-spin-button { -webkit-appearance: inner-spin-button;'),'стрелки «Совпадение, %» возвращены');
+ assert.ok(js.includes("querySelectorAll('tr.selected-row')"),'подсветка строки только одна — текущая');
  console.log('THEME UI б55: «Заказ»+дата, «Подсказка», умолчания 20/5, цифры без обводки, только «Острова+»: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();
