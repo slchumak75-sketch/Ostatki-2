@@ -32,10 +32,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 	}
 	h := app.Handler()
 
-	// 0. Проверка параметров по умолчанию: Срок поставки = 4 дня, Базовый страх. запас = 10%
+	// 0. Проверка параметров по умолчанию: Срок поставки = 4 дня, Покрытие = 20 дней,
+	// Базовый страх. запас = 5% (батч-55).
 	defParams := model.DefaultParams()
-	if defParams.LeadTimeDays != 4 || defParams.SafetyStockPct != 10.0 {
-		t.Fatalf("expected DefaultParams LeadTimeDays=4 & SafetyStockPct=10, got lead=%d safety=%v", defParams.LeadTimeDays, defParams.SafetyStockPct)
+	if defParams.LeadTimeDays != 4 || defParams.SafetyStockPct != 5.0 || defParams.HorizonDays != 20 {
+		t.Fatalf("expected DefaultParams LeadTimeDays=4 & HorizonDays=20 & SafetyStockPct=5, got lead=%d horizon=%d safety=%v", defParams.LeadTimeDays, defParams.HorizonDays, defParams.SafetyStockPct)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/state", nil)
 	rec := httptest.NewRecorder()
@@ -352,7 +353,7 @@ func TestServerAPIEndpoints(t *testing.T) {
 		`<tfoot id="tableFoot"></tfoot>`,
 		`<tfoot id="suppliersFoot"></tfoot>`,
 		`<input type="number" id="inpLeadTime" min="0" max="180" step="1" value="4"`,
-		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="10"`,
+		`<input type="number" id="inpSafety" min="0" max="200" step="1" value="5"`,
 		`Ведомость <span class="tab-counter" id="cntTabTable">`,
 		`class="param-field param-paired"`,
 		`<option value="">Рейтинг: Все</option>`,
@@ -394,15 +395,18 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("removed button still present: %s", removed)
 		}
 	}
-	// Батч-45/46: «+» подсказки — окошечко на самой кнопке «Подсветить заказ»
-	// (справа), между текстом и «+» — перегородка order-hint-sep.
+	// Батч-55: «+» у «Подсветить заказ» убран; подсказка — отдельная кнопка
+	// «Подсказка» (#btnOrderHint) сразу после «Подсветить заказ»; кнопки
+	// «Сделать автозаказ» в плашке больше нет.
 	{
 		hlIdx := strings.Index(htmlBody, `id="btnHighlightOrder"`)
-		badgeIdx := strings.Index(htmlBody, `id="orderHintBadge"`)
-		sepIdx := strings.Index(htmlBody, `class="order-hint-sep"`)
+		hintIdx := strings.Index(htmlBody, `id="btnOrderHint"`)
 		panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
-		if hlIdx < 0 || panelIdx < 0 || badgeIdx < hlIdx || badgeIdx > panelIdx || sepIdx < hlIdx || sepIdx > badgeIdx {
-			t.Fatalf("orderHintBadge must be inside btnHighlightOrder in the header, after the separator")
+		if hlIdx < 0 || panelIdx < 0 || hintIdx < hlIdx || hintIdx > panelIdx {
+			t.Fatalf("btnOrderHint must follow btnHighlightOrder in the header")
+		}
+		if strings.Contains(htmlBody, `id="orderHintBadge"`) || strings.Contains(htmlBody, `id="btnFillOrder"`) {
+			t.Fatalf("removed controls still present: orderHintBadge/btnFillOrder")
 		}
 		// Батч-48: селектора темы больше нет — дизайн вшит в сборку
 		// (data-theme инъекцируется сервером из uiTheme, ldflags -X).
@@ -478,12 +482,14 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"[data-theme=\"islands\"] .topbar-actions .btn { border-radius: 99px", /* острова: кнопки-пилюли */
 		"[data-theme=\"islands\"] .data-table td { border-right: 1px solid #d7e0e9; }", /* вертикальные границы */
 		"[data-theme=\"islands\"] .order-cell { background: transparent; }", /* б52: без заливки вокруг заказа */
-		".topbar-actions #btnFillOrder", /* б52: все кнопки плашки одного цвета */
+		".topbar-actions #btnHighlightOrder", /* б52/55: все кнопки плашки одного цвета */
 		".qty-input.order-highlighted.wh-mir { background: #e4f0e7;", /* б51/52: подсветка = цвет склада */
 		"background-color: #4c6e8b;", /* б52: отмеченные «птички» не красные */
 		".topbar-actions .btn { white-space: nowrap", /* б48: кнопки в одну линию */
 		"--btnbar-bg", /* б49: единый цвет кнопок плашки */
-		".topbar-actions .btn.property-filter-active[aria-pressed=\"false\"]", /* б49: выключенные белеют */
+		".topbar-actions #btnSales12[aria-pressed=\"false\"]", /* б55: выключенные кнопки белые */
+		".topbar-actions #btnToggleAdvanced[aria-expanded=\"false\"]", /* б55: «Параметры» отжата — белая */
+		"border-color: transparent; background: transparent; }", /* б55: цифры без обводки */
 		"#a6c05f",
 		"#e0d058",
 		"#ece5bf",

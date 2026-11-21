@@ -34,10 +34,11 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  for(const id of ['btnSaveEtalon','btnExportEtalon'])assert.ok(d.getElementById(id).closest('#paramsPanel'));
  assert.equal(d.getElementById('btnBackupEtalon'),null,'Б41: резервная копия удалена');
  assert.ok(d.getElementById('etalonFileInput').accept.includes('.json'));
- assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnFillOrder');
- assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnImportOrder');
+ assert.equal(d.getElementById('btnFillOrder'),null,'Б55: «Сделать автозаказ» убрана');
+ assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnImportOrder');
  assert.equal(d.getElementById('btnImportOrder').nextElementSibling.id,'btnHighlightOrder');
- assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
+ assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnOrderHint');
+ assert.equal(d.getElementById('btnOrderHint').nextElementSibling.id,'btnToggleAdvanced');
  assert.equal(d.getElementById('btnUpload').disabled,false,'Workbook buttons are available without a reference');
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,false,'Saved workbook button is available without a reference');
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Bootstrap must not save a reference');

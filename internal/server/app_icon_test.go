@@ -22,11 +22,17 @@ func TestApplicationIconAssets(t *testing.T) {
 	if im.Bounds().Dx() != 256 || im.Bounds().Dy() != 256 {
 		t.Fatal("Windows master icon must be 256 square")
 	}
-	// Батч-53: иконка в текущих цветах «кабинета» — холодный серо-голубой
-	// фон плитки (#e7edf3 -> #b9c6d2), синий канал сильнее красного.
+	// Батч-53/55: иконка в текущих цветах «кабинета» — холодный серо-голубой
+	// фон (#e7edf3 -> #b9c6d2), синий канал сильнее красного. Батч-55:
+	// рисунок на всю иконку — углы непрозрачны, плитки с обводкой нет.
 	r, g, b, _ := im.At(128, 20).RGBA()
 	if b <= r || b < g {
 		t.Fatal("expected cold cabinet-blue icon background")
+	}
+	for _, pt := range [][2]int{{0, 0}, {255, 0}, {0, 255}, {255, 255}} {
+		if _, _, _, a := im.At(pt[0], pt[1]).RGBA(); a != 0xffff {
+			t.Fatalf("icon must be full-bleed: corner %v is transparent", pt)
+		}
 	}
 	raw, err := os.ReadFile(filepath.Join("..", "..", "cmd", "ostatki", "winres", "icon.ico"))
 	if err != nil {

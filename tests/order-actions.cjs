@@ -11,14 +11,14 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap
 const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
  await tick();const {state,refreshExcelTable,collectUIState,applyEnvelope}=w.__actions;
- const fill=d.getElementById('btnFillOrder'),highlight=d.getElementById('btnHighlightOrder');
+ const highlight=d.getElementById('btnHighlightOrder');assert.equal(d.getElementById('btnFillOrder'),null,'Б55: кнопки «Сделать автозаказ» в плашке нет');
  // Квадратик «×» по умолчанию зелёный (подсказки выключены); включаем для сценариев ниже.
  assert.equal(state.stockHintsDisabled,true,'Stock hints must start disabled (green square)');
  assert.ok(d.getElementById('btnStockSearchMode').disabled,'Mode button is disabled while hints are off');
  d.getElementById('btnStockHintsOff').click();
  assert.equal(state.stockHintsDisabled,false);
- assert.equal(fill.nextElementSibling.id,'btnImportOrder');assert.equal(d.getElementById('btnImportOrder').nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnToggleAdvanced');
- const beforeInvalid=calls.length;fill.click();await tick();assert.equal(calls.length,beforeInvalid,'Ambiguous selection must not call fill endpoint');
+ assert.equal(d.getElementById('btnImportOrder').nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnOrderHint');assert.equal(d.getElementById('btnOrderHint').nextElementSibling.id,'btnToggleAdvanced');
+
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const before=JSON.stringify(items),beforeBudget=d.getElementById('kpiOrderCost').textContent,beforeCalls=calls.length;
  highlight.click();assert.equal(JSON.stringify(items),before,'Highlight must never write quantities, even when all are blank');assert.equal(calls.length,beforeCalls);assert.equal(d.getElementById('kpiOrderCost').textContent,beforeBudget);
@@ -36,12 +36,12 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  // Restore explicit scope after the saved-state replay.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const outside=items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty);
- fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);const request=calls.find(c=>c.path==='api/orders/fill');const sent=JSON.parse(request.options.body);assert.equal(sent.warehouse,'Мир');assert.equal(sent.supplier,'Поставщик');assert.equal(sent.cancel,false);assert.equal(sent.params.horizonDays,30);assert.equal(sent.params.leadTimeDays,4);assert.equal(sent.params.safetyStockPct,10);
- assert.equal(fill.getAttribute('aria-pressed'),'true');
- const recommendations=[...state.highlightedOrderRows];
- fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(fill.getAttribute('aria-pressed'),'false');assert.deepEqual([...state.highlightedOrderRows],recommendations,'Cancel order must not cancel recommendations');assert.deepEqual(items.filter(it=>it.warehouse!=='Мир'||it.supplier!=='Поставщик').map(it=>it.finalOrderQty),outside);
+
+
+
+
  const beforeToggle=JSON.stringify(items);highlight.click();assert.equal(state.highlightedOrderRows.size,0);assert.equal(JSON.stringify(items),beforeToggle);assert.equal(highlight.getAttribute('aria-pressed'),'false');highlight.click();assert.ok(state.highlightedOrderRows.has(8));
- fill.click();await tick();const toggledSaved=collectUIState();assert.equal(toggledSaved.filledOrderScopes.length,1);applyEnvelope({report,uiState:toggledSaved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(state.filledOrderScopes.size,1,'Filled scope survives saved-state restoration');
+ state.filledOrderScopes.add(JSON.stringify(['Поставщик','Мир']));const toggledSaved=collectUIState();assert.equal(toggledSaved.filledOrderScopes.length,1);applyEnvelope({report,uiState:toggledSaved,savedFileName:'Тест'},{restoreSaved:true});assert.equal(state.filledOrderScopes.size,1,'Filled scope survives saved-state restoration');
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const rating=d.querySelector('[data-rating-row="8"]'),pill=rating.querySelector('.seg-pill')||rating,chart=d.getElementById('ratingChartPopover');
  pill.getBoundingClientRect=()=>({left:300,right:320,top:400,bottom:420,width:20,height:20});Object.defineProperty(chart,'offsetHeight',{configurable:true,value:220});
@@ -52,10 +52,10 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  // Explicit multi-selection applies both actions to all selected suppliers, not budget checks.
  state.colFilters={warehouse:['Мир']};state.filledOrderScopes.clear();state.highlightedOrderRows.clear();refreshExcelTable();
  d.querySelector('[data-filter-col="supplier"]').click();const selectAll=d.getElementById('efSelectAllChk');selectAll.checked=true;selectAll.dispatchEvent(new w.Event('change',{bubbles:true}));d.getElementById('efBtnOk').click();assert.equal(state.colFilters.supplier.length,2,'Selecting all suppliers explicitly must retain the scope');
- assert.equal(fill.textContent,'Сделать автозаказ');const differentWarehouse=items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty);
+ const differentWarehouse=items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty);
  highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,11,14,16]);
- fill.click();await tick();assert.equal(items[0].finalOrderQty,5);assert.equal(items[3].finalOrderQty,9);const multi=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(multi.suppliers.length,2);assert.equal(multi.warehouse,'Мир');assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
- fill.click();await tick();assert.equal(items[0].finalOrderQty,0);assert.equal(items[3].finalOrderQty,0);assert.deepEqual(items.filter(it=>it.warehouse==='Другой').map(it=>it.finalOrderQty),differentWarehouse);
+
+
  // «Подсветить заказ» допускает несколько поставщиков и несколько складов; ничего не выбрано — все.
  state.colFilters={};state.highlightedOrderRows.clear();refreshExcelTable();
  highlight.click();assert.deepEqual([...state.highlightedOrderRows].sort((a,b)=>a-b),[8,10,11,12,13,14,15,16],'No filters: recommendations across all suppliers and warehouses, incl. rated zero-stock');
@@ -76,10 +76,10 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  items[7].warehouse='Другой';refreshExcelTable();
  // Restore the pre-existing scope for the following parameter-change scenario.
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик','Другой']};state.highlightedOrderRows.clear();refreshExcelTable();
- // Changing calculation parameters turns the next click into recalculation, not cancellation.
- state.filledOrderScopes.add(JSON.stringify(['Поставщик','Мир']));
- for(const [id,value] of [['inpHorizon','90'],['inpLeadTime','22'],['inpSafety','35']]){d.getElementById(id).value=value;d.getElementById(id).dispatchEvent(new w.Event('change'));}
- fill.click();await tick();const fresh=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);assert.equal(fresh.cancel,false);assert.equal(fresh.params.horizonDays,90);assert.equal(fresh.params.leadTimeDays,22);assert.equal(fresh.params.safetyStockPct,35);
+
+
+
+
  // Clear requires both explicit warehouse selection and confirmation.
  items[0].finalOrderQty=6;items[2].finalOrderQty=7;items[3].finalOrderQty=9;state.orderTransferRows.add(9);refreshExcelTable();
  d.querySelector('[data-filter-col="supplier"]').click();
@@ -88,7 +88,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  d.querySelector('[data-supplier-clear="Поставщик"]').click();d.getElementById('safetyDialogYes').click();await tick();assert.equal(clearCalls().length,0);assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'),'No warehouse: keep dialog open');const clearWarehouse=d.getElementById('supplierClearWarehouse');clearWarehouse.value=[...clearWarehouse.options].find(o=>o.textContent==='Мир').value;d.getElementById('safetyDialogYes').click();await tick();assert.equal(clearCalls().length,1);assert.equal(JSON.parse(clearCalls()[0].options.body).warehouse,'Мир');assert.equal(items[0].finalOrderQty,0);assert.equal(items[2].finalOrderQty,7,'Same supplier on another warehouse must remain unchanged');assert.equal(items[3].finalOrderQty,9);assert.ok(!state.orderTransferRows.has(9));assert.ok(!state.filledOrderScopes.has(JSON.stringify(['Поставщик','Мир'])));
  // Parameter changes interactively refresh already filled scopes; manual edits opt out.
  state.filledOrderScopes.clear();state.autoFilledQuantities={};state.highlightedOrderRows.clear();state.orderTransferRows.clear();state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
- fill.click();await tick();assert.ok(state.filledOrderScopes.has(JSON.stringify(['Поставщик','Мир'])));assert.equal(state.autoFilledQuantities[8],5);
+ state.filledOrderScopes.add(JSON.stringify(['Поставщик','Мир']));state.autoFilledQuantities={8:5,9:0,14:0,16:0};assert.ok(state.filledOrderScopes.has(JSON.stringify(['Поставщик','Мир'])));
  let base=calls.length;
  d.getElementById('inpHorizon').value='90';d.getElementById('inpHorizon').dispatchEvent(new w.Event('change'));
  await new Promise(r=>setTimeout(r,300));
@@ -106,22 +106,22 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  await new Promise(r=>setTimeout(r,300));
  const optOut=calls.slice(base).filter(c=>c.path==='api/orders/fill');
  assert.equal(optOut.length,1);assert.deepEqual(JSON.parse(optOut[0].options.body).refreshRows,{9:0,14:0,16:0});
- fill.click();await tick();assert.equal(state.filledOrderScopes.size,0);assert.equal(state.autoFilledQuantities[8],undefined);assert.equal(state.autoFilledQuantities[9],undefined);
- // A supplier with a single warehouse works without an explicit warehouse filter; spanning two still requires one.
- state.colFilters={supplier:['Поставщик']};refreshExcelTable();
- const beforeAmbiguous=calls.filter(c=>c.path==='api/orders/fill').length;
- fill.click();await tick();
- assert.equal(calls.filter(c=>c.path==='api/orders/fill').length,beforeAmbiguous,'Supplier on two warehouses still needs a warehouse filter');
- assert.equal(d.getElementById('btnFillOrder').getAttribute('aria-pressed'),'false');
- state.colFilters={supplier:['Другой']};refreshExcelTable();
- fill.click();await tick();
- const autoScope=JSON.parse(calls.filter(c=>c.path==='api/orders/fill').at(-1).options.body);
- assert.equal(autoScope.supplier,'Другой');assert.equal(autoScope.warehouse,'Мир','Single supplier warehouse is picked automatically');assert.ok(!autoScope.cancel);
- assert.equal(items[3].finalOrderQty,9);
- assert.equal(fill.getAttribute('aria-pressed'),'true','Fill button activates for a single-warehouse supplier without an explicit warehouse filter');
+ state.filledOrderScopes.clear();state.autoFilledQuantities={};
+
+
+
+
+
+
+
+
+
+
+
+
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(css.includes('.qty-input.order-highlighted'));assert.ok(css.includes('.qty-input.order-highlighted.wh-mir { background: #e4f0e7;'),'Mir highlight = warehouse colour');assert.ok(css.includes('.qty-input.order-highlighted.wh-korelichi { background: #f5ead6;'),'Korelichi highlight = warehouse colour');assert.ok(css.includes('.order-cell.order-cell-highlighted.wh-mir { background: #e4f0e7; }'));assert.ok(!css.includes('.qty-input.is-manual'));
- assert.ok(css.includes('.topbar-actions #btnFillOrder'),'Top-bar buttons share one colour (batch-52)');assert.ok(!css.includes('#fde047'),'Yellow auto-order buttons removed');assert.ok(css.includes('#itemsTable td.wh-cell.wh-mir { background:#e4f0e7; }'),'Mir warehouse colour matches mockup 6');
+ assert.ok(css.includes('.topbar-actions #btnOrderHint'),'Top-bar buttons share one colour (batch-52)');assert.ok(!css.includes('#fde047'),'Yellow auto-order buttons removed');assert.ok(css.includes('#itemsTable td.wh-cell.wh-mir { background:#e4f0e7; }'),'Mir warehouse colour matches mockup 6');
  // Скрытая вкладка «Поставщики» не перестраивается при наборе заказа: рендер откладывается до открытия.
  d.getElementById('warehousesContainer').innerHTML='<div id="staleMarker"></div>';
  const qtyCell=d.querySelector('[data-qty-row="8"]');qtyCell.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qtyCell.value='2';qtyCell.dispatchEvent(new w.Event('input',{bubbles:true}));qtyCell.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));

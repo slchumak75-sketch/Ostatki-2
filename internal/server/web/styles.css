@@ -1751,6 +1751,7 @@ body.col-resize-active * {
 
 .toast {
   position: fixed;
+  display: none; /* батч-55: сообщения на чёрном фоне убраны */
   top: 52px;
   bottom: auto;
   right: 20px;
@@ -2816,8 +2817,11 @@ body {
 .topbar-actions .btn:hover {
   background: var(--btnbar-hover);
 }
-/* «Продажи 12 мес.» / «Актуально» в выключенном состоянии — белые. */
-.topbar-actions .btn.property-filter-active[aria-pressed="false"] {
+/* Батч-55: «Продажи 12 мес.», «Актуально» и «Параметры» в выключенном
+   (отжатом) состоянии — с белой заливкой. */
+.topbar-actions #btnSales12[aria-pressed="false"],
+.topbar-actions #btnRelevant[aria-pressed="false"],
+.topbar-actions #btnToggleAdvanced[aria-expanded="false"] {
   background: #ffffff;
   border-color: var(--btnbar-border);
   color: var(--text-muted);
@@ -2928,16 +2932,30 @@ body {
 [data-theme="islands"] #stockSimilarityPercent { font-size: 12px; }
 [data-theme="islands"] .budget-inline-card .kpi-label { text-transform: none; letter-spacing: 0; }
 
-/* Батч-52: ВСЕ кнопки верхней плашки строго одного цвета — включая
-   «Сделать автозаказ», «Подсветить заказ» и кнопки загрузки ведомости
+/* Батч-52/55: ВСЕ кнопки верхней плашки строго одного цвета — включая
+   «Подсветить заказ», «Подсказку» и кнопки загрузки ведомости
    в состоянии workbook-ready (раньше жёлтые и зелёные по ID-правилам). */
-.topbar-actions #btnFillOrder, .topbar-actions #btnHighlightOrder,
+.topbar-actions #btnHighlightOrder, .topbar-actions #btnOrderHint,
 .topbar-actions #btnUpload.workbook-ready, .topbar-actions #btnLoadSavedDb.workbook-ready {
   background: var(--btnbar-bg);
   border-color: var(--btnbar-border);
   color: var(--btnbar-text);
 }
-.topbar-actions #btnFillOrder:hover, .topbar-actions #btnHighlightOrder:hover,
+.topbar-actions #btnHighlightOrder:hover, .topbar-actions #btnOrderHint:hover,
 .topbar-actions #btnUpload.workbook-ready:hover, .topbar-actions #btnLoadSavedDb.workbook-ready:hover {
   background: var(--btnbar-hover);
 }
+
+/* Батч-55: цифры без обводки — у числовых полей нет рамки, фона и
+   стрелок-спиннеров; остаются только цифры, редактирование сохраняется.
+   Подсветка заказа по-прежнему видна заливкой ячейки/поля цветом склада. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; display: none; }
+.param-field input[type="number"],
+#stockSimilarityPercent,
+.qty-input,
+.qty-input.has-order,
+.qty-input.order-highlighted { border-color: transparent; background: transparent; }
+.qty-input.order-highlighted.wh-mir { background: #e4f0e7; border-color: transparent; }
+.qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: transparent; }

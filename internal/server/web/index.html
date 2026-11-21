@@ -58,9 +58,9 @@
         <button class="btn btn-ghost property-filter-active" id="btnSales12" type="button" aria-pressed="true">Продажи 12 мес.</button>
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
         <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон</button>
-        <button type="button" class="btn btn-beige" id="btnFillOrder">Сделать автозаказ</button>
         <button type="button" class="btn btn-beige" id="btnImportOrder" title="Загрузить сохранённый файл заказа и перезаписать значения в столбце «Заказ» текущей ведомости">Загрузить заказ</button>
-        <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ<span class="order-hint-sep" aria-hidden="true"></span><span id="orderHintBadge" aria-pressed="false" title="Показывать рекомендованный заказ при наведении курсора на подсвеченную ячейку">+</span></button>
+        <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
+        <button type="button" class="btn btn-beige" id="btnOrderHint" aria-pressed="false" title="Показывать рекомендованный заказ при наведении курсора на подсвеченную ячейку">Подсказка</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
       </div>
     </header>
@@ -95,7 +95,7 @@
           </div>
           <div class="param-field" title="Горизонт обеспеченности запасом в днях">
             <label for="inpHorizon">Покрытие запаса (дней)</label>
-            <input type="number" id="inpHorizon" min="1" max="365" step="1" value="30" />
+            <input type="number" id="inpHorizon" min="1" max="365" step="1" value="20" />
             <span class="field-hint">Горизонт обеспеченности</span>
           </div>
 
@@ -107,7 +107,7 @@
 
           <div class="param-field" title="Базовый страховой запас (адаптируется по ABC-XYZ)">
             <label for="inpSafety">Базовый страх. запас: (%)</label>
-            <input type="number" id="inpSafety" min="0" max="200" step="1" value="10" />
+            <input type="number" id="inpSafety" min="0" max="200" step="1" value="5" />
             <span class="field-hint">Адаптируется по ABC-XYZ</span>
           </div>
 
