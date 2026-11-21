@@ -4046,6 +4046,18 @@
       inp.select();
     });
 
+    // Батч-58: подсветка строки следует за курсором — при движении мыши
+    // подсвечена только строка под курсором; предыдущая (в том числе та,
+    // где только что вводили заказ) сразу гаснет.
+    el('tableBody').addEventListener('mouseover', (e) => {
+      const tr = e.target.closest && e.target.closest('tr[data-row]');
+      if (!tr || tr.classList.contains('selected-row')) return;
+      el('tableBody').querySelectorAll('tr.selected-row').forEach(n=>n.classList.remove('selected-row'));
+      tr.classList.add('selected-row');
+      state.selectedExcelRow = Number(tr.dataset.row);
+      renderCurrentSupplier();
+    });
+
     el('tableBody').addEventListener('mouseup', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
