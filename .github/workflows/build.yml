@@ -415,3 +415,69 @@ jobs:
             --notes "$NOTES_V7" \
             "dist/OstatkiZakupki_Variant_7.exe#OstatkiZakupki_Variant_7.exe (Вариант 7 — Windows x64 GUI)" \
             "dist/Variant_7_Windows_x64.zip#Variant_7_Windows_x64.zip (Полный архив Вариант 7)"
+
+  # Батч-48: пять концептуальных вариантов оформления — пять сборок и пять релизов.
+  build-variant-7x:
+    name: Вариант ${{ matrix.suffix }} — дизайн ${{ matrix.design }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { suffix: "7.1", theme: warm,    design: "тёплая классика" }
+          - { suffix: "7.2", theme: cabinet, design: "строгий кабинет" }
+          - { suffix: "7.3", theme: saas,    design: "современный SaaS" }
+          - { suffix: "7.4", theme: paper,   design: "бумажный минимал" }
+          - { suffix: "7.5", theme: terminal, design: "терминал данных" }
+
+    steps:
+      - name: Клонирование репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Проверка и сборка «Вариант ${{ matrix.suffix }}» (дизайн ${{ matrix.design }})
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osslsigncode
+
+          go vet ./cmd/... ./internal/...
+          mkdir -p dist cert_tmp
+
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+            go build -ldflags="-H=windowsgui -X github.com/slchumak75-sketch/Ostatki-2/internal/server.uiTheme=${{ matrix.theme }}" \
+            -o "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}_unsigned.exe" ./cmd/ostatki
+
+          openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -sha256 \
+            -subj "/CN=Ostatki 2 Desktop Application/O=Ostatki 2 SCM/C=BY" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,digitalSignature,keyCertSign" \
+            -addext "extendedKeyUsage=codeSigning" \
+            -keyout cert_tmp/codesign.key \
+            -out dist/Ostatki2_CodeSign.cer
+
+          osslsigncode sign \
+            -certs dist/Ostatki2_CodeSign.cer \
+            -key cert_tmp/codesign.key \
+            -h sha256 \
+            -n "Остатки 2 (Вариант ${{ matrix.suffix }} — ${{ matrix.design }})" \
+            -in "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}_unsigned.exe" \
+            -out "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}.exe"
+
+          rm -rf cert_tmp "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}_unsigned.exe"
+
+      - name: Публикация релиза GitHub «Вариант ${{ matrix.suffix }}»
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "variant-${{ matrix.suffix }}" --cleanup-tag -y || true
+          gh release create "variant-${{ matrix.suffix }}" \
+            --target "${{ github.sha }}" \
+            --title "Вариант ${{ matrix.suffix }} — ${{ matrix.design }}" \
+            --notes "Вариант ${{ matrix.suffix }} программы «Остатки 2»: дизайн «${{ matrix.design }}» (data-theme=${{ matrix.theme }}), вшит в сборку. Высота строк таблицы и приглушённые цвета рейтинга — как во всех вариантах. Подпись Authenticode SHA-256." \
+            "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}.exe#OstatkiZakupki_Variant_${{ matrix.suffix }}.exe (Вариант ${{ matrix.suffix }} — Windows x64 GUI)"

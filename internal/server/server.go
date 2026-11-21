@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"embed"
 	"encoding/json"
@@ -25,6 +26,14 @@ import (
 
 //go:embed web/*
 var embeddedWeb embed.FS
+
+// uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48: пять
+// концептуально разных вариантов программы публикуются отдельными
+// релизами (variant-7.1…7.5), каждый — своей сборкой. Значение
+// переопределяется при сборке:
+//   -ldflags "-H=windowsgui -X internal/server.uiTheme=cabinet"
+// Доступные значения: warm, cabinet, saas, paper, terminal.
+var uiTheme = "warm"
 
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.
 type AppServer struct {
@@ -374,7 +383,23 @@ func (s *AppServer) Handler() http.Handler {
 		panic(err)
 	}
 	fileServer := http.FileServer(http.FS(subFS))
-	mux.Handle("/", fileServer)
+	// Батч-48: index.html отдаётся с data-theme, вшитым в сборку, —
+	// каждый вариант программы (7.1…7.5) несёт свой дизайн.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		src, err := fs.ReadFile(embeddedWeb, "web/index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		html := bytes.Replace(src, []byte("<body>"), []byte(`<body data-theme="`+uiTheme+`">`), 1)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(html)
+	})
 
 	return withPermissiveHeaders(mux)
 }

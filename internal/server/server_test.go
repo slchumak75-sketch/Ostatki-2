@@ -404,11 +404,10 @@ func TestServerAPIEndpoints(t *testing.T) {
 		if hlIdx < 0 || panelIdx < 0 || badgeIdx < hlIdx || badgeIdx > panelIdx || sepIdx < hlIdx || sepIdx > badgeIdx {
 			t.Fatalf("orderHintBadge must be inside btnHighlightOrder in the header, after the separator")
 		}
-		// Батч-47: селектор пяти светлых тем — после btnToggleAdvanced.
-		advIdx := strings.Index(htmlBody, `id="btnToggleAdvanced"`)
-		themeIdx := strings.Index(htmlBody, `id="themeSelect"`)
-		if advIdx < 0 || themeIdx < advIdx {
-			t.Fatalf("themeSelect must follow btnToggleAdvanced in the header")
+		// Батч-48: селектора темы больше нет — дизайн вшит в сборку
+		// (data-theme инъекцируется сервером из uiTheme, ldflags -X).
+		if strings.Contains(htmlBody, `id="themeSelect"`) {
+			t.Fatalf("themeSelect must be removed: design is baked per build (batch-48)")
 		}
 	}
 	{
@@ -473,6 +472,11 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"border-radius: 50%",
 		"color: #000000 !important",
 		"#5fae77", /* б47: приглушённые цвета рейтинга (оттенки прежние) */
+		"[data-theme=\"cabinet\"]", /* б48: пять дизайнов */
+		"[data-theme=\"saas\"]",
+		"[data-theme=\"paper\"]",
+		"[data-theme=\"terminal\"]",
+		".topbar-actions .btn { white-space: nowrap", /* б48: кнопки в одну линию */
 		"#a6c05f",
 		"#e0d058",
 		"#ece5bf",
