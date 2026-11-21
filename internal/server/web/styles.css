@@ -2728,16 +2728,29 @@ body {
 .chart-trends-table.data-table thead tr:nth-child(1) th:nth-child(7) { background-color: #f0f7ff; }
 .chart-trends-table.data-table tbody tr:hover td { background-color: var(--surface-hover); }
 
-/* Батч-43: таблица «Анализ остатков» — на всю высоту экрана с прокруткой
-   внутри окна; шапка прилипает, чтобы не теряться при прокрутке. */
-#stockAnalysisResults {
-  max-height: calc(100vh - 250px);
-  min-height: 220px;
-  overflow: auto;
+/* Батч-44: кнопка «+» у «Подсветить заказ» и окно рекомендации автозаказа */
+.btn-plus-hint {
+  min-width: 34px;
+  padding-left: 10px;
+  padding-right: 10px;
 }
-#stockAnalysisResults table th {
-  position: sticky;
-  top: 0;
+.order-hint-popover {
+  position: fixed;
+  z-index: 60;
   background: var(--surface);
-  z-index: 1;
+  border: 1px solid #e6d9c3;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(51, 38, 26, 0.18);
+  padding: 8px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.order-hint-popover .oh-main {
+  font-weight: 700;
+  color: #164d25;
+}
+.order-hint-popover .oh-sub {
+  color: var(--text-muted);
+  margin-top: 2px;
 }

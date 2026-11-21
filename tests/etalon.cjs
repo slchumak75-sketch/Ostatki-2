@@ -37,7 +37,8 @@ const blobText=blob=>new Promise((resolve,reject)=>{const reader=new w.FileReade
  assert.equal(d.getElementById('btnLoadEtalon').nextElementSibling.id,'btnFillOrder');
  assert.equal(d.getElementById('btnFillOrder').nextElementSibling.id,'btnImportOrder');
  assert.equal(d.getElementById('btnImportOrder').nextElementSibling.id,'btnHighlightOrder');
- assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
+ assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnOrderHint');
+ assert.equal(d.getElementById('btnOrderHint').nextElementSibling.id,'btnToggleAdvanced');
  assert.equal(d.getElementById('btnUpload').disabled,false,'Workbook buttons are available without a reference');
  assert.equal(d.getElementById('btnLoadSavedDb').disabled,false,'Saved workbook button is available without a reference');
  assert.equal(calls.filter(c=>c.path==='api/etalon/save-confirmed').length,0,'Bootstrap must not save a reference');

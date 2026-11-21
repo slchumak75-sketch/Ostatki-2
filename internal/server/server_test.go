@@ -395,12 +395,20 @@ func TestServerAPIEndpoints(t *testing.T) {
 		}
 	}
 	panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
-	for _, id := range []string{"btnStockAnalysis"} {
-		if strings.Index(htmlBody, `id="`+id+`"`) < panelIdx {
-			t.Fatalf("button %s must be inside parameters", id)
-		}
+	// Батч-44: «+» рекомендации сидит в шапке рядом с «Подсветить заказ»,
+	// поэтому позиция относительно paramsPanel не проверяется.
+	if strings.Index(htmlBody, `id="btnOrderHint"`) > panelIdx {
+		t.Fatalf("btnOrderHint must sit in the header next to btnHighlightOrder")
+	}
+	if strings.Index(htmlBody, `id="btnOrderHint"`) < strings.Index(htmlBody, `id="btnHighlightOrder"`) {
+		t.Fatalf("btnOrderHint must be to the right of btnHighlightOrder")
+	}
+	{
 		if strings.Contains(htmlBody, `id="btnBackupEtalon"`) {
 			t.Fatalf("btnBackupEtalon must be removed (batch-41)")
+		}
+		if strings.Contains(htmlBody, `id="btnStockAnalysis"`) || strings.Contains(htmlBody, `id="stockAnalysisModal"`) {
+			t.Fatalf("stock analysis must be removed (batch-44)")
 		}
 	}
 
