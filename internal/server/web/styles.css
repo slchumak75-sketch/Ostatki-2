@@ -2959,3 +2959,30 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .qty-input.order-highlighted { border-color: transparent; background: transparent; }
 .qty-input.order-highlighted.wh-mir { background: #e4f0e7; border-color: transparent; }
 .qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: transparent; }
+
+/* Батч-56: «Параметры»/«12 мес.»/«Актуально» в отжатом состоянии — белые
+   сразу, с первого экрана (правило продублировано в теме islands с
+   максимальным приоритетом). У числовых полей при фокусе нет синей
+   обводки. У «Совпадение, %» возвращены стрелки вверх/вниз (без обводки). */
+[data-theme="islands"] .topbar-actions #btnSales12[aria-pressed="false"],
+[data-theme="islands"] .topbar-actions #btnRelevant[aria-pressed="false"],
+[data-theme="islands"] .topbar-actions #btnToggleAdvanced[aria-expanded="false"] {
+  background: #ffffff;
+  border-color: var(--btnbar-border);
+  color: var(--text-muted);
+}
+input[type="number"]:focus,
+input[type="number"]:focus-visible { outline: none; box-shadow: none; }
+#stockSimilarityPercent { -moz-appearance: number-input; appearance: auto; }
+#stockSimilarityPercent::-webkit-outer-spin-button,
+#stockSimilarityPercent::-webkit-inner-spin-button { -webkit-appearance: inner-spin-button; display: block; opacity: 1; }
+#stockSimilarityPercent:focus-visible { outline: none; }
+
+/* Батч-57: шапка таблицы «Аналитика» при прокрутке больше не пропускает
+   строки сквозь себя: separate-модель границ (канонический фикс sticky-
+   шапок в Chrome), точная геометрия двух липких строк (28px + 28px,
+   border-box) и гарантированно непрозрачный фон каждой ячейки шапки
+   (чередующиеся тона кварталов заданы правилами выше по специфичности). */
+.chart-trends-table { border-collapse: separate; border-spacing: 0; }
+.chart-trends-table thead th { background-color: var(--surface); background-clip: padding-box; }
+.chart-trends-table thead tr:nth-child(1) th { height: 28px; box-sizing: border-box; }

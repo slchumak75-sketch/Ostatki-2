@@ -22,9 +22,10 @@ func TestApplicationIconAssets(t *testing.T) {
 	if im.Bounds().Dx() != 256 || im.Bounds().Dy() != 256 {
 		t.Fatal("Windows master icon must be 256 square")
 	}
-	// Батч-53/55: иконка в текущих цветах «кабинета» — холодный серо-голубой
-	// фон (#e7edf3 -> #b9c6d2), синий канал сильнее красного. Батч-55:
-	// рисунок на всю иконку — углы непрозрачны, плитки с обводкой нет.
+	// Батч-53/55/56: иконка в текущих цветах «кабинета» — холодный серо-голубой
+	// фон, синий канал сильнее красного; рисунок на всю иконку — углы
+	// непрозрачны, плитки с обводкой нет; логотип исходный (батч-56),
+	// только перекрашен и увеличен.
 	r, g, b, _ := im.At(128, 20).RGBA()
 	if b <= r || b < g {
 		t.Fatal("expected cold cabinet-blue icon background")
@@ -78,15 +79,16 @@ func TestApplicationIconAssets(t *testing.T) {
 	}
 	// Регрессия батча-26: web/app-icon.png — вторая копия иконки (favicon GUI),
 	// которую при замене дизайна забыли обновить; из неё браузер --app-окна берёт
-	// иконку для панели задач. Батч-53: иконка в текущих цветах «кабинета» —
-	// светлый холодный серо-голубой верх плитки (b>r, r>200).
+	// иконку для панели задач. Батч-56: исходный логотип только перекрашен в
+	// цвета «кабинета» и увеличен — верх по центру занимает коробка, поэтому
+	// фон проверяем в углу: светлый холодный серо-голубой (b>r, r>200).
 	fav, err := png.Decode(bytes.NewReader(rec.Body.Bytes()))
 	if err != nil {
 		t.Fatal("decode favicon", err)
 	}
-	fr, fg, fb, _ := fav.At(32, 3).RGBA()
+	fr, fg, fb, _ := fav.At(3, 3).RGBA()
 	fr8, fg8, fb8 := uint8(fr>>8), uint8(fg>>8), uint8(fb>>8)
 	if !(fb8 > fr8 && fr8 > 200) {
-		t.Fatalf("favicon must be the new cabinet-blue icon, got RGB(%d,%d,%d) at (32,3)", fr8, fg8, fb8)
+		t.Fatalf("favicon must be the new cabinet-blue icon, got RGB(%d,%d,%d) at (3,3)", fr8, fg8, fb8)
 	}
 }

@@ -3775,7 +3775,8 @@
       const tr = e.target.closest('tr[data-row]');
       if (tr) {
         state.selectedExcelRow = Number(tr.dataset.row);
-        el('tableBody').querySelector('tr.selected-row')?.classList.remove('selected-row');
+        // Батч-56: подсвечена всегда только одна текущая строка.
+        el('tableBody').querySelectorAll('tr.selected-row').forEach(n=>{if(n!==tr)n.classList.remove('selected-row');});
         tr.classList.add('selected-row');
         renderCurrentSupplier();
       }
@@ -4032,6 +4033,11 @@
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
       state.selectedExcelRow = Number(inp.dataset.qtyRow);
+      // Батч-56: при вводе заказа подсветка сразу переходит на текущую
+      // строку, предыдущая не «висит» подсвеченной.
+      const tr = inp.closest('tr[data-row]');
+      el('tableBody').querySelectorAll('tr.selected-row').forEach(n=>{if(n!==tr)n.classList.remove('selected-row');});
+      if (tr) tr.classList.add('selected-row');
       renderCurrentSupplier();
       inp.dataset.origVal = inp.value;
       inp.dataset.origQty = String(parseQtyInput(inp.value));
