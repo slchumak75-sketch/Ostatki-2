@@ -1927,10 +1927,13 @@
       isSelected ? 'selected-row' : '',
     ].filter(Boolean).join(' ');
 
+    const isOrderHighlighted = state.highlightedOrderRows.has(it.excelRow);
+    const whTintCls = whCellTintClass(it.warehouse);
     const qtyCls = [
       'qty-input',
       it.finalOrderQty > 0 ? 'has-order' : '',
-      state.highlightedOrderRows.has(it.excelRow) ? 'order-highlighted' : '',
+      isOrderHighlighted ? 'order-highlighted' : '',
+      isOrderHighlighted ? whTintCls.trim() : '',
     ].filter(Boolean).join(' ');
 
     return `<tr data-row="${it.excelRow}" class="${rowCls}">

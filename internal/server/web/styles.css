@@ -1219,10 +1219,17 @@ body.col-resize-active * {
   color: var(--text);
 }
 
+/* Подсветка заказа — тем же цветом, что и цвет склада строки
+   (как ячейка столбца «Склад»): Мир — #d1fae5, Кореличи — #f5ead6.
+   Класс склада (wh-mir / wh-korelichi) ставит buildTableRowHTML. */
 .qty-input.order-highlighted {
-  border-color: var(--warn);
-  background: var(--warn-soft);
+  border-color: var(--primary);
+  background: var(--surface);
 }
+.qty-input.order-highlighted.wh-mir { background: #d1fae5; border-color: #7fb894; }
+.qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: #cbb995; }
+.order-cell.order-cell-highlighted.wh-mir { background: #d1fae5; }
+.order-cell.order-cell-highlighted.wh-korelichi { background: #f5ead6; }
 
 .reset-cell-btn {
   position: absolute;
