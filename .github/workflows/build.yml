@@ -424,9 +424,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { suffix: "7.1", theme: warm,    design: "тёплая классика" }
+          - { suffix: "7.1", theme: classic, design: "классика" }
           - { suffix: "7.2", theme: cabinet, design: "строгий кабинет" }
-          - { suffix: "7.3", theme: saas,    design: "современный SaaS" }
+          - { suffix: "7.3", theme: saas,    design: "панели" }
           - { suffix: "7.4", theme: paper,   design: "бумажный минимал" }
           - { suffix: "7.5", theme: terminal, design: "терминал данных" }
 

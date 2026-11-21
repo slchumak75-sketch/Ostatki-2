@@ -32,7 +32,7 @@ var embeddedWeb embed.FS
 // релизами (variant-7.1…7.5), каждый — своей сборкой. Значение
 // переопределяется при сборке:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=cabinet"
-// Доступные значения: warm, cabinet, saas, paper, terminal.
+// Доступные значения: classic, cabinet, saas, paper, terminal.
 var uiTheme = "warm"
 
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.

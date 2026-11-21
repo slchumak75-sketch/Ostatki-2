@@ -471,12 +471,15 @@ func TestServerAPIEndpoints(t *testing.T) {
 		".seg-pill",
 		"border-radius: 50%",
 		"color: #000000 !important",
-		"#5fae77", /* б47: приглушённые цвета рейтинга (оттенки прежние) */
-		"[data-theme=\"cabinet\"]", /* б48: пять дизайнов */
+		"#5fae77",                  /* б47: приглушённые цвета рейтинга (оттенки прежние) */
+		"[data-theme=\"classic\"]", /* б49: пять дизайнов на общей палитре */
+		"[data-theme=\"cabinet\"]",
 		"[data-theme=\"saas\"]",
 		"[data-theme=\"paper\"]",
 		"[data-theme=\"terminal\"]",
 		".topbar-actions .btn { white-space: nowrap", /* б48: кнопки в одну линию */
+		"--btnbar-bg", /* б49: единый цвет кнопок плашки */
+		".topbar-actions .btn.property-filter-active[aria-pressed=\"false\"]", /* б49: выключенные белеют */
 		"#a6c05f",
 		"#e0d058",
 		"#ece5bf",

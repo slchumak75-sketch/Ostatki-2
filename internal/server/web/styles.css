@@ -2492,8 +2492,6 @@ body.col-resize-active * {
 .row-number-cell, .row-number-col { text-align:center !important; color:var(--text-muted); }
 #itemsTable:not(.table-manual-cols) th[data-col="plus"] { width:3%; }
 
-.btn.property-filter-active { background:#bde5c4; border-color:#438955; color:#164d25; }
-.btn.property-filter-active:hover { background:#a8dcb2; }
 
 input[type="checkbox"] { accent-color: #dc2626; }
 
@@ -2783,19 +2781,40 @@ body {
   white-space: nowrap;
 }
 
-/* ===== Батч-48: пять концептуальных дизайнов (variant-7.1…7.5) =====
-   Каждый вариант программы собирается со своим data-theme:
-     7.1 warm    — тёплая классика (по умолчанию, токены :root)
-     7.2 cabinet — строгий кабинет: сетка таблицы, острые углы, акцентная линия
-     7.3 saas    — современный SaaS: плавающая панель, карточка таблицы, безрамочные кнопки
-     7.4 paper   — бумажный минимал: без рамок и панелей, только воздух и типографика
-     7.5 terminal— плотный терминал данных: зебра, моноширинные цифры, сегмент-панель
-   Общие инварианты всех вариантов: высота строк таблицы одинакова (24px,
-   паддинги td не переопределяются), цвета рейтинга приглушены, светлые
-   спокойные палитры без пестроты. */
+/* ===== Батч-49: единый цвет кнопок верхней плашки + пять концептуальных
+   вариантов (variant-7.1…7.5) на общей палитре «кабинета» (7.2) =====
+   Все кнопки верхней плашки — одного цвета (btnbar); «Продажи 12 мес.» и
+   «Актуально» при выключении белеют. Варианты различаются СТРУКТУРОЙ:
+   скругления, сегменты, карточки, безрамочность, моношрифт, зебра.
+   Инварианты: высота строк таблицы едина (td padding темами не трогается),
+   кнопки в одну линию, приглушённые цвета рейтинга. */
 
-/* ---- 7.2 cabinet: строгий кабинет ---- */
-[data-theme="cabinet"] {
+:root {
+  --btnbar-bg: #f3ecdd;
+  --btnbar-hover: #ebdcbf;
+  --btnbar-border: #d8c9a8;
+  --btnbar-text: #33261a;
+}
+
+.topbar-actions .btn {
+  background: var(--btnbar-bg);
+  border-color: var(--btnbar-border);
+  color: var(--btnbar-text);
+}
+.topbar-actions .btn:hover {
+  background: var(--btnbar-hover);
+}
+/* «Продажи 12 мес.» / «Актуально» в выключенном состоянии — белые. */
+.topbar-actions .btn.property-filter-active[aria-pressed="false"] {
+  background: #ffffff;
+  border-color: var(--btnbar-border);
+  color: var(--text-muted);
+}
+
+/* Общая палитра всех пяти вариантов — «кабинет» 7.2 (холодный серо-голубой). */
+
+[data-theme="classic"], [data-theme="cabinet"], [data-theme="saas"],
+[data-theme="paper"], [data-theme="terminal"] {
   --bg: #f4f6f8;
   --surface: #ffffff;
   --surface-alt: #f7f9fb;
@@ -2820,11 +2839,28 @@ body {
   --beige-active: #d5e0ea;
   --beige-border: #b9c6d2;
   --beige-text: #2e3742;
+  --btnbar-bg: #e7edf3;
+  --btnbar-hover: #dbe4ec;
+  --btnbar-border: #b9c6d2;
+  --btnbar-text: #2e3742;
+}
+
+/* ---- 7.1 classic: классика — спокойная база, мягкие скругления ---- */
+[data-theme="classic"] {
+  --shadow: 0 1px 3px rgba(46, 55, 66, 0.07), 0 1px 2px rgba(46, 55, 66, 0.05);
+  --radius: 8px;
+}
+[data-theme="classic"] .btn { border-radius: 8px; }
+[data-theme="classic"] .toolbar { border-radius: 10px; box-shadow: var(--shadow); }
+[data-theme="classic"] .table-container { border-radius: 10px; }
+[data-theme="classic"] .data-table thead th { letter-spacing: 0.02em; }
+
+/* ---- 7.2 cabinet: кабинет — жёсткая рамочная структура, сетка ---- */
+[data-theme="cabinet"] {
   --shadow: none;
   --radius: 2px;
 }
 [data-theme="cabinet"] .btn { border-radius: 2px; box-shadow: none; }
-[data-theme="cabinet"] .btn-beige { border-width: 1px; font-weight: 600; }
 [data-theme="cabinet"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border); }
 [data-theme="cabinet"] .header-controls-strip { border-bottom: 3px solid var(--primary); padding-bottom: 6px; }
 [data-theme="cabinet"] .data-table thead th {
@@ -2843,51 +2879,25 @@ body {
 [data-theme="cabinet"] .qty-input, [data-theme="cabinet"] .order-hint-popover { border-radius: 2px; }
 [data-theme="cabinet"] input, [data-theme="cabinet"] select { border-radius: 2px; }
 
-/* ---- 7.3 saas: современный SaaS ---- */
+/* ---- 7.3 saas «Панели»: плавающие карточки, кнопки-чипы ---- */
 [data-theme="saas"] {
-  --bg: #eef1f4;
-  --surface: #ffffff;
-  --surface-alt: #f8fafb;
-  --surface-hover: #eef5f2;
-  --border: #e6ebef;
-  --border-strong: #d3dde4;
-  --text: #2f3a44;
-  --text-muted: #8595a3;
-  --primary: #2f7d6d;
-  --primary-hover: #276c5e;
-  --primary-soft: #e1f0ec;
-  --success: #4f8a71;
-  --success-hover: #3f7a61;
-  --success-soft: #e1f0e8;
-  --warn: #5f8f84;
-  --warn-soft: #e3f0ed;
-  --danger: #c25650;
-  --danger-soft: #f7e3e1;
-  --order-col-bg: #ecf5f2;
-  --beige-bg: #f0f3f5;
-  --beige-hover: #e5ecf0;
-  --beige-active: #d8e3e9;
-  --beige-border: #d3dde4;
-  --beige-text: #2f3a44;
   --shadow: 0 1px 2px rgba(31, 58, 82, 0.06), 0 2px 6px rgba(31, 58, 82, 0.05);
-  --radius: 10px;
+  --radius: 12px;
 }
-[data-theme="saas"] .btn { border-color: transparent; background: transparent; box-shadow: none; border-radius: 8px; font-weight: 600; }
-[data-theme="saas"] .btn:hover { background: var(--primary-soft); }
-[data-theme="saas"] .btn-beige { color: var(--primary); }
 [data-theme="saas"] .toolbar {
   background: var(--surface);
   border: none;
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: 0 6px 20px rgba(31, 58, 82, 0.10);
-  margin: 6px 10px;
+  margin: 8px 12px;
 }
+[data-theme="saas"] .topbar-actions .btn { border-radius: 99px; padding-left: 14px; padding-right: 14px; box-shadow: 0 1px 3px rgba(31, 58, 82, 0.12); }
 [data-theme="saas"] .table-container {
   background: var(--surface);
   border: none;
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: 0 8px 28px rgba(31, 58, 82, 0.10);
-  margin: 0 10px 12px;
+  margin: 0 12px 14px;
   overflow: hidden;
 }
 [data-theme="saas"] .data-table thead th {
@@ -2898,46 +2908,23 @@ body {
   box-shadow: none;
 }
 [data-theme="saas"] .data-table tbody tr:hover td { background: var(--surface-hover); }
-[data-theme="saas"] .qty-input, [data-theme="saas"] .order-hint-popover { border-radius: 7px; }
+[data-theme="saas"] .qty-input, [data-theme="saas"] .order-hint-popover { border-radius: 8px; }
 
-/* ---- 7.4 paper: бумажный минимал ---- */
+/* ---- 7.4 paper «Бумага»: безрамочная типографика ---- */
 [data-theme="paper"] {
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --surface-alt: #ffffff;
-  --surface-hover: #f7f5f0;
-  --border: #ececec;
-  --border-strong: #dcdcd8;
-  --text: #2f2a24;
-  --text-muted: #948e83;
-  --primary: #4a6478;
-  --primary-hover: #3c5568;
-  --primary-soft: #edf1f4;
-  --success: #5e8f72;
-  --success-hover: #4f8a71;
-  --success-soft: #e9f1ec;
-  --warn: #7f8f9f;
-  --warn-soft: #f0f2f4;
-  --danger: #bd5f5a;
-  --danger-soft: #f8e9e7;
-  --order-col-bg: #f5f7f9;
-  --beige-bg: #f7f5f0;
-  --beige-hover: #efece3;
-  --beige-active: #e7e2d5;
-  --beige-border: #e0ddd3;
-  --beige-text: #33302a;
   --shadow: none;
   --radius: 3px;
 }
 [data-theme="paper"] .toolbar { background: transparent; border: none; box-shadow: none; border-radius: 0; }
-[data-theme="paper"] .btn { background: transparent; border-color: transparent; box-shadow: none; border-radius: 4px; font-weight: 600; }
-[data-theme="paper"] .btn:hover { background: #f2efe8; }
-[data-theme="paper"] .btn-beige { color: var(--primary); }
+[data-theme="paper"] .topbar-actions { border-bottom: 1px dotted var(--border-strong); padding-bottom: 6px; }
+[data-theme="paper"] .topbar-actions .btn { border-color: transparent; border-radius: 4px; }
 [data-theme="paper"] .table-container { background: transparent; border: none; box-shadow: none; border-radius: 0; }
 [data-theme="paper"] .data-table thead th {
   background: transparent;
   color: var(--text-muted);
   font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   border-bottom: 1px solid #e8e6e0;
   box-shadow: none;
 }
@@ -2945,36 +2932,19 @@ body {
 [data-theme="paper"] .data-table tbody tr:hover td { background: var(--surface-hover); }
 [data-theme="paper"] .qty-input, [data-theme="paper"] .order-hint-popover { border-radius: 3px; }
 
-/* ---- 7.5 terminal: плотный терминал данных ---- */
+/* ---- 7.5 terminal «Терминал»: моно, сегменты встык, зебра ---- */
 [data-theme="terminal"] {
-  --bg: #f2f4f5;
-  --surface: #fbfcfd;
-  --surface-alt: #e9edf0;
-  --surface-hover: #e4ecf3;
-  --border: #dbe1e6;
-  --border-strong: #b8c3cd;
-  --text: #2b3440;
-  --text-muted: #7a8894;
-  --primary: #4f6d8f;
-  --primary-hover: #405c7b;
-  --primary-soft: #e2eaf2;
-  --success: #4f8a71;
-  --success-hover: #3f7a61;
-  --success-soft: #e0efe7;
-  --warn: #63809c;
-  --warn-soft: #e5edf4;
-  --danger: #c25650;
-  --danger-soft: #f7e3e1;
-  --order-col-bg: #edf2f6;
-  --beige-bg: #eaeef2;
-  --beige-hover: #dfe6ec;
-  --beige-active: #d3dde6;
-  --beige-border: #b8c3cd;
-  --beige-text: #2b3440;
   --shadow: none;
-  --radius: 2px;
+  --radius: 0px;
 }
-[data-theme="terminal"] .btn { border-radius: 0; box-shadow: none; font-weight: 600; }
+[data-theme="terminal"] .btn {
+  border-radius: 0;
+  box-shadow: none;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+}
 [data-theme="terminal"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border-strong); }
 [data-theme="terminal"] .topbar-actions { gap: 0; }
 [data-theme="terminal"] .topbar-actions .btn { margin-left: -1px; }
@@ -2983,6 +2953,7 @@ body {
 [data-theme="terminal"] .data-table thead th {
   background: var(--surface-alt);
   color: #4a5b6c;
+  font-family: Consolas, "Cascadia Mono", monospace;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 9.5px;
