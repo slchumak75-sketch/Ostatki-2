@@ -2986,3 +2986,11 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 .chart-trends-table { border-collapse: separate; border-spacing: 0; }
 .chart-trends-table thead th { background-color: var(--surface); background-clip: padding-box; }
 .chart-trends-table thead tr:nth-child(1) th { height: 28px; box-sizing: border-box; }
+
+/* Батч-58: отжатые «Продажи 12 мес.»/«Актуально»/«Параметры» — белые
+   гарантированно, поверх любого каскада (по жалобе: кнопка при запуске
+   выглядела серой). Стрелки «Совпадение, %» — нативный спиннер. */
+[data-theme="islands"] .topbar-actions #btnSales12[aria-pressed="false"],
+[data-theme="islands"] .topbar-actions #btnRelevant[aria-pressed="false"],
+[data-theme="islands"] .topbar-actions #btnToggleAdvanced[aria-expanded="false"] { background: #ffffff !important; }
+#stockSimilarityPercent::-webkit-inner-spin-button { height: auto; }

@@ -29,6 +29,9 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  // Б56: при переходе ввода в другую строку подсветка уходит за ней; предыдущая не висит.
  const inp9sel=d.querySelector('[data-qty-row="9"]');inp9sel.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));
  assert.deepEqual([...d.querySelectorAll('tr.selected-row')].map(tr=>tr.dataset.row),['9'],'Подсвечена только текущая строка ввода');
+ // Б58: движение курсора на другую строку уводит подсветку за курсором; предыдущая гаснет.
+ d.querySelector('[data-qty-row="8"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
+ assert.deepEqual([...d.querySelectorAll('tr.selected-row')].map(tr=>tr.dataset.row),['8'],'Б58: подсветка следует за курсором');
  const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
  // Заказ, проставленный в подсвеченной ячейке, не снимает подсветку.
  assert.ok(qty.classList.contains('order-highlighted'),'Typing an order must keep the highlight');
