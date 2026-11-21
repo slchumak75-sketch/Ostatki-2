@@ -1,7 +1,10 @@
-// Регрессия варианта 7 (после релиза #95): «Сделать автозаказ» и «Очистить» у поставщика
-// блокировались тостом «Дождитесь сохранения введённого количества и повторите».
-// Кнопки должны ждать сохранения количества (короткий бюджет), а очередь override
+// Регрессия варианта 7 (после релиза #95): «Очистить» у поставщика
+// блокировалась сообщением «Дождитесь сохранения введённого количества и повторите».
+// Действие должно ждать сохранения количества (короткий бюджет), а очередь override
 // обязана разгружаться при любом исходе запроса — успех, ошибка, сбой, отмена.
+// Батч-55: кнопка «Сделать автозаказ» убрана из плашки, поэтому разгрузка очереди
+// проверяется на «Очистить» (тот же flushQtyEdits); тосты на экране не показываются,
+// текст сообщения читается из скрытого #toast.
 const {JSDOM}=require('jsdom');
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const dom=new JSDOM(fs.readFileSync('internal/server/web/index.html','utf8'),{url:'http://app.test',runScripts:'outside-only',pretendToBeVisual:true});
@@ -25,43 +28,60 @@ w.fetch=async(path,options={})=>{
 };
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__drain={state,refreshExcelTable}; bootstrap();'));
 const tick=(ms=70)=>new Promise(r=>setTimeout(r,ms));
-const toastText=()=>d.getElementById('toast').classList.contains('hidden')?'':d.getElementById('toast').textContent;
+const toastText=()=>d.getElementById('toast').textContent;
 const typeQty=(row,val)=>{const inp=d.querySelector(`[data-qty-row="${row}"]`);inp.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));inp.value=val;inp.dispatchEvent(new w.Event('input',{bubbles:true}));return inp;};
 const lastToastIncludes=(txt)=>toastText().includes(txt);
+const clearRequests=(from=0)=>calls.slice(from).filter(c=>c.path==='api/orders/fill'&&JSON.parse(c.options.body).clear===true);
+// «Очистить» у поставщика: открыть поповер фильтра (при первом вызове), нажать
+// «Очистить», в диалоге выбрать склад «Мир» и подтвердить.
+async function runClear(){
+  if(!d.querySelector('[data-supplier-clear]')){
+    d.querySelector('[data-filter-col="supplier"]').click();
+    await tick();
+  }
+  const clearBtn=d.querySelector('[data-supplier-clear]');
+  assert.ok(clearBtn,'Supplier filter popover shows the clear button');
+  clearBtn.click();
+  await tick();
+  assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'),'Clear dialog opens');
+  const sel=d.getElementById('supplierClearWarehouse');
+  sel.value=[...sel.options].find(o=>o.textContent==='Мир').value;
+  d.getElementById('safetyDialogYes').click();
+}
 (async()=>{try{
  await tick();const {state,refreshExcelTable}=w.__drain;
- const fill=d.getElementById('btnFillOrder');
+ assert.equal(d.getElementById('btnFillOrder'),null,'Б55: кнопки «Сделать автозаказ» нет');
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
- // 1) Ввод количества и мгновенное нажатие «Сделать автозаказ»: кнопка ждёт сохранения,
+ // 1) Ввод количества и мгновенная «Очистить»: действие ждёт сохранения,
  //    а не показывает «Дождитесь сохранения введённого количества и повторите».
  let callsBefore=calls.length;
  typeQty(8,'4');
- fill.click();await tick(400);
- assert.ok(!lastToastIncludes('Дождитесь сохранения'),'Fill must wait for the pending quantity instead of blocking');
- assert.ok(calls.some(c=>c.path==='api/orders/fill'),'Fill request must be sent after the quantity drains');
+ await runClear();await tick(400);
+ assert.ok(!lastToastIncludes('Дождитесь сохранения'),'Clear must wait for the pending quantity instead of blocking');
+ assert.equal(clearRequests(callsBefore).length,1,'Clear request must be sent after the quantity drains');
  assert.ok(calls.slice(callsBefore).find(c=>c.path==='api/override'),'Edited quantity is saved first');
- const overrideIdx=calls.slice(callsBefore).findIndex(c=>c.path==='api/override'),fillIdx=calls.slice(callsBefore).findIndex(c=>c.path==='api/orders/fill');
- assert.ok(overrideIdx>-1&&fillIdx>-1&&overrideIdx<fillIdx,'The quantity save precedes the auto-order request');
+ const overrideIdx=calls.slice(callsBefore).findIndex(c=>c.path==='api/override'),clearIdx=calls.slice(callsBefore).findIndex(c=>c.path==='api/orders/fill');
+ assert.ok(overrideIdx>-1&&clearIdx>-1&&overrideIdx<clearIdx,'The quantity save precedes the clear request');
  assert.equal(JSON.parse(calls.filter(c=>c.path==='api/override').at(-1).options.body).value,4);
  // 1б) Отмена запроса сохранения (AbortError — как при загрузке ведомости/эталона) не залипает в очереди.
  abortNextOverride=true;callsBefore=calls.length;
  typeQty(8,'6');
  await tick(400);
  assert.ok(!lastToastIncludes('Дождитесь сохранения'),'Aborted save must not leave the queue blocked');
- fill.click();await tick(400);
- assert.ok(calls.slice(callsBefore).some(c=>c.path==='api/orders/fill'),'Fill works right after an aborted save');
- // 2) Сбой сохранения количества больше не блокирует кнопки навсегда: очередь разгружается.
+ await runClear();await tick(400);
+ assert.equal(clearRequests(callsBefore).length,1,'Clear works right after an aborted save');
+ // 2) Сбой сохранения количества больше не блокирует действия навсегда: очередь разгружается.
  failNextOverride=true;callsBefore=calls.length;
  typeQty(8,'2');
  await tick(400); // 280мс таймер отправляет override, запрос падает
  assert.ok(!lastToastIncludes('Дождитесь сохранения'),'Failed save must not leave the queue blocked');
  assert.ok(lastToastIncludes('сервер недоступен'),'The failure is reported to the user');
- fill.click();await tick(400);
- assert.ok(calls.slice(callsBefore).some(c=>c.path==='api/orders/fill'),'Fill works right after a failed quantity save');
- // 3) «Очистить» у поставщика тоже ждёт несохранённое количество и выполняется.
+ await runClear();await tick(400);
+ assert.equal(clearRequests(callsBefore).length,1,'Clear works right after a failed quantity save');
+ // 3) Диалог очистки перечисляет склады поставщика и очищает только выбранный.
  callsBefore=calls.length;
  typeQty(8,'3');
- d.querySelector('[data-filter-col="supplier"]').click();
+ if(!d.querySelector('[data-supplier-clear]')){d.querySelector('[data-filter-col="supplier"]').click();await tick();}
  const clearBtn=d.querySelector('[data-supplier-clear]');
  assert.ok(clearBtn,'Supplier filter popover shows the clear button');
  clearBtn.click();
@@ -75,17 +95,17 @@ const lastToastIncludes=(txt)=>toastText().includes(txt);
  d.getElementById('safetyDialogYes').click();
  await tick(400);
  assert.ok(!lastToastIncludes('Дождитесь сохранения'),'Clear must wait for the pending quantity instead of blocking');
- const clearReq=calls.slice(callsBefore).find(c=>c.path==='api/orders/fill'&&JSON.parse(c.options.body).clear===true);
+ const clearReq=clearRequests(callsBefore)[0];
  assert.ok(clearReq,'Clear request is sent after the quantity drains');
  assert.equal(JSON.parse(clearReq.options.body).supplier,clearSupplier);
- // 4) Если сохранение зависло — честный тост по истечении бюджета, автозаказ не выполняется.
+ // 4) Если сохранение зависло — честное сообщение по истечении бюджета, очистка не выполняется.
  hangOverride=true;callsBefore=calls.length;
  typeQty(8,'7');
- fill.click();
+ await runClear();
  await tick(5300);
  assert.ok(lastToastIncludes('Дождитесь сохранения'),'Stuck save explains itself after the wait budget');
- assert.ok(!calls.slice(callsBefore).some(c=>c.path==='api/orders/fill'),'Fill is not sent while the save is stuck');
- assert.equal(fill.disabled,false,'Fill button is re-enabled after the failed wait');
+ assert.equal(clearRequests(callsBefore).length,0,'Clear is not sent while the save is stuck');
+ assert.ok(!d.querySelector('[data-supplier-clear]').disabled,'Clear button is re-enabled after the failed wait');
  console.log('override-drain tests passed');
  process.exit(0);
 }catch(err){console.error('FAIL:',err.message);console.error(toastText());process.exit(1);}})();

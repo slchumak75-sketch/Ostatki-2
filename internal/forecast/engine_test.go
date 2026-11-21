@@ -51,7 +51,11 @@ func TestSeasonalForecastRealDatasetVariant4(t *testing.T) {
 	}
 
 	// 4. Проверка оптимизатора лимита бюджета (BudgetCap = 3000 руб.)
+	// Сценарий закреплён на горизонте 30 дней: при умолчании батча-55 (20 дней)
+	// общий заказ меньше лимита и оптимизатору нечего упаковывать.
 	cappedParams := model.DefaultParams()
+	cappedParams.HorizonDays = 30
+	cappedParams.SafetyStockPct = 10
 	cappedParams.BudgetCap = 3000.0
 	cappedRep := forecast.Calculate(wb, cappedParams, nil)
 	if cappedRep.TotalOrderCost > 3000.01 || cappedRep.TotalOrderCost < 2900.0 {
@@ -192,7 +196,12 @@ func TestRatingWindowMonths(t *testing.T) {
 		return nil
 	}
 
-	rep6 := forecast.Calculate(wb, model.DefaultParams(), nil)
+	// Окно рейтинга проверяется при прежних параметрах расчёта (батч-55 сменил
+	// умолчания на 20 дней / 5%, сценарий окна от них не зависит).
+	baseParams := model.DefaultParams()
+	baseParams.HorizonDays = 30
+	baseParams.SafetyStockPct = 10
+	rep6 := forecast.Calculate(wb, baseParams, nil)
 	for _, sku := range []string{"TEST-SEASON", "TEST-BOUND9"} {
 		it := find(rep6, sku)
 		if it.SalesSegment != 0 {
@@ -203,7 +212,7 @@ func TestRatingWindowMonths(t *testing.T) {
 		}
 	}
 
-	p9 := model.DefaultParams()
+	p9 := baseParams
 	p9.RatingWindowMonths = 9
 	rep9 := forecast.Calculate(wb, p9, nil)
 	if it := find(rep9, "TEST-BOUND9"); it.SalesSegment == 0 {
@@ -213,7 +222,7 @@ func TestRatingWindowMonths(t *testing.T) {
 		t.Fatalf("TEST-SEASON: окно 9, ожидается рейтинг 0, получено %d", it.SalesSegment)
 	}
 
-	p12 := model.DefaultParams()
+	p12 := baseParams
 	p12.RatingWindowMonths = 12
 	rep12 := forecast.Calculate(wb, p12, nil)
 	it := find(rep12, "TEST-SEASON")

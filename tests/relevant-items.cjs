@@ -66,6 +66,6 @@ thsAll.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW0.get(i),top:0
  for(const th of ths)delete th.getBoundingClientRect;
  const css49=fs.readFileSync('internal/server/web/styles.css','utf8');
  assert.match(css49,/\.topbar-actions \.btn \{\n  background: var\(--btnbar-bg\)/,'Б49: все кнопки верхней плашки одного цвета');
- assert.match(css49,/\.topbar-actions \.btn\.property-filter-active\[aria-pressed="false"\] \{\n  background: #ffffff/,'Б49: выключенные 12 мес./актуально — белые');
+ assert.match(css49,/\.topbar-actions #btnSales12\[aria-pressed="false"\],\s*\n\.topbar-actions #btnRelevant\[aria-pressed="false"\],\s*\n\.topbar-actions #btnToggleAdvanced\[aria-expanded="false"\] \{\n  background: #ffffff/,'Б55: выключенные 12 мес./актуально/параметры — белые');
  console.log('Full-base and optional sales/unmarked filter tests passed');w.close();
 })().catch(err=>{console.error(err);w.close();process.exitCode=1;});

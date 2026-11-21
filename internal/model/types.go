@@ -68,9 +68,9 @@ type ForecastParams struct {
 	PlanStartDate        string       `json:"planStartDate"`        // Дата начала горизонта планирования YYYY-MM-DD
 	NormalizePartialLast bool         `json:"normalizePartialLast"` // Нормализовать неполный последний месяц по дате выгрузки Excel
 	LastMonthDaysElapsed int          `json:"lastMonthDaysElapsed"` // Кол-во прошедших дней в последнем месяце (0 = авто из CreatedDate)
-	HorizonDays          int          `json:"horizonDays"`          // Горизонт покрытия запаса в днях (по умолч. 30)
+	HorizonDays          int          `json:"horizonDays"`          // Горизонт покрытия запаса в днях (по умолч. 20, батч-55)
 	LeadTimeDays         int          `json:"leadTimeDays"`         // Срок поставки в днях (по умолч. 4)
-	SafetyStockPct       float64      `json:"safetyStockPct"`       // Базовый страховой запас в % (по умолч. 10)
+	SafetyStockPct       float64      `json:"safetyStockPct"`       // Базовый страховой запас в % (по умолч. 5, батч-55)
 	SeasonMode           SeasonMode   `json:"seasonMode"`           // Режим учёта сезонности (hybrid / group / item / flat)
 	RecencyDecay         float64      `json:"recencyDecay"`         // Годовой коэффициент затухания старых лет (0.3..1.0, по умолч. 0.65)
 	ShrinkageK           float64      `json:"shrinkageK"`           // Параметр сглаживания Байеса K (по умолч. 12.0)
@@ -95,9 +95,9 @@ func DefaultParams() ForecastParams {
 		PlanStartDate:        "",
 		NormalizePartialLast: true,
 		LastMonthDaysElapsed: 0,
-		HorizonDays:          30,
+		HorizonDays:          20,
 		LeadTimeDays:         4,
-		SafetyStockPct:       10.0,
+		SafetyStockPct:       5.0,
 		SeasonMode:           SeasonHybrid,
 		RecencyDecay:         0.65,
 		ShrinkageK:           12.0,

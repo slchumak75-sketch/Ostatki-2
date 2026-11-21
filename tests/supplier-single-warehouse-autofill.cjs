@@ -1,11 +1,8 @@
-// Регрессия (батч-28): автозаказ для поставщика, который водится только на одном складе.
-// Два дефекта:
-// 1) orderScope требовал «ровно один отмеченный склад», даже когда склад поставщика
-//    однозначен: при двух отмеченных складах (или одном чужом) «Сделать автозаказ»
-//    падал с «Выберите один склад»;
-// 2) смена отмеченных складов перестраивала список поставщиков и МОЛЧА СБРАСЫВАЛА
-//    выбранного поставщика, если его склад не среди отмеченных, — автозаказу уже
-//    некого было заказывать.
+// Регрессия (батч-28, адаптирована в батче-55): смена отмеченных складов
+// перестраивала список поставщиков и МОЛЧА СБРАСЫВАЛА выбранного поставщика,
+// если его склад не среди отмеченных. Выбор поставщика обязан переживать
+// смену складов. Батч-55: кнопка «Сделать автозаказ» убрана из плашки,
+// поэтому сценарии нажатия на неё заменены проверкой её отсутствия.
 const {JSDOM}=require('jsdom');
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
@@ -18,12 +15,8 @@ const warehouses=[
   {warehouse:'Склад Б',totalOrderCost:5,orderItems:1,totalItems:1},
 ];
 const envelope=()=>({ok:true,json:async()=>({report:{items,warehouses,groups:[],suppliers:[{supplier:'Односклад',warehouse:'Склад А',totalOrderCost:10,orderItems:2},{supplier:'Многосклад',warehouse:'Склад А',totalOrderCost:5,orderItems:1},{supplier:'Многосклад',warehouse:'Склад Б',totalOrderCost:5,orderItems:1}],periods:[],params:{},fileName:'test.xlsx'}})});
-const fills=[];
 w.setInterval=(cb,ms)=>1;
-w.fetch=async(path,options={})=>{
-  if(path==='api/orders/fill'){fills.push(JSON.parse(options.body));}
-  return envelope();
-};
+w.fetch=async(path,options={})=>envelope();
 w.scrollTo=()=>{};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,60));
@@ -46,37 +39,22 @@ const pickSupplier=async(name)=>{
 };
 (async()=>{
   await tick();
-  // 1) Отмечены ОБА склада, поставщик «Односклад» (только «Склад А») → автозаказ по его складу
+  // Б55: кнопки «Сделать автозаказ» в плашке нет; «Подсказка» — на её месте по смыслу рядом с подсветкой.
+  assert.equal(d.getElementById('btnFillOrder'),null,'кнопка «Сделать автозаказ» убрана');
+  assert.equal(d.getElementById('btnOrderHint').textContent,'Подсказка');
+  // Отмечены ОБА склада, выбран поставщик «Односклад» (только «Склад А»).
   await setWarehouse('Склад А',true);
   await setWarehouse('Склад Б',true);
   assert.equal(d.getElementById('lblMsWarehouse').textContent,'Склады: 2','оба склада отмечены');
   await pickSupplier('Односклад');
-  fills.length=0;
-  d.getElementById('btnFillOrder').click();
-  await tick();await tick();
-  assert.equal(fills.length,1,'автозаказ должен выполниться при двух отмеченных складах');
-  assert.equal(fills[0].warehouse,'Склад А','склад поставщика подставлен автоматически');
-  assert.equal(fills[0].supplier,'Односклад');
-  // 2) Смена складов НЕ сбрасывает поставщика: отмечен только чужой «Склад Б»
+  assert.equal(d.getElementById('fltSupplier').value,'Односклад');
+  // Смена складов НЕ сбрасывает поставщика: отмечен только чужой «Склад Б».
   await setWarehouse('Склад А',false);
   assert.equal(d.getElementById('fltSupplier').value,'Односклад','выбор поставщика пережил смену складов');
-  d.getElementById('btnFillOrder').click();
-  await tick();await tick();
-  assert.equal(fills.length,2,'автозаказ должен выполниться при чужом отмеченном складе');
-  assert.equal(fills[1].warehouse,'Склад А');
-  // 3) Многоскладовой поставщик при двух отмеченных складах — по-прежнему требует один склад
+  // И обратно: возврат склада тоже сохраняет выбор; другой поставщик выбирается как раньше.
   await setWarehouse('Склад А',true);
-  assert.equal(d.getElementById('lblMsWarehouse').textContent,'Склады: 2');
+  assert.equal(d.getElementById('fltSupplier').value,'Односклад');
   await pickSupplier('Многосклад');
-  fills.length=0;
-  d.getElementById('btnFillOrder').click();
-  await tick();await tick();
-  assert.equal(fills.length,0,'многоскладовому поставщику нужен явный один склад (инвариант сохранён)');
-  // 4) Многоскладовой + ровно его склад — работает как раньше
-  await setWarehouse('Склад Б',false);
-  d.getElementById('btnFillOrder').click();
-  await tick();await tick();
-  assert.equal(fills.length,1);
-  assert.equal(fills[0].warehouse,'Склад А');
-  console.log('SUPPLIER-SINGLE-WAREHOUSE-AUTOFILL: OK');
+  assert.equal(d.getElementById('fltSupplier').value,'Многосклад','смена поставщика работает');
+  console.log('SUPPLIER-SINGLE-WAREHOUSE (б55): выбор поставщика переживает смену складов: OK');
 })().catch(e=>{console.error('FAIL:',e.message);process.exit(1);});

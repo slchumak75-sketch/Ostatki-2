@@ -15,28 +15,27 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,60));
 (async()=>{try{
  await tick();
- // Анализ остатков удалён; «+» — окошечко на самой кнопке «Подсветить заказ», справа.
+ // Батч-55: «+» у «Подсветить заказ» убран; его функции — у отдельной кнопки «Подсказка».
  assert.equal(d.getElementById('btnStockAnalysis'),null,'анализ остатков удалён');
  assert.equal(d.getElementById('stockAnalysisModal'),null,'окно анализа удалено');
- assert.equal(d.getElementById('btnOrderHint'),null,'отдельной кнопки «+» нет');
- const badge=d.getElementById('orderHintBadge');
- assert.ok(badge,'бейдж «+» есть');
- assert.equal(badge.parentElement.id,'btnHighlightOrder','бейдж внутри кнопки «Подсветить заказ»');
- // Б46: перегородка между «Подсветить заказ» и «+».
- const sep=badge.previousElementSibling;
- assert.ok(sep&&sep.classList.contains('order-hint-sep'),'перегородка перед «+»');
- assert.equal(d.getElementById('btnHighlightOrder').textContent.startsWith('Подсветить заказ'),true,'текст кнопки до перегородки');
- assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
- // Без подсвеченного заказа «+» не включается — подсказка.
+ assert.equal(d.getElementById('btnFillOrder'),null,'кнопка «Сделать автозаказ» убрана');
+ assert.equal(d.getElementById('orderHintBadge'),null,'бейджа «+» больше нет');
+ const badge=d.getElementById('btnOrderHint');
+ assert.ok(badge,'кнопка «Подсказка» есть');
+ assert.equal(badge.textContent,'Подсказка');
+ assert.equal(d.getElementById('btnHighlightOrder').textContent,'Подсветить заказ','у кнопки подсветки только текст, без «+»');
+ assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnOrderHint','«Подсказка» сразу после «Подсветить заказ»');
+ assert.equal(badge.nextElementSibling.id,'btnToggleAdvanced');
+ // Без подсвеченного заказа «Подсказка» не включается — сообщение.
  badge.click();await tick();
  assert.equal(badge.getAttribute('aria-pressed'),'false');
  assert.match(d.getElementById('toast').textContent,/Сначала включите/);
- // Включаем подсветку заказа, затем «+».
+ // Включаем подсветку заказа, затем «Подсказку».
  d.getElementById('btnHighlightOrder').click();await tick();
  badge.click();await tick();
  assert.equal(badge.getAttribute('aria-pressed'),'true');
- assert.ok(badge.classList.contains('active'));
- // Нажатие «+» не переключило саму подсветку (окно ниже показывается).
+ assert.ok(badge.classList.contains('btn-active-toggle'));
+ // Нажатие «Подсказки» не переключило саму подсветку (окно ниже показывается).
  // Наведение курсора на подсвеченную ячейку → окошко справа, внутри ТОЛЬКО число.
  const inp8=d.querySelector('input[data-qty-row="8"]');
  const td8=inp8.closest('td.order-cell');
@@ -73,11 +72,11 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  d.getElementById('btnHighlightOrder').click();await tick();
  td8.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
  assert.ok(pop.classList.contains('hidden'),'без подсветки окна нет');
- // Повторное нажатие «+» выключает режим.
+ // Повторное нажатие «Подсказки» выключает режим.
  badge.click();await tick();
  assert.equal(badge.getAttribute('aria-pressed'),'false');
- assert.ok(!badge.classList.contains('active'));
+ assert.ok(!badge.classList.contains('btn-active-toggle'));
  td8.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
  assert.ok(pop.classList.contains('hidden'),'режим выключен — окна нет');
- console.log('ORDER-HINT UI: badge on button + number-only popover: OK');
+ console.log('ORDER-HINT UI: «Подсказка» button + number-only popover: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();

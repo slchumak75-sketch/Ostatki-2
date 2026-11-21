@@ -22,8 +22,8 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  }
  // Все кнопки верхней плашки — одного цвета, выключенные фильтры белеют.
  assert.ok(css.includes('--btnbar-bg'),'единый цвет кнопок (btnbar-токены)');
- assert.ok(css.includes('.topbar-actions .btn.property-filter-active[aria-pressed="false"]'),'выключенные фильтры белеют');
- assert.ok(css.includes('.topbar-actions #btnFillOrder'),'единый цвет: автозаказ не выделяется');
+ assert.ok(css.includes('.topbar-actions #btnSales12[aria-pressed="false"]'),'выключенные фильтры белеют (б55)');
+ assert.ok(css.includes('.topbar-actions #btnHighlightOrder'),'единый цвет кнопок плашки');
  assert.ok(!css.includes('#fde047'),'жёлтых кнопок нет');
  assert.ok(!css.includes('#btnUpload.workbook-ready, #btnLoadSavedDb.workbook-ready {background:#bde5c4'),'зелёных кнопок загрузки нет');
  // Скелет «Островов»: пилюли, карточки, сегмент-вкладки.
@@ -56,5 +56,19 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  assert.ok(css.includes('[data-theme="islands"] .tabs-bar .tab-btn,'),'плашка: единая высота элементов');
  assert.ok(css.includes('[data-theme="islands"] #btnClearAllExcelFilters'),'плашка: очистить фильтры в общем правиле');
  assert.ok(css.includes('.brand-date'),'стиль даты');
- console.log('THEME UI б53: «Заказ»+дата, плашка одной высоты, только «Острова+»: OK');
+ // Б55: нет «Сделать автозаказ» и «+»; есть «Подсказка»; умолчания 20/5; цифры без обводки;
+ // отжатые кнопки белые; тост на чёрном фоне не показывается.
+ const html=fs.readFileSync('internal/server/web/index.html','utf8');
+ assert.equal(d.getElementById('btnFillOrder'),null,'«Сделать автозаказ» убрана');
+ assert.equal(d.getElementById('orderHintBadge'),null,'«+» убран');
+ assert.equal(d.getElementById('btnOrderHint').textContent,'Подсказка','кнопка «Подсказка» вместо «+»');
+ assert.ok(html.includes('id="inpHorizon" min="1" max="365" step="1" value="20"'),'покрытие по умолчанию 20 дней');
+ assert.ok(html.includes('id="inpSafety" min="0" max="200" step="1" value="5"'),'базовый запас по умолчанию 5%');
+ assert.ok(css.includes('#btnSales12[aria-pressed="false"]'),'отжатая «Продажи 12 мес.» — белая');
+ assert.ok(css.includes('#btnRelevant[aria-pressed="false"]'),'отжатая «Актуально» — белая');
+ assert.ok(css.includes('#btnToggleAdvanced[aria-expanded="false"]'),'отжатые «Параметры» — белые');
+ assert.ok(css.includes('input[type="number"]::-webkit-inner-spin-button'),'стрелки числовых полей убраны');
+ assert.ok(css.includes('.qty-input,')&&css.includes('border-color: transparent; background: transparent;'),'цифры без обводки');
+ assert.match(css,/\.toast \{[^}]*display: none/s,'тост на чёрном фоне не показывается');
+ console.log('THEME UI б55: «Заказ»+дата, «Подсказка», умолчания 20/5, цифры без обводки, только «Острова+»: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();

@@ -470,10 +470,10 @@
     return (!suppliers || suppliers.has(normalizeSupName(it.supplier))) && (!warehouses || warehouses.has(it.warehouse||''));
   }
   function renderOrderActionButtons(){
-    let filled=false,highlighted=false;
-    try{const scope=orderScope();filled=orderScopeKeys(scope).every(key=>state.filledOrderScopes.has(key));}catch(_){}
+    // Батч-55: кнопка «Сделать автозаказ» убрана из плашки; здесь только подсветка.
+    let highlighted=false;
     try{const scope=highlightScope();highlighted=(state.report.items||[]).filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses)).some(it=>state.highlightedOrderRows.has(it.excelRow));}catch(_){}
-    for(const [id,active] of [['btnFillOrder',filled],['btnHighlightOrder',highlighted]]){const button=el(id);button.setAttribute('aria-pressed',String(active));button.classList.toggle('btn-active-toggle',active);}
+    const button=el('btnHighlightOrder');if(button){button.setAttribute('aria-pressed',String(highlighted));button.classList.toggle('btn-active-toggle',highlighted);}
   }
 
   function normalizeSupName(raw) {
@@ -774,16 +774,12 @@
     return `${wh}, ${sup}, ${dd}.${mm}.${yyyy}.xlsx`;
   }
 
-  let toastTimer = null;
+  // Батч-55: всплывающие сообщения на чёрном фоне убраны по требованию
+  // пользователя. Текст по-прежнему пишется в скрытый #toast (статус для
+  // тестов/диагностики), но плашка на экране не показывается.
   function showToast(msg) {
     const t = el('toast');
-    t.textContent = msg;
-    t.classList.remove('hidden');
-    clearTimeout(toastTimer);
-    t.setAttribute('role','status');
-    t.title = 'Нажмите, чтобы закрыть уведомление';
-    t.onclick = () => t.classList.add('hidden');
-    if (!/ошиб|не сохран|не удалось|нет связи/i.test(msg)) toastTimer = setTimeout(() => t.classList.add('hidden'), 8000);
+    if (t) t.textContent = msg;
   }
 
   async function apiGet(path) {
@@ -2693,9 +2689,9 @@
       planStartDate: state.planStartDate || '',
       normalizePartialLast: el('chkNormalizeLast').checked,
       lastMonthDaysElapsed: 0,
-      horizonDays: Number(el('inpHorizon').value) || 30,
+      horizonDays: Number(el('inpHorizon').value) || 20,
       leadTimeDays: rawLead === '' ? 4 : Number(rawLead),
-      safetyStockPct: rawSafety === '' ? 10 : Number(rawSafety),
+      safetyStockPct: rawSafety === '' ? 5 : Number(rawSafety),
       seasonMode: el('selSeasonMode').value,
       ratingWindowMonths: Number(el('selRatingWindow').value) || 6,
       recencyDecay: state.report?.params?.recencyDecay ?? 0.65,
@@ -3342,7 +3338,7 @@
       try {const scope=highlightScope();const rows=state.report.items.filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses));if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
 
-    // Батч-44/45: «+» у «Подсветить заказ» — при наведении курсора на
+    // Батч-55: отдельная кнопка «Подсказка» (бывший «+» у «Подсветить заказ») — при наведении курсора на
     // подсвеченную ячейку заказа (вся ячейка td.order-cell: паддинги,
     // qty-editor и сам input) справа появляется маленькое окно с
     // рекомендованным заказом (autoOrderQty — расчёт алгоритма
@@ -3373,17 +3369,15 @@
       pop.style.left = `${left}px`;
       pop.style.top = `${Math.max(8, Math.min(rect.top + (rect.height - pop.offsetHeight) / 2, window.innerHeight - pop.offsetHeight - 8))}px`;
     }
-    el('orderHintBadge').addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
+    el('btnOrderHint').addEventListener('click', () => {
       if (!orderHintActive && !(state.report && state.highlightedOrderRows.size > 0)) {
         showToast('Сначала включите «Подсветить заказ»');
         return;
       }
       orderHintActive = !orderHintActive;
-      const badge = el('orderHintBadge');
-      badge.setAttribute('aria-pressed', String(orderHintActive));
-      badge.classList.toggle('active', orderHintActive);
+      const button = el('btnOrderHint');
+      button.setAttribute('aria-pressed', String(orderHintActive));
+      button.classList.toggle('btn-active-toggle', orderHintActive);
       if (!orderHintActive) { hideOrderHint(); showToast('Подсказка выключена'); }
       else showToast('Наведите курсор на подсвеченную ячейку заказа');
     });
@@ -3429,40 +3423,14 @@
         button.disabled = false;
       }
     });
-    el('btnFillOrder').addEventListener('click',async()=>{
-      const button=el('btnFillOrder');
-      try {
-        const scope=orderScope();
-        // A just-blurred quantity may still be in flight. Do not overwrite it:
-        // wait briefly for pending api/override saves instead of failing immediately.
-        if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]')){
-          if(!await flushQtyEdits())throw new Error('Дождитесь сохранения введённого количества и повторите');
-        }
-        button.disabled=true;
-        const epoch=state.clientEpoch;
-        const keys=orderScopeKeys(scope),cancel=keys.every(key=>state.filledOrderScopes.has(key));
-        clearTimeout(state.debounceTimer);paramsRevision++;
-        const params=collectParamsFromUI();
-        await paramsInFlight.catch(()=>{});
-        if(epoch!==state.clientEpoch)return;
-        const env=await apiPost('api/orders/fill',{...scope,cancel,params});
-        if(epoch!==state.clientEpoch)return;
-        for(const it of state.report.items)if((it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier)) && !state.staryoRows.has(it.excelRow))state.orderTransferRows.delete(it.excelRow);
-        for(const it of env.report?.items||[])if((it.warehouse||'')===scope.warehouse && scopeSuppliers(scope).includes(normalizeSupName(it.supplier))){if(cancel || state.staryoRows.has(it.excelRow))delete state.autoFilledQuantities[it.excelRow];else state.autoFilledQuantities[it.excelRow]=it.finalOrderQty;}
-        for(const key of keys){if(cancel)state.filledOrderScopes.delete(key);else state.filledOrderScopes.add(key);}
-        applyEnvelope(env);refreshExcelTable();
-        showToast(cancel?'Автозаказ выбранных поставщиков на складе отменён':'Автозаказ рассчитан для выбранных поставщиков на складе');
-      }catch(err){showToast(err.message);}finally{button.disabled=false;}
-    });
-
     el('btnResetParams').addEventListener('click', async () => {
       state.planStartDate = '';
       const env = await apiPost('api/params', {
         planStartDate: '',
         normalizePartialLast: true,
-        horizonDays: 30,
+        horizonDays: 20,
         leadTimeDays: 4,
-        safetyStockPct: 10,
+        safetyStockPct: 5,
         seasonMode: 'hybrid',
         recencyDecay: 0.65,
         shrinkageK: 12,
@@ -3846,7 +3814,7 @@
       const done = (async () => {
       try {
         // Неабортируемо: сброс активных запросов (загрузка ведомости/эталона) не должен
-        // оставлять количество несохранённым — иначе блокируются «Сделать автозаказ» и «Очистить».
+        // оставлять количество несохранённым — иначе блокируется «Очистить» у поставщика.
         const env = await apiPost('api/override', { excelRow: rowNum, value: val }, { unabortable: true });
         if (state.pendingOverrides.get(rowNum) === val) {
           state.pendingOverrides.delete(rowNum);
@@ -3883,7 +3851,7 @@
       try { await done; } finally { if (overrideInFlight === done) overrideInFlight = Promise.resolve(); }
     }
 
-    // Перед автоматическими действиями («Сделать автозаказ», «Очистить» у поставщика)
+    // Перед автоматическим действием («Очистить» у поставщика; кнопка «Сделать автозаказ» убрана в батче-55)
     // даём введённому количеству сохраниться: ждём завершения отложенных запросов
     // api/override в пределах короткого бюджета, вместо мгновенной блокировки кнопки.
     async function flushQtyEdits(budgetMs = 5000) {

@@ -15,7 +15,7 @@ import (
 // NormalizeParams проверяет и приводит параметры расчёта «Варианта 4» к допустимым границам.
 func NormalizeParams(p model.ForecastParams) model.ForecastParams {
 	if p.HorizonDays < 1 {
-		p.HorizonDays = 30
+		p.HorizonDays = 20
 	}
 	if p.HorizonDays > 365 {
 		p.HorizonDays = 365

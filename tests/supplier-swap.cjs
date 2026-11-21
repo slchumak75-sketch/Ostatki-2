@@ -27,7 +27,7 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap
 const tick=(ms=70)=>new Promise(r=>setTimeout(r,ms));
 const pop=()=>d.getElementById('supplierSwapPopover');
 const listItems=()=>[...d.querySelectorAll('#supplierSwapList .ssp-item')].map(b=>b.textContent);
-const toastText=()=>d.getElementById('toast').classList.contains('hidden')?'':d.getElementById('toast').textContent;
+const toastText=()=>d.getElementById('toast').textContent; // б55: тост скрыт, текст сообщения
 (async()=>{try{
  await tick();const {state,refreshExcelTable}=w.__drain||w.__swap;
  state.colFilters={};refreshExcelTable();
