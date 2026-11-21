@@ -424,11 +424,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { suffix: "7.1", theme: classic, design: "классика" }
-          - { suffix: "7.2", theme: cabinet, design: "строгий кабинет" }
-          - { suffix: "7.3", theme: saas,    design: "панели" }
-          - { suffix: "7.4", theme: paper,   design: "бумажный минимал" }
-          - { suffix: "7.5", theme: terminal, design: "терминал данных" }
+          - { suffix: "7.1", theme: islands,  design: "острова+" }
+          - { suffix: "7.2", theme: ribbon,   design: "лента-карточка" }
+          - { suffix: "7.3", theme: console,  design: "пульт" }
+          - { suffix: "7.4", theme: excelbook, design: "книга Excel" }
+          - { suffix: "7.5", theme: terminal, design: "терминал сетки" }
 
     steps:
       - name: Клонирование репозитория
@@ -479,5 +479,5 @@ jobs:
           gh release create "variant-${{ matrix.suffix }}" \
             --target "${{ github.sha }}" \
             --title "Вариант ${{ matrix.suffix }} — ${{ matrix.design }}" \
-            --notes "Вариант ${{ matrix.suffix }} программы «Остатки 2»: дизайн «${{ matrix.design }}» (data-theme=${{ matrix.theme }}), вшит в сборку. Высота строк таблицы и приглушённые цвета рейтинга — как во всех вариантах. Подпись Authenticode SHA-256." \
+            --notes "Вариант ${{ matrix.suffix }} программы «Остатки 2»: дизайн «${{ matrix.design }}» (data-theme=${{ matrix.theme }}), вшит в сборку. Высота строк таблицы едина, рейтинг — только цифра в приглушённых цветах, у таблицы вертикальные границы — как во всех вариантах; вертикальных панелей нет. Подпись Authenticode SHA-256." \
             "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}.exe#OstatkiZakupki_Variant_${{ matrix.suffix }}.exe (Вариант ${{ matrix.suffix }} — Windows x64 GUI)"

@@ -2781,13 +2781,14 @@ body {
   white-space: nowrap;
 }
 
-/* ===== Батч-49: единый цвет кнопок верхней плашки + пять концептуальных
-   вариантов (variant-7.1…7.5) на общей палитре «кабинета» (7.2) =====
+/* ===== Батч-49/50: единый цвет кнопок верхней плашки + пять концептуальных
+   вариантов (variant-7.1…7.5) на общей палитре «кабинета» =====
    Все кнопки верхней плашки — одного цвета (btnbar); «Продажи 12 мес.» и
-   «Актуально» при выключении белеют. Варианты различаются СТРУКТУРОЙ:
-   скругления, сегменты, карточки, безрамочность, моношрифт, зебра.
-   Инварианты: высота строк таблицы едина (td padding темами не трогается),
-   кнопки в одну линию, приглушённые цвета рейтинга. */
+   «Актуально» при выключении белеют. Батч-50 (макеты №6–10): варианты
+   различаются СКЕЛЕТОМ (острова / лента / пульт / книга / терминал),
+   вертикальных панелей нет. Инварианты: высота строк таблицы едина
+   (td padding темами не трогается), кнопки в одну линию, рейтинг —
+   только цифра, приглушённые цвета рейтинга, вертикальные границы. */
 
 :root {
   --btnbar-bg: #f3ecdd;
@@ -2811,10 +2812,14 @@ body {
   color: var(--text-muted);
 }
 
-/* Общая палитра всех пяти вариантов — «кабинет» 7.2 (холодный серо-голубой). */
+/* Общая палитра всех пяти вариантов — «кабинет» (холодный серо-голубой).
+   Батч-50 (макеты №6–10, вторая пятёрка): вертикальных (боковых) панелей
+   нет ни в одном варианте — только горизонтальные плашки; рейтинг —
+   только цифра в кружке (seg-pill в app.js, оттенки б47 не меняются);
+   у таблицы во всех вариантах вертикальные границы столбцов. */
 
-[data-theme="classic"], [data-theme="cabinet"], [data-theme="saas"],
-[data-theme="paper"], [data-theme="terminal"] {
+[data-theme="islands"], [data-theme="ribbon"], [data-theme="console"],
+[data-theme="excelbook"], [data-theme="terminal"] {
   --bg: #f4f6f8;
   --surface: #ffffff;
   --surface-alt: #f7f9fb;
@@ -2845,94 +2850,190 @@ body {
   --btnbar-text: #2e3742;
 }
 
-/* ---- 7.1 classic: классика — спокойная база, мягкие скругления ---- */
-[data-theme="classic"] {
-  --shadow: 0 1px 3px rgba(46, 55, 66, 0.07), 0 1px 2px rgba(46, 55, 66, 0.05);
-  --radius: 8px;
-}
-[data-theme="classic"] .btn { border-radius: 8px; }
-[data-theme="classic"] .toolbar { border-radius: 10px; box-shadow: var(--shadow); }
-[data-theme="classic"] .table-container { border-radius: 10px; }
-[data-theme="classic"] .data-table thead th { letter-spacing: 0.02em; }
+/* Вертикальные границы столбцов таблицы — во всех пяти вариантах. */
+[data-theme="islands"] .data-table td, [data-theme="ribbon"] .data-table td,
+[data-theme="console"] .data-table td, [data-theme="excelbook"] .data-table td,
+[data-theme="terminal"] .data-table td { border-right: 1px solid #d7e0e9; }
+[data-theme="islands"] .data-table thead th, [data-theme="ribbon"] .data-table thead th,
+[data-theme="console"] .data-table thead th, [data-theme="excelbook"] .data-table thead th,
+[data-theme="terminal"] .data-table thead th { border-right: 1px solid #d7e0e9; }
+[data-theme="islands"] .data-table td:last-child, [data-theme="ribbon"] .data-table td:last-child,
+[data-theme="console"] .data-table td:last-child, [data-theme="excelbook"] .data-table td:last-child,
+[data-theme="terminal"] .data-table td:last-child,
+[data-theme="islands"] .data-table thead th:last-child, [data-theme="ribbon"] .data-table thead th:last-child,
+[data-theme="console"] .data-table thead th:last-child, [data-theme="excelbook"] .data-table thead th:last-child,
+[data-theme="terminal"] .data-table thead th:last-child { border-right: none; }
 
-/* ---- 7.2 cabinet: кабинет — жёсткая рамочная структура, сетка ---- */
-[data-theme="cabinet"] {
-  --shadow: none;
-  --radius: 2px;
-}
-[data-theme="cabinet"] .btn { border-radius: 2px; box-shadow: none; }
-[data-theme="cabinet"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border); }
-[data-theme="cabinet"] .header-controls-strip { border-bottom: 3px solid var(--primary); padding-bottom: 6px; }
-[data-theme="cabinet"] .data-table thead th {
-  background: #e7ecf1;
-  color: #48586a;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 10px;
-  border-bottom: 2px solid var(--border-strong);
-  box-shadow: none;
-}
-[data-theme="cabinet"] .data-table td { border-right: 1px solid #edf1f5; }
-[data-theme="cabinet"] .data-table thead th { border-right: 1px solid #d8e0e8; }
-[data-theme="cabinet"] .data-table td:last-child, [data-theme="cabinet"] .data-table thead th:last-child { border-right: none; }
-[data-theme="cabinet"] .data-table tbody tr:hover td { background: var(--surface-hover); }
-[data-theme="cabinet"] .qty-input, [data-theme="cabinet"] .order-hint-popover { border-radius: 2px; }
-[data-theme="cabinet"] input, [data-theme="cabinet"] select { border-radius: 2px; }
-
-/* ---- 7.3 saas «Панели»: плавающие карточки, кнопки-чипы ---- */
-[data-theme="saas"] {
-  --shadow: 0 1px 2px rgba(31, 58, 82, 0.06), 0 2px 6px rgba(31, 58, 82, 0.05);
+/* ---- 7.1 islands «Острова+» (макет №6): плавающие карточки, пилюли ---- */
+[data-theme="islands"] {
+  --bg: #e9eff4;
+  --shadow: 0 6px 20px rgba(31, 58, 82, 0.10);
   --radius: 12px;
 }
-[data-theme="saas"] .toolbar {
+[data-theme="islands"] .topbar {
+  margin: 8px 12px 0;
   background: var(--surface);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 6px 20px rgba(31, 58, 82, 0.10);
-  margin: 8px 12px;
 }
-[data-theme="saas"] .topbar-actions .btn { border-radius: 99px; padding-left: 14px; padding-right: 14px; box-shadow: 0 1px 3px rgba(31, 58, 82, 0.12); }
-[data-theme="saas"] .table-container {
+[data-theme="islands"] .topbar-actions .btn { border-radius: 99px; padding-left: 14px; padding-right: 14px; box-shadow: 0 1px 3px rgba(31, 58, 82, 0.12); }
+[data-theme="islands"] .tabs-bar-left { background: #dfe8f0; border-radius: 99px; padding: 3px; }
+[data-theme="islands"] .tab-btn.tab-beige { border: none; border-radius: 99px; background: transparent; }
+[data-theme="islands"] .tab-btn.tab-beige.active { background: var(--surface); color: var(--primary-hover); box-shadow: 0 1px 4px rgba(31, 58, 82, 0.18); }
+[data-theme="islands"] .stock-match-control { background: var(--surface); border-radius: 99px; }
+[data-theme="islands"] .table-container {
   background: var(--surface);
   border: none;
   border-radius: 16px;
   box-shadow: 0 8px 28px rgba(31, 58, 82, 0.10);
-  margin: 0 12px 14px;
-  overflow: hidden;
 }
-[data-theme="saas"] .data-table thead th {
+[data-theme="islands"] .data-table thead th {
   background: var(--surface);
   color: var(--text-muted);
   font-weight: 600;
   border-bottom: 1px solid var(--border);
   box-shadow: none;
 }
-[data-theme="saas"] .data-table tbody tr:hover td { background: var(--surface-hover); }
-[data-theme="saas"] .qty-input, [data-theme="saas"] .order-hint-popover { border-radius: 8px; }
+[data-theme="islands"] .data-table tbody tr:hover td { background: var(--surface-hover); }
+[data-theme="islands"] .qty-input, [data-theme="islands"] .order-hint-popover { border-radius: 8px; }
+[data-theme="islands"] .params-panel, [data-theme="islands"] .toolbar { border-radius: 16px; }
+[data-theme="islands"] .budget-inline-card, [data-theme="islands"] .current-supplier-card { border-radius: 12px; }
 
-/* ---- 7.4 paper «Бумага»: безрамочная типографика ---- */
-[data-theme="paper"] {
-  --shadow: none;
-  --radius: 3px;
+/* ---- 7.2 ribbon «Лента-карточка» (макет №7): группы команд, вкладки-папки ---- */
+[data-theme="ribbon"] {
+  --bg: #e9eff4;
+  --shadow: 0 6px 18px rgba(31, 58, 82, 0.09);
+  --radius: 10px;
 }
-[data-theme="paper"] .toolbar { background: transparent; border: none; box-shadow: none; border-radius: 0; }
-[data-theme="paper"] .topbar-actions { border-bottom: 1px dotted var(--border-strong); padding-bottom: 6px; }
-[data-theme="paper"] .topbar-actions .btn { border-color: transparent; border-radius: 4px; }
-[data-theme="paper"] .table-container { background: transparent; border: none; box-shadow: none; border-radius: 0; }
-[data-theme="paper"] .data-table thead th {
-  background: transparent;
+[data-theme="ribbon"] .topbar {
+  margin: 8px 12px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(31, 58, 82, 0.09);
+}
+[data-theme="ribbon"] .brand-block { flex: 1 1 100%; }
+[data-theme="ribbon"] .topbar-actions {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+  position: relative;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 8px 15px;
+}
+[data-theme="ribbon"] .topbar-actions::after {
+  content: "Файл  ·  Фильтры  ·  Эталон  ·  Заказ  ·  Сервис";
+  position: absolute;
+  left: 10px;
+  bottom: 2px;
+  font-size: 9px;
   color: var(--text-muted);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  border-bottom: 1px solid #e8e6e0;
+}
+[data-theme="ribbon"] .topbar-actions .btn { border-radius: 5px; }
+[data-theme="ribbon"] #btnClearDatabase, [data-theme="ribbon"] #btnRelevant,
+[data-theme="ribbon"] #btnLoadEtalon, [data-theme="ribbon"] #btnHighlightOrder { margin-right: 16px; }
+[data-theme="ribbon"] .tab-btn.tab-beige { border-radius: 9px 9px 0 0; border-bottom: none; background: #dde6ee; }
+[data-theme="ribbon"] .tab-btn.tab-beige.active { background: var(--surface); color: var(--primary-hover); border-color: var(--border-strong); }
+[data-theme="ribbon"] .table-container { border-radius: 0 12px 12px 12px; box-shadow: 0 8px 24px rgba(31, 58, 82, 0.09); }
+[data-theme="ribbon"] .data-table thead th {
+  background: var(--primary);
+  color: #ffffff;
+  border-bottom: 2px solid var(--primary-hover);
+  border-right: 1px solid #5d81a0;
   box-shadow: none;
 }
-[data-theme="paper"] .data-table td { border-bottom-color: #ececec; }
-[data-theme="paper"] .data-table tbody tr:hover td { background: var(--surface-hover); }
-[data-theme="paper"] .qty-input, [data-theme="paper"] .order-hint-popover { border-radius: 3px; }
+[data-theme="ribbon"] .data-table thead th:hover { color: #ffffff; }
+[data-theme="ribbon"] .data-table thead th .th-filter-btn { color: #cfe0ee; }
+[data-theme="ribbon"] .qty-input, [data-theme="ribbon"] .order-hint-popover { border-radius: 5px; }
 
-/* ---- 7.5 terminal «Терминал»: моно, сегменты встык, зебра ---- */
+/* ---- 7.3 console «Пульт» (макет №8): горизонтальная полоса показателей ---- */
+[data-theme="console"] {
+  --shadow: 0 1px 3px rgba(46, 55, 66, 0.07), 0 1px 2px rgba(46, 55, 66, 0.05);
+  --radius: 10px;
+}
+[data-theme="console"] .tabs-order-summary { order: -1; flex: 1 1 100%; margin-left: 0; }
+[data-theme="console"] .current-supplier-card {
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-height: 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 12px;
+}
+[data-theme="console"] .budget-inline-card {
+  flex: 1 1 0;
+  height: auto;
+  max-width: none;
+  min-height: 48px;
+  background: var(--primary);
+  border-color: var(--primary);
+  border-radius: 10px;
+  padding: 7px 12px;
+}
+[data-theme="console"] .budget-inline-card .kpi-label,
+[data-theme="console"] .budget-inline-card .kpi-value { color: #ffffff; }
+[data-theme="console"] .budget-inline-card .kpi-value { font-size: 17px; }
+[data-theme="console"] .tab-btn.tab-beige { border-radius: 99px; }
+[data-theme="console"] .data-table thead th {
+  background: #dfe8f0;
+  color: #48586a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  border-bottom: 2px solid var(--border-strong);
+  box-shadow: none;
+}
+[data-theme="console"] .qty-input, [data-theme="console"] .order-hint-popover { border-radius: 8px; }
+
+/* ---- 7.4 excelbook «Книга Excel» (макет №9): листы снизу, строка-подсказка fx ---- */
+[data-theme="excelbook"] {
+  --shadow: none;
+  --radius: 2px;
+}
+[data-theme="excelbook"] .header-controls-strip::before {
+  content: "fx  ·  Поиск по номенклатуре — в заголовке столбца «Номенклатура»";
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+[data-theme="excelbook"] .tabs-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: #e7edf3;
+  border-top: 1px solid var(--border-strong);
+  padding: 5px 12px 7px;
+  box-shadow: 0 -4px 14px rgba(46, 55, 66, 0.08);
+}
+[data-theme="excelbook"] .workspace { padding-bottom: 54px; }
+[data-theme="excelbook"] .tab-btn.tab-beige { border-radius: 3px 3px 9px 9px; background: #d5e0ea; }
+[data-theme="excelbook"] .tab-btn.tab-beige.active { background: var(--surface); color: var(--primary-hover); box-shadow: inset 0 2px 0 var(--primary); }
+[data-theme="excelbook"] .table-container { border-radius: 2px; }
+[data-theme="excelbook"] .data-table thead th {
+  background: #dde6ee;
+  border-right: 1px solid #c9d5e0;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 10.5px;
+  box-shadow: none;
+}
+[data-theme="excelbook"] .data-table tbody tr:nth-child(even) td { background: #f7f9fb; }
+[data-theme="excelbook"] .data-table tbody tr:hover td { background: var(--surface-hover); }
+[data-theme="excelbook"] .qty-input, [data-theme="excelbook"] .order-hint-popover { border-radius: 2px; }
+
+/* ---- 7.5 terminal «Терминал сетки» (макет №10): квадрат, моно, кнопки встык ---- */
 [data-theme="terminal"] {
   --shadow: none;
   --radius: 0px;
@@ -2945,11 +3046,18 @@ body {
   font-size: 10.5px;
   letter-spacing: 0.03em;
 }
+[data-theme="terminal"] .topbar { border-bottom: 2px solid var(--primary); }
 [data-theme="terminal"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border-strong); }
 [data-theme="terminal"] .topbar-actions { gap: 0; }
 [data-theme="terminal"] .topbar-actions .btn { margin-left: -1px; }
-[data-theme="terminal"] .topbar-actions .btn:first-child { margin-left: 0; }
-[data-theme="terminal"] .header-controls-strip { border-left: 4px solid var(--primary); }
+[data-theme="terminal"] .topbar-actions .btn:first-of-type { margin-left: 0; }
+[data-theme="terminal"] .tab-btn.tab-beige {
+  border-radius: 0;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+[data-theme="terminal"] .table-container { border-radius: 0; border-color: var(--border-strong); }
 [data-theme="terminal"] .data-table thead th {
   background: var(--surface-alt);
   color: #4a5b6c;

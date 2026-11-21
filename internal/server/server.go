@@ -27,12 +27,12 @@ import (
 //go:embed web/*
 var embeddedWeb embed.FS
 
-// uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48: пять
+// uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/50: пять
 // концептуально разных вариантов программы публикуются отдельными
 // релизами (variant-7.1…7.5), каждый — своей сборкой. Значение
 // переопределяется при сборке:
-//   -ldflags "-H=windowsgui -X internal/server.uiTheme=cabinet"
-// Доступные значения: classic, cabinet, saas, paper, terminal.
+//   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
+// Доступные значения: islands, ribbon, console, excelbook, terminal.
 var uiTheme = "warm"
 
 // AppServer управляет состоянием открытой книги Excel, расчётами и HTTP GUI.

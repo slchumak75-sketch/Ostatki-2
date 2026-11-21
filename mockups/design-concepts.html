@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Остатки 2 — 5 радикальных концептов дизайна (все макеты)</title>
+<style>
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --surface-alt:#f7f9fb; --surface-hover:#eef2f6;
+  --border:#dfe5eb; --border-strong:#b9c6d2; --text:#2e3742; --muted:#7c8a98;
+  --primary:#4c6e8b; --primary-dark:#3d5d78; --primary-soft:#e1eaf2;
+  --btnbar-bg:#e7edf3; --btnbar-hover:#dbe4ec; --btnbar-border:#b9c6d2;
+  --seg5:#5fae77; --seg4:#a6c05f; --seg3:#e0d058; --seg2:#ece5bf; --seg1:#d9a3bf; --seg0:#cf5f5b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Segoe UI",-apple-system,"Inter",Roboto,Arial,sans-serif;font-size:13.5px;color:var(--text);background:#e3e9ef;-webkit-font-smoothing:antialiased}
+.page{max-width:1560px;margin:0 auto;padding:16px 18px 40px}
+.page-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.page-head h1{font-size:21px;margin:0}
+.page-head .sub{color:#5a6b7a;font-size:12.5px}
+.note{background:#fff;border:1px solid var(--border-strong);border-left:4px solid var(--primary);padding:8px 12px;font-size:12.5px;margin:10px 0 14px;line-height:1.45}
+.note b{color:var(--primary-dark)}
+.nav{position:sticky;top:0;z-index:50;display:flex;gap:6px;flex-wrap:wrap;background:#e3e9ef;padding:8px 0}
+.nav a{flex:1;text-align:center;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--border-strong);border-radius:9px;padding:8px 6px;font-size:12.5px;font-weight:600}
+.nav a:hover{border-color:var(--primary);background:var(--surface-alt)}
+.nav a span{display:block;font-weight:400;color:var(--muted);font-size:11px;margin-top:1px}
+.concept-section{margin:0 0 30px}
+.concept-head{background:#fff;border:1px solid var(--border-strong);border-radius:10px 10px 0 0;border-bottom:none;padding:12px 16px 10px}
+.concept-head h2{margin:0;font-size:18px}
+.concept-head h2 .num{display:inline-block;background:var(--primary);color:#fff;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;font-size:13px;margin-right:7px;vertical-align:2px}
+.concept-head p{margin:5px 0 0;color:#5a6b7a;font-size:12.5px;line-height:1.5}
+.concept-head ul{margin:5px 0 0;padding-left:19px;color:#48586a;font-size:12.5px;line-height:1.5}
+
+/* ===== Каркас программы (один шаблон, 5 клонов) ===== */
+.app{background:var(--bg);border:1px solid #9fb0c0;border-radius:0 0 10px 10px;height:742px;display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:0 10px 34px rgba(46,55,66,.16)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex:0 0 auto;min-width:0}
+.brand-block{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto}
+.app-logo{width:32px;height:32px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;background:var(--primary-soft);color:var(--primary-dark);border-radius:7px}
+.brand-title-row{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.brand-title-row h1{font-size:16px;margin:0}
+.badge{font-size:10.5px;padding:2px 7px;border-radius:99px;border:1px solid var(--border-strong);background:var(--surface-alt);color:#48586a;white-space:nowrap}
+.badge-accent{background:var(--primary-soft)}
+.file-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-meta .ok{color:#4f8a71;font-weight:600}
+.topbar-actions{display:flex;flex-wrap:nowrap;gap:5px;align-items:center;overflow:hidden;flex:1 1 auto;justify-content:flex-end;min-width:0}
+.btn{font:inherit;font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;flex:0 0 auto;line-height:1.25}
+.topbar-actions .btn{background:var(--btnbar-bg);border-color:var(--btnbar-border);color:var(--text)}
+.topbar-actions .btn:hover{background:var(--btnbar-hover)}
+.topbar-actions .btn[aria-pressed="false"]{background:#ffffff;color:var(--muted)}
+.order-hint-sep{display:inline-block;width:1px;height:12px;background:var(--border-strong);margin:0 5px -2px 7px}
+.plus-badge{display:inline-block;min-width:15px;text-align:center;font-weight:700;border:1px solid var(--border-strong);border-radius:3px;background:var(--surface);padding:0 2px}
+.formula-bar{display:none}
+.tabs-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 12px 0;flex:0 0 auto;min-width:0}
+.tabs-left{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0}
+.tab-btn{font:inherit;font-size:12.5px;padding:6px 12px;border:1px solid var(--border-strong);background:#eef2f6;color:var(--text);border-radius:7px;cursor:pointer;white-space:nowrap}
+.tab-btn:hover{background:#e2eaf1}
+.tab-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.tab-counter{background:rgba(255,255,255,.25);border-radius:99px;padding:0 6px;font-size:11px}
+.tab-btn:not(.active) .tab-counter{background:var(--primary-soft);color:var(--primary-dark)}
+.stock-match{font-size:12px;border:1px solid var(--border-strong);background:#eef2f6;border-radius:7px;padding:4px 8px;white-space:nowrap;display:flex;gap:5px;align-items:center}
+.stock-match input{width:44px;font:inherit;font-size:12px;padding:1px 3px;border:1px solid var(--border-strong);border-radius:4px}
+.stock-match .btn{background:#eef2f6}
+.hints-off{width:22px;height:22px;padding:0;line-height:1;border-radius:5px;border:1px solid #4f8a71;background:#4f8a71;color:#fff;cursor:pointer;font-weight:700}
+.summary{display:flex;gap:6px;align-items:stretch}
+.sum-card{border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:4px 10px;font-size:11.5px;color:var(--muted);white-space:nowrap;display:flex;flex-direction:column;justify-content:center}
+.sum-card strong{color:var(--text);font-size:12.5px}
+.sum-card.budget strong{color:var(--primary-dark);font-size:13px}
+main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:6px 12px 8px;overflow:hidden}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:auto;flex:1 1 auto;min-height:0}
+.pagination{flex:0 0 auto;font-size:11.5px;color:var(--muted);padding-top:5px;display:flex;justify-content:space-between}
+.inspector{display:none}
+table{border-collapse:collapse;width:100%;font-size:12px}
+thead th{position:sticky;top:0;z-index:2;background:#e7ecf1;color:#48586a;font-size:11px;font-weight:600;text-align:left;padding:4px 6px;border-bottom:2px solid var(--border-strong);white-space:nowrap}
+thead th .flt{float:right;border:none;background:transparent;color:#8fa1b3;cursor:pointer;font-size:9px;padding:0 0 0 3px}
+tbody td{padding:1px 6px !important;border-bottom:1px solid #edf1f5;white-space:nowrap;vertical-align:middle;color:var(--text)}
+tbody tr:hover td{background:var(--surface-hover)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.ctr,th.ctr{text-align:center}
+.wh-mir{background:#e4f0e7 !important}
+.wh-kor{background:#f5ead6 !important}
+tbody td.wh{font-size:8px;line-height:1.05}
+tbody td.grp{font-size:8px;line-height:1.05;color:#48586a}
+.qty{display:inline-block;width:56px;height:18px;box-sizing:border-box;border:1px solid var(--border-strong);border-radius:3px;font:inherit;font-size:12px;text-align:right;padding:0 4px;font-variant-numeric:tabular-nums;background:#fff;color:var(--text)}
+.qty.hl{background:#fdf3c9;border-color:#d9b93a}
+.seg{display:inline-block;border-radius:99px;padding:0 7px;height:15px;line-height:15px;font-size:10.5px;font-weight:600;color:#000}
+.seg5{background:var(--seg5)} .seg4{background:var(--seg4)} .seg3{background:var(--seg3)} .seg2{background:var(--seg2)} .seg1{background:var(--seg1)} .seg0{background:var(--seg0)}
+.plus-inp{width:15px;height:15px;accent-color:var(--primary);vertical-align:middle}
+tfoot td{padding:3px 6px;font-weight:700;background:var(--surface-alt);border-top:2px solid var(--border-strong);font-variant-numeric:tabular-nums}
+.name-cell{white-space:normal;min-width:230px}
+.sup-cell{color:#48586a}
+.swap{border:1px solid var(--border-strong);background:var(--surface);border-radius:3px;width:16px;height:16px;line-height:1;padding:0;cursor:pointer;font-size:11px;margin-right:4px;color:var(--primary-dark)}
+
+/* КОНЦЕПТ 1 — НАВИГАТОР */
+.app[data-concept="navigator"]{display:grid;grid-template-columns:198px 1fr;grid-template-rows:auto 1fr}
+.app[data-concept="navigator"] .topbar{grid-column:2;grid-row:1}
+.app[data-concept="navigator"] .badge-accent{display:none}
+.app[data-concept="navigator"] .tabs-bar{grid-column:1;grid-row:1/3;flex-direction:column;align-items:stretch;justify-content:flex-start;background:#e6edf3;border-right:1px solid var(--border-strong);padding:12px 10px;gap:12px}
+.app[data-concept="navigator"] .tabs-bar::before{content:"▦  Остатки 2";font-weight:700;font-size:15px;color:var(--primary-dark);padding:2px 4px 8px;border-bottom:1px solid var(--border-strong)}
+.app[data-concept="navigator"] .tabs-left{flex-direction:column;align-items:stretch;gap:4px}
+.app[data-concept="navigator"] .tab-btn{text-align:left;border-radius:6px;border-color:transparent;background:transparent;padding:8px 10px}
+.app[data-concept="navigator"] .tab-btn:hover{background:#dbe4ec}
+.app[data-concept="navigator"] .tab-btn.active{background:var(--primary);color:#fff}
+.app[data-concept="navigator"] .stock-match{flex-wrap:wrap;background:transparent;border:none;padding:4px}
+.app[data-concept="navigator"] .summary{margin-top:auto;flex-direction:column;gap:6px}
+.app[data-concept="navigator"] main{grid-column:2;grid-row:2;padding-top:8px}
+.app[data-concept="navigator"] thead th{background:#dfe8f0;text-transform:uppercase;letter-spacing:.04em;font-size:10px}
+
+/* КОНЦЕПТ 2 — ЛЕНТА */
+.app[data-concept="ribbon"] .topbar{flex-wrap:wrap;padding-bottom:0}
+.app[data-concept="ribbon"] .brand-block{flex:1 1 100%}
+.app[data-concept="ribbon"] .topbar-actions{flex:1 1 100%;justify-content:flex-start;background:var(--surface-alt);border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;padding:7px 8px 9px;position:relative}
+.app[data-concept="ribbon"] .topbar-actions .btn{border-radius:4px;padding:8px 10px}
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(3),
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(5),
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(6),
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(9){margin-right:16px}
+.app[data-concept="ribbon"] .topbar-actions::after{content:"Файл  ·  Фильтры  ·  Эталон  ·  Заказ  ·  Сервис";position:absolute;left:10px;bottom:1px;font-size:9px;color:var(--muted)}
+.app[data-concept="ribbon"] .tabs-bar{padding-top:8px;align-items:flex-end}
+.app[data-concept="ribbon"] .tab-btn{border-radius:9px 9px 0 0;border-bottom:none;padding:8px 16px;background:#dde6ee}
+.app[data-concept="ribbon"] .tab-btn.active{background:var(--surface);color:var(--primary-dark);border-color:var(--border-strong);font-weight:700}
+.app[data-concept="ribbon"] .table-card{border-radius:0 8px 8px 8px}
+.app[data-concept="ribbon"] thead th{background:var(--primary);color:#fff;border-bottom:2px solid var(--primary-dark)}
+.app[data-concept="ribbon"] thead th .flt{color:#cfe0ee}
+.app[data-concept="ribbon"] tbody td{border-right:1px solid #edf1f5}
+
+/* КОНЦЕПТ 3 — ДВЕ ПАНЕЛИ */
+.app[data-concept="split"] main{display:grid;grid-template-columns:minmax(0,1fr) 294px;grid-template-rows:minmax(0,1fr) auto;gap:10px}
+.app[data-concept="split"] .table-card{grid-column:1;grid-row:1}
+.app[data-concept="split"] .pagination{grid-column:1/3}
+.app[data-concept="split"] .summary{display:none}
+.app[data-concept="split"] .inspector{display:flex;grid-column:2;grid-row:1;flex-direction:column;gap:8px;min-height:0;overflow:auto}
+.insp-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.insp-card .lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.insp-card .big{font-size:17px;font-weight:700;color:var(--primary-dark);margin:3px 0}
+.insp-card .row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-bottom:1px dotted var(--border)}
+.insp-card .row:last-child{border-bottom:none}
+.insp-card .btn{width:100%;margin-top:6px;background:var(--btnbar-bg);border-color:var(--btnbar-border)}
+.meter{height:7px;background:#e7edf3;border-radius:99px;overflow:hidden;margin:6px 0 3px}
+.meter i{display:block;height:100%;width:62%;background:var(--primary)}
+.app[data-concept="split"] thead th{background:#eef2f6;border-bottom:2px solid var(--primary)}
+.app[data-concept="split"] tbody tr.sel td{background:var(--primary-soft)}
+
+/* КОНЦЕПТ 4 — КНИГА EXCEL */
+.app[data-concept="excelbook"] .formula-bar{display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);padding:4px 12px;flex:0 0 auto}
+.formula-bar .fx{font-style:italic;font-weight:700;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:2px 9px;background:var(--surface-alt)}
+.formula-bar .addr{border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px;color:#48586a;background:#fff;min-width:86px;text-align:center}
+.formula-bar input{flex:1;font:inherit;font-size:12.5px;padding:4px 9px;border:1px solid var(--border-strong);border-radius:4px}
+.app[data-concept="excelbook"] .tabs-bar{order:5;border-top:1px solid var(--border-strong);background:#e7edf3;padding:5px 12px 7px}
+.app[data-concept="excelbook"] main{order:3}
+.app[data-concept="excelbook"] .tab-btn{border-radius:3px 3px 9px 9px;background:#d5e0ea;padding:7px 18px}
+.app[data-concept="excelbook"] .tab-btn.active{background:var(--surface);color:var(--primary-dark);font-weight:700;box-shadow:0 2px 0 var(--primary) inset}
+.app[data-concept="excelbook"] .table-card{border-radius:2px}
+.app[data-concept="excelbook"] thead th{background:#dde6ee;border-right:1px solid #c9d5e0;font-family:Consolas,"Cascadia Mono",monospace;font-size:10.5px}
+.app[data-concept="excelbook"] tbody td{border-right:1px solid #edf1f5}
+.app[data-concept="excelbook"] tbody td:first-child{background:var(--surface-alt);color:var(--muted);text-align:center}
+.app[data-concept="excelbook"] tbody tr:nth-child(even) td{background:#f7f9fb}
+.app[data-concept="excelbook"] tbody tr:hover td{background:var(--surface-hover)}
+
+/* КОНЦЕПТ 5 — ОСТРОВА */
+.app[data-concept="islands"]{background:#e9eff4;gap:10px;padding:12px}
+.app[data-concept="islands"] .topbar{border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 20px rgba(31,58,82,.10);padding:8px 14px}
+.app[data-concept="islands"] .topbar-actions .btn{border-radius:99px;padding-left:13px;padding-right:13px;box-shadow:0 1px 3px rgba(31,58,82,.12)}
+.app[data-concept="islands"] .tabs-bar{padding:0}
+.app[data-concept="islands"] .tabs-left{background:#dfe8f0;border-radius:99px;padding:3px;gap:2px}
+.app[data-concept="islands"] .tab-btn{border:none;background:transparent;border-radius:99px}
+.app[data-concept="islands"] .tab-btn.active{background:var(--surface);color:var(--primary-dark);box-shadow:0 1px 4px rgba(31,58,82,.18)}
+.app[data-concept="islands"] .tab-btn:not(.active) .tab-counter{background:transparent}
+.app[data-concept="islands"] .stock-match{background:var(--surface);border-radius:99px}
+.app[data-concept="islands"] .sum-card{border-radius:12px;box-shadow:0 3px 10px rgba(31,58,82,.08);border:none;padding:6px 14px}
+.app[data-concept="islands"] main{padding:0}
+.app[data-concept="islands"] .table-card{border:none;border-radius:16px;box-shadow:0 8px 28px rgba(31,58,82,.10)}
+.app[data-concept="islands"] thead th{background:var(--surface);color:var(--muted);border-bottom:1px solid var(--border)}
+.app[data-concept="islands"] tbody td{border-bottom:1px solid #eef2f6}
+.app[data-concept="islands"] .btn,.app[data-concept="islands"] .qty{border-radius:8px}
+.foot{font-size:12.5px;color:#48586a;margin-top:14px;line-height:1.6;background:#fff;border:1px solid var(--border);border-radius:8px;padding:11px 14px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head"><h1>Остатки 2 · Вариант 7 — макеты дизайна</h1><span class="sub">Все 5 макетов на одной странице — листайте вниз · настоящие строки из «Ведомость с периодом ОК (1).xlsx»</span></div>
+  <div class="note"><b>Одинаково во всех 5 (по ТЗ):</b> палитра «кабинет» · высота строк минимальная и одна (padding ячеек 1px 6px нигде не меняется) · кнопки верхней панели в одну линию и одного цвета #e7edf3 · выключенные «Продажи 12 мес.» / «Актуально» — белые (нажимаются) · рейтинг в прежних приглушённых цветах. Меняется только <b>скелет экрана</b>.</div>
+  <nav class="nav" id="nav"></nav>
+  <div id="sections"></div>
+  <div class="foot"><b>Как выбрать:</b> долистайте до конца, сравните силуэты и напишите в чат просто цифру <b>1–5</b> — или что смешать (например, «левая колонка от №1 + тёмная шапка от №2»). Это макеты: в боевую сборку и релизы ничего не уходит без вашего выбора.</div>
+</div>
+
+<template id="appTpl">
+  <div class="app">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="app-logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M3 3v18h18"/><path d="M7 16l4-5 4 3 5-7"/></svg></div>
+        <div>
+          <div class="brand-title-row"><h1>Остатки 2</h1><span class="badge">Сборка: Вариант 7 • PRO SCM</span><span class="badge badge-accent">Рейтинг 5..0 • SBA</span></div>
+          <div class="file-meta">Ведомость с периодом ОК (1).xlsx · 1 850 позиций · <span class="ok">Эталон: загружен сегодня ✓</span> · Сохранение: 10:42</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn">Загрузить новую ведомость</button>
+        <button class="btn">Загрузить сохраненную ведомость</button>
+        <button class="btn">Очистить ведомость</button>
+        <button class="btn tgl" aria-pressed="true">Продажи 12 мес.</button>
+        <button class="btn tgl" aria-pressed="true">Актуально</button>
+        <button class="btn">Загрузить эталон</button>
+        <button class="btn">Сделать автозаказ</button>
+        <button class="btn">Загрузить заказ</button>
+        <button class="btn">Подсветить заказ<span class="order-hint-sep"></span><span class="plus-badge">+</span></button>
+        <button class="btn">Параметры ▸</button>
+      </div>
+    </header>
+    <div class="formula-bar"><span class="fx">fx</span><span class="addr">D8 · Товар</span><input type="search" placeholder="Поиск по номенклатуре — как строка формул: начните вводить название или артикул…"></div>
+    <nav class="tabs-bar">
+      <div class="tabs-left">
+        <button class="tab-btn active" data-tab>Ведомость <span class="tab-counter">1 850</span></button>
+        <button class="tab-btn" data-tab>Заказ <span class="tab-counter">12</span></button>
+        <button class="tab-btn" data-tab>Графики</button>
+        <button class="tab-btn" data-tab>Аналитика</button>
+        <span class="stock-match">Совпадение, % <input value="80"> <button class="btn">Другой склад</button><button class="hints-off" title="Подсказки выключены">×</button></span>
+      </div>
+      <div class="summary">
+        <div class="sum-card"><span>Поставщик выбранной строки</span><strong>ООО «ГолдДекор» · 8 022,50 руб.</strong></div>
+        <div class="sum-card budget"><span>Бюджет закупки</span><strong>48 320,50 руб.</strong></div>
+      </div>
+    </nav>
+    <main>
+      <div class="table-card">
+        <table>
+          <thead><tr>
+            <th class="ctr">+<button class="flt">▾</button></th><th class="ctr">№</th><th>Склад<button class="flt">▾</button></th><th>Группа<button class="flt">▾</button></th><th>Артикул<button class="flt">▾</button></th><th>Номенклатура ⌕<button class="flt">▾</button></th><th>Ед.<button class="flt">▾</button></th><th>Рейтинг<button class="flt">▾</button></th><th class="num">Продажи<button class="flt">▾</button></th><th class="num">Остаток<button class="flt">▾</button></th><th class="num">Заказ<button class="flt">▾</button></th><th class="num">Цена<button class="flt">▾</button></th><th class="num">Розница<button class="flt">▾</button></th><th class="num">Сумма<button class="flt">▾</button></th><th>Поставщик<button class="flt">▾</button></th>
+          </tr></thead>
+          <tbody class="tbody"></tbody>
+          <tfoot><tr><td colspan="8">Итого по ведомости (показаны первые строки)</td><td class="num">7 845</td><td class="num">—</td><td class="num">232</td><td></td><td></td><td class="num">1 845,10</td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <aside class="inspector">
+        <div class="insp-card"><div class="lab">Поставщик выбранной строки</div><div class="big">ООО «ГолдДекор»</div>
+          <div class="row"><span>Склад</span><b>Склад Кореличи</b></div><div class="row"><span>SKU к закупке</span><b>24</b></div><div class="row"><span>Сумма заказа</span><b>8 022,50 руб.</b></div>
+          <button class="btn">Предварительный просмотр</button><button class="btn">Скачать заказ (Excel)</button></div>
+        <div class="insp-card"><div class="lab">Бюджет закупки · все поставщики склада</div><div class="big">48 320,50 руб.</div>
+          <div class="meter"><i></i></div><div class="row"><span>Лимит бюджета</span><b>без лимита</b></div><div class="row"><span>Выбрано поставщиков</span><b>3 · 19 410,00 руб.</b></div>
+          <button class="btn">Сделать автозаказ</button><button class="btn">Подсветить заказ +</button></div>
+        <div class="insp-card"><div class="lab">Подсветка рекомендаций</div>
+          <div class="row"><span>Рекомендовано позиций</span><b>18</b></div><div class="row"><span>Остаток 0 · рейтинг 2+</span><b>4</b></div><div class="row"><span>«пер» (перенос)</span><b>2</b></div></div>
+      </aside>
+      <footer class="pagination"><span>Показано 14 из 1 850 · Склад Мир: светло-зелёный, Склад Кореличи: бежевый (только столбец «Склад»)</span><span>Высота строк — как в программе</span></footer>
+    </main>
+  </div>
+</template>
+
+<script>
+const ROWS=[
+ [1,8,"kor","Склад Кореличи","2 краски растворители","—","Краситель ОРЕОЛ 100 мл","шт",5,"3 036",8,55,"2,22","3,35","122,10","ООО «ГолдДекор»"],
+ [0,412,"mir","Склад Мир","2 замки фурнитура","—","Уголок крепеж. 40×40×40×1,5 усил. цинк","шт",5,"929",69,0,"0,31","0,53","0,00","ООО «Оберег Торг»"],
+ [0,413,"mir","Склад Мир","2 замки фурнитура","—","Кронштейн МК 20×20 цинк","шт",5,"860",22,15,"0,11","0,19","1,65","ООО «Оберег Торг»"],
+ [1,414,"mir","Склад Мир","2 замки фурнитура","—","Кронштейн МК 16×16 цинк","шт",4,"706",0,16,"0,08","—","1,28","ООО «Оберег Торг»"],
+ [0,415,"mir","Склад Мир","2 замки фурнитура","—","Уголок меб. 47×47×40×2,3 цинк","шт",4,"690",2,15,"0,79","1,35","11,85","ООО «Оберег Торг»"],
+ [0,88,"kor","Склад Кореличи","2 краски растворители","0282286","Растворитель 646 0,9 л Нафтан","шт",4,"645",13,0,"7,43","11,07","0,00","ЧТУП «АвтоНикахим»"],
+ [0,416,"mir","Склад Мир","2 замки фурнитура","—","Кронштейн МК 32×32 цинк","шт",3,"644",15,0,"0,18","0,31","0,00","ООО «Оберег Торг»"],
+ [1,417,"mir","Склад Мир","2 замки фурнитура","—","Уголок крепеж. 70×70×55×2,0","шт",3,"641",0,10,"0,65","—","6,50","ООО «Оберег Торг»"],
+ [0,418,"mir","Склад Мир","2 замки фурнитура","SMP-76210-1","Уголок креп. 90×100×100","шт",3,"624",30,20,"1,51","2,42","30,20","ООО «ТД Комплект»"],
+ [0,419,"mir","Склад Мир","2 замки фурнитура","—","Петля гаражная с шар. 20×110 б/п","шт",2,"623",0,3,"2,83","—","8,49","ООО «Оберег Торг»"],
+ [0,9,"kor","Склад Кореличи","2 краски растворители","—","Аммиак водный 0,5 л Адмирал","шт",2,"8",3,0,"2,37","3,55","0,00","ООО «БелАдмиралСтрой»"],
+ [1,14,"kor","Склад Кореличи","2 краски растворители","—","Ацетон техн. 0,5 л","шт",1,"45",0,1,"6,71","—","6,71","ООО «ГолдДекор»"],
+ [0,15,"kor","Склад Кореличи","2 краски растворители","0242345","Ацетон техн. 1,0 л","шт",1,"32",3,0,"11,86","17,78","0,00","ООО «ГолдДекор»"],
+ [0,20,"kor","Склад Кореличи","2 краски растворители","—","Антикороз. бит. покрытие-праймер «Инкор» 0,8 кг","шт",0,"0",2,0,"19,06","26,68","0,00","ООО «ПилотЭлектроПлюс»"],
+];
+const segName={5:"5 · Высокий",4:"4 · Выше ср.",3:"3 · Средний",2:"2 · Ниже ср.",1:"1 · Низкий",0:"0 · Нет продаж"};
+const rowsHTML = ROWS.map(r=>`<tr${r[1]===8?' class="sel"':''}>
+ <td class="ctr"><input type="checkbox" class="plus-inp" ${r[0]?'checked':''}></td><td class="ctr">${r[1]}</td>
+ <td class="wh ${r[2]==='mir'?'wh-mir':'wh-kor'}">${r[3].replace(' ','<br>')}</td><td class="grp">${r[4].replace(' ','<br>')}</td>
+ <td>${r[5]}</td><td class="name-cell">${r[6]}</td><td class="ctr">${r[7]}</td>
+ <td class="ctr"><span class="seg seg${r[8]}">${segName[r[8]]}</span></td>
+ <td class="num">${r[9]}</td><td class="num">${r[10]}</td>
+ <td class="num"><input class="qty ${r[11]>0?'hl':''}" value="${r[11]||''}"></td>
+ <td class="num">${r[12]}</td><td class="num">${r[13]}</td><td class="num">${r[14]}</td>
+ <td class="sup-cell"><button class="swap" title="Заменить поставщика">+</button>${r[15]}</td></tr>`).join('');
+
+const CONCEPTS=[
+ {id:'navigator', n:'Навигатор', d:'Левая вертикальная колонка навигации', p:'Вкладки и бюджет уехали в левую колонку на всю высоту (как в VS Code / почтовом клиенте), сверху — только строка команд, таблица занимает всю правую часть.', lis:['Силуэт: «приложение с сайдбаром», а не «шапка + таблица»','Бюджет и поставщик — внизу левой колонки, всегда на виду','Шапка таблицы: светло-серая, прописными буквами']},
+ {id:'ribbon', n:'Лента Excel', d:'Группы команд, вкладки-папки, тёмная шапка', p:'Команды — лентой с группами «Файл · Фильтры · Эталон · Заказ · Сервис» (подписи под кнопками), вкладки — папки-ярлыки, прилепленные к таблице.', lis:['Силуэт: родной Office/1С — двухъярусная шапка','Шапка таблицы: тёмно-синяя плашка, белые заголовки, полная сетка','Бюджет/поставщик — плашками справа от вкладок-папок']},
+ {id:'split', n:'Две панели', d:'Таблица слева + инспектор поставщика справа', p:'Экран разрезан: слева таблица, справа постоянный инспектор — поставщик выбранной строки, бюджет с полосой лимита, готовность и кнопки заказа.', lis:['Силуэт: «рабочий стол закупщика» — заказ собирается, не уходя из таблицы','Плашки бюджета со вкладок убраны — всё живёт в правой панели','Выбранная строка подсвечена мягким синим']},
+ {id:'excelbook', n:'Книга Excel', d:'Строка формул сверху, листы-вкладки снизу', p:'Вкладки переехали вниз, как листы книги Excel, а поиск по номенклатуре стал «строкой формул» (fx) под панелью команд.', lis:['Силуэт: вы как будто внутри самой ведомости Excel','Шапка и сетка «эксельные»: моно-заголовки, серый желоб номеров, лёгкая зебра','Высота строк та же — зебра и сетка её не меняют']},
+ {id:'islands', n:'Острова', d:'Плавающие карточки, кнопки-пилюли, сегмент-вкладки', p:'Серый холст, на нём отдельные белые карточки с тенями: панель команд, вкладки и таблица — каждый блок «остров».', lis:['Силуэт: современный SaaS — противоположность «Ленте» и «Книге»','Кнопки — пилюли, вкладки — сегмент-переключатель в общем «желобе»','Шапка таблицы белая, без рамок — только тонкая линия под заголовками']},
+];
+const nav=document.getElementById('nav'), sections=document.getElementById('sections'), tpl=document.getElementById('appTpl');
+nav.innerHTML=CONCEPTS.map((c,i)=>`<a href="#c${i+1}">${i+1}. ${c.n}<span>${c.d}</span></a>`).join('');
+CONCEPTS.forEach((c,i)=>{
+  const sec=document.createElement('section'); sec.className='concept-section'; sec.id='c'+(i+1);
+  sec.innerHTML=`<div class="concept-head"><h2><span class="num">${i+1}</span>${c.n}</h2><p>${c.p}</p><ul>${c.lis.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
+  const clone=tpl.content.firstElementChild.cloneNode(true);
+  clone.dataset.concept=c.id;
+  clone.querySelector('.tbody').innerHTML=rowsHTML;
+  clone.querySelectorAll('.tgl').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true')));
+  clone.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>clone.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b))));
+  sec.appendChild(clone); sections.appendChild(sec);
+});
+</script>
+</body>
+</html>

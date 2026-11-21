@@ -472,11 +472,16 @@ func TestServerAPIEndpoints(t *testing.T) {
 		"border-radius: 50%",
 		"color: #000000 !important",
 		"#5fae77",                  /* б47: приглушённые цвета рейтинга (оттенки прежние) */
-		"[data-theme=\"classic\"]", /* б49: пять дизайнов на общей палитре */
-		"[data-theme=\"cabinet\"]",
-		"[data-theme=\"saas\"]",
-		"[data-theme=\"paper\"]",
+		"[data-theme=\"islands\"]", /* б50: вторая пятёрка дизайнов (макеты №6–10) */
+		"[data-theme=\"ribbon\"]",
+		"[data-theme=\"console\"]",
+		"[data-theme=\"excelbook\"]",
 		"[data-theme=\"terminal\"]",
+		"[data-theme=\"islands\"] .topbar-actions .btn { border-radius: 99px", /* б50: острова-пилюли */
+		"[data-theme=\"ribbon\"] .data-table thead th {\n  background: var(--primary);", /* б50: тёмная шапка ленты */
+		"[data-theme=\"console\"] .tabs-order-summary { order: -1", /* б50: полоса показателей сверху */
+		"[data-theme=\"excelbook\"] .tabs-bar {\n  position: fixed;", /* б50: листы снизу */
+		".data-table td { border-right: 1px solid #d7e0e9; }", /* б50: вертикальные границы во всех вариантах */
 		".topbar-actions .btn { white-space: nowrap", /* б48: кнопки в одну линию */
 		"--btnbar-bg", /* б49: единый цвет кнопок плашки */
 		".topbar-actions .btn.property-filter-active[aria-pressed=\"false\"]", /* б49: выключенные белеют */

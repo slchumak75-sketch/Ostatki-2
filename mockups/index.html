@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Остатки 2 — вторая пятёрка концептов (№6–10)</title>
+<style>
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --surface-alt:#f7f9fb; --surface-hover:#eef2f6;
+  --border:#dfe5eb; --border-strong:#b9c6d2; --text:#2e3742; --muted:#7c8a98;
+  --primary:#4c6e8b; --primary-dark:#3d5d78; --primary-soft:#e1eaf2;
+  --btnbar-bg:#e7edf3; --btnbar-hover:#dbe4ec; --btnbar-border:#b9c6d2;
+  --seg5:#5fae77; --seg4:#a6c05f; --seg3:#e0d058; --seg2:#ece5bf; --seg1:#d9a3bf; --seg0:#cf5f5b;
+  --grid:#d7e0e9;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:"Segoe UI",-apple-system,"Inter",Roboto,Arial,sans-serif;font-size:13.5px;color:var(--text);background:#e3e9ef;-webkit-font-smoothing:antialiased}
+.page{max-width:1560px;margin:0 auto;padding:16px 18px 40px}
+.page-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.page-head h1{font-size:21px;margin:0}
+.page-head .sub{color:#5a6b7a;font-size:12.5px}
+.note{background:#fff;border:1px solid var(--border-strong);border-left:4px solid var(--primary);padding:8px 12px;font-size:12.5px;margin:10px 0 14px;line-height:1.5}
+.note b{color:var(--primary-dark)}
+.nav{position:sticky;top:0;z-index:50;display:flex;gap:6px;flex-wrap:wrap;background:#e3e9ef;padding:8px 0}
+.nav a{flex:1;text-align:center;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--border-strong);border-radius:9px;padding:8px 6px;font-size:12.5px;font-weight:600}
+.nav a:hover{border-color:var(--primary);background:var(--surface-alt)}
+.nav a span{display:block;font-weight:400;color:var(--muted);font-size:11px;margin-top:1px}
+.concept-section{margin:0 0 30px}
+.concept-head{background:#fff;border:1px solid var(--border-strong);border-radius:10px 10px 0 0;border-bottom:none;padding:12px 16px 10px}
+.concept-head h2{margin:0;font-size:18px}
+.concept-head h2 .num{display:inline-block;background:var(--primary);color:#fff;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;font-size:13px;margin-right:7px;vertical-align:2px}
+.concept-head p{margin:5px 0 0;color:#5a6b7a;font-size:12.5px;line-height:1.5}
+.concept-head ul{margin:5px 0 0;padding-left:19px;color:#48586a;font-size:12.5px;line-height:1.5}
+
+/* ===== Каркас (один шаблон, 5 клонов) ===== */
+.app{background:var(--bg);border:1px solid #9fb0c0;border-radius:0 0 10px 10px;height:742px;display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:0 10px 34px rgba(46,55,66,.16)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex:0 0 auto;min-width:0}
+.brand-block{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto}
+.app-logo{width:32px;height:32px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;background:var(--primary-soft);color:var(--primary-dark);border-radius:7px}
+.brand-title-row{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.brand-title-row h1{font-size:16px;margin:0}
+.badge{font-size:10.5px;padding:2px 7px;border-radius:99px;border:1px solid var(--border-strong);background:var(--surface-alt);color:#48586a;white-space:nowrap}
+.badge-accent{background:var(--primary-soft)}
+.file-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-meta .ok{color:#4f8a71;font-weight:600}
+.topbar-actions{display:flex;flex-wrap:nowrap;gap:5px;align-items:center;overflow:hidden;flex:1 1 auto;justify-content:flex-end;min-width:0}
+.btn{font:inherit;font-size:12px;padding:5px 9px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;flex:0 0 auto;line-height:1.25}
+.topbar-actions .btn{background:var(--btnbar-bg);border-color:var(--btnbar-border);color:var(--text)}
+.topbar-actions .btn:hover{background:var(--btnbar-hover)}
+.topbar-actions .btn[aria-pressed="false"]{background:#ffffff;color:var(--muted)}
+.order-hint-sep{display:inline-block;width:1px;height:12px;background:var(--border-strong);margin:0 5px -2px 7px}
+.plus-badge{display:inline-block;min-width:15px;text-align:center;font-weight:700;border:1px solid var(--border-strong);border-radius:3px;background:var(--surface);padding:0 2px}
+.formula-bar{display:none}
+.kpi-strip{display:none}
+.tabs-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 12px 0;flex:0 0 auto;min-width:0}
+.tabs-left{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0}
+.tab-btn{font:inherit;font-size:12.5px;padding:6px 12px;border:1px solid var(--border-strong);background:#eef2f6;color:var(--text);border-radius:7px;cursor:pointer;white-space:nowrap}
+.tab-btn:hover{background:#e2eaf1}
+.tab-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+.tab-counter{background:rgba(255,255,255,.25);border-radius:99px;padding:0 6px;font-size:11px}
+.tab-btn:not(.active) .tab-counter{background:var(--primary-soft);color:var(--primary-dark)}
+.stock-match{font-size:12px;border:1px solid var(--border-strong);background:#eef2f6;border-radius:7px;padding:4px 8px;white-space:nowrap;display:flex;gap:5px;align-items:center}
+.stock-match input{width:44px;font:inherit;font-size:12px;padding:1px 3px;border:1px solid var(--border-strong);border-radius:4px}
+.stock-match .btn{background:#eef2f6}
+.hints-off{width:22px;height:22px;padding:0;line-height:1;border-radius:5px;border:1px solid #4f8a71;background:#4f8a71;color:#fff;cursor:pointer;font-weight:700}
+.summary{display:flex;gap:6px;align-items:stretch}
+.sum-card{border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:4px 10px;font-size:11.5px;color:var(--muted);white-space:nowrap;display:flex;flex-direction:column;justify-content:center}
+.sum-card strong{color:var(--text);font-size:12.5px}
+.sum-card.budget strong{color:var(--primary-dark);font-size:13px}
+main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:6px 12px 8px;overflow:hidden}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:auto;flex:1 1 auto;min-height:0}
+.pagination{flex:0 0 auto;font-size:11.5px;color:var(--muted);padding-top:5px;display:flex;justify-content:space-between}
+
+/* Таблица: ВЕЗДЕ вертикальные границы столбцов; рейтинг — только цифра в кружке; высота строк одна */
+table{border-collapse:collapse;width:100%;font-size:12px}
+thead th{position:sticky;top:0;z-index:2;background:#e7ecf1;color:#48586a;font-size:11px;font-weight:600;text-align:left;padding:4px 6px;border-bottom:2px solid var(--border-strong);border-right:1px solid var(--grid);white-space:nowrap}
+thead th:last-child{border-right:none}
+thead th .flt{float:right;border:none;background:transparent;color:#8fa1b3;cursor:pointer;font-size:9px;padding:0 0 0 3px}
+tbody td{padding:1px 6px !important;border-bottom:1px solid #edf1f5;border-right:1px solid var(--grid);white-space:nowrap;vertical-align:middle;color:var(--text)}
+tbody td:last-child{border-right:none}
+tbody tr:hover td{background:var(--surface-hover)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.ctr,th.ctr{text-align:center}
+.wh-mir{background:#e4f0e7 !important}
+.wh-kor{background:#f5ead6 !important}
+tbody td.wh{font-size:8px;line-height:1.05}
+tbody td.grp{font-size:8px;line-height:1.05;color:#48586a}
+.qty{display:inline-block;width:56px;height:18px;box-sizing:border-box;border:1px solid var(--border-strong);border-radius:3px;font:inherit;font-size:12px;text-align:right;padding:0 4px;font-variant-numeric:tabular-nums;background:#fff;color:var(--text)}
+.qty.hl{background:#fdf3c9;border-color:#d9b93a}
+.seg{display:inline-block;width:19px;height:19px;border-radius:50%;padding:0;line-height:19px;text-align:center;font-size:11px;font-weight:700;color:#000}
+.seg5{background:var(--seg5)} .seg4{background:var(--seg4)} .seg3{background:var(--seg3)} .seg2{background:var(--seg2)} .seg1{background:var(--seg1)} .seg0{background:var(--seg0)}
+.plus-inp{width:15px;height:15px;accent-color:var(--primary);vertical-align:middle}
+tfoot td{padding:3px 6px;font-weight:700;background:var(--surface-alt);border-top:2px solid var(--border-strong);border-right:1px solid var(--grid);font-variant-numeric:tabular-nums}
+tfoot td:last-child{border-right:none}
+.name-cell{white-space:normal;min-width:230px}
+.sup-cell{color:#48586a}
+.swap{border:1px solid var(--border-strong);background:var(--surface);border-radius:3px;width:16px;height:16px;line-height:1;padding:0;cursor:pointer;font-size:11px;margin-right:4px;color:var(--primary-dark)}
+
+/* №6 — ОСТРОВА+ (доработанный №5) */
+.app[data-concept="islands"]{background:#e9eff4;gap:10px;padding:12px}
+.app[data-concept="islands"] .topbar{border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 20px rgba(31,58,82,.10);padding:8px 14px}
+.app[data-concept="islands"] .topbar-actions .btn{border-radius:99px;padding-left:13px;padding-right:13px;box-shadow:0 1px 3px rgba(31,58,82,.12)}
+.app[data-concept="islands"] .tabs-bar{padding:0}
+.app[data-concept="islands"] .tabs-left{background:#dfe8f0;border-radius:99px;padding:3px;gap:2px}
+.app[data-concept="islands"] .tab-btn{border:none;background:transparent;border-radius:99px}
+.app[data-concept="islands"] .tab-btn.active{background:var(--surface);color:var(--primary-dark);box-shadow:0 1px 4px rgba(31,58,82,.18)}
+.app[data-concept="islands"] .tab-btn:not(.active) .tab-counter{background:transparent}
+.app[data-concept="islands"] .stock-match{background:var(--surface);border-radius:99px}
+.app[data-concept="islands"] .sum-card{border-radius:12px;box-shadow:0 3px 10px rgba(31,58,82,.08);border:none;padding:6px 14px}
+.app[data-concept="islands"] main{padding:0}
+.app[data-concept="islands"] .table-card{border:none;border-radius:16px;box-shadow:0 8px 28px rgba(31,58,82,.10)}
+.app[data-concept="islands"] thead th{background:var(--surface);color:var(--muted);border-bottom:1px solid var(--border);border-right:1px solid var(--grid)}
+.app[data-concept="islands"] tbody td{border-bottom:1px solid #eef2f6;border-right:1px solid var(--grid)}
+.app[data-concept="islands"] .btn,.app[data-concept="islands"] .qty{border-radius:8px}
+
+/* №7 — ЛЕНТА-КАРТОЧКА */
+.app[data-concept="ribbon"]{background:#e9eff4;gap:10px;padding:12px}
+.app[data-concept="ribbon"] .topbar{flex-wrap:wrap;border:1px solid var(--border);border-radius:14px;box-shadow:0 6px 18px rgba(31,58,82,.09);padding:10px 14px 12px}
+.app[data-concept="ribbon"] .brand-block{flex:1 1 100%}
+.app[data-concept="ribbon"] .topbar-actions{flex:1 1 100%;justify-content:flex-start;background:var(--surface-alt);border:1px solid var(--border);border-radius:9px;padding:7px 8px 9px;position:relative}
+.app[data-concept="ribbon"] .topbar-actions .btn{border-radius:5px;padding:8px 10px;box-shadow:none}
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(3),
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(5),
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(6),
+.app[data-concept="ribbon"] .topbar-actions .btn:nth-child(9){margin-right:16px}
+.app[data-concept="ribbon"] .topbar-actions::after{content:"Файл  ·  Фильтры  ·  Эталон  ·  Заказ  ·  Сервис";position:absolute;left:10px;bottom:1px;font-size:9px;color:var(--muted)}
+.app[data-concept="ribbon"] .tabs-bar{padding:0 2px;align-items:flex-end}
+.app[data-concept="ribbon"] .tab-btn{border-radius:9px 9px 0 0;border-bottom:none;padding:8px 16px;background:#dde6ee}
+.app[data-concept="ribbon"] .tab-btn.active{background:var(--surface);color:var(--primary-dark);border-color:var(--border-strong);font-weight:700}
+.app[data-concept="ribbon"] main{padding:0}
+.app[data-concept="ribbon"] .table-card{border-radius:0 12px 12px 12px;box-shadow:0 8px 24px rgba(31,58,82,.09)}
+.app[data-concept="ribbon"] thead th{background:var(--primary);color:#fff;border-bottom:2px solid var(--primary-dark);border-right:1px solid #5d81a0}
+.app[data-concept="ribbon"] thead th .flt{color:#cfe0ee}
+
+/* №8 — ПУЛЬТ (горизонтальная полоса показателей) */
+.app[data-concept="console"]{gap:8px}
+.app[data-concept="console"] .kpi-strip{display:flex;gap:8px;padding:8px 12px 0}
+.kpi{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 12px;min-width:0}
+.kpi .lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+.kpi .val{font-size:17px;font-weight:700;color:var(--primary-dark);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi .sub{font-size:11px;color:var(--muted);white-space:nowrap}
+.kpi.accent{background:var(--primary);border-color:var(--primary)}
+.kpi.accent .lab,.kpi.accent .sub{color:#cfe0ee}
+.kpi.accent .val{color:#fff}
+.app[data-concept="console"] .summary{display:none}
+.app[data-concept="console"] .tabs-bar{padding-top:2px}
+.app[data-concept="console"] .tab-btn{border-radius:99px}
+.app[data-concept="console"] thead th{background:#dfe8f0;text-transform:uppercase;letter-spacing:.04em;font-size:10px}
+
+/* №9 — КНИГА EXCEL */
+.app[data-concept="excelbook"] .formula-bar{display:flex;align-items:center;gap:8px;background:var(--surface);border-bottom:1px solid var(--border);padding:4px 12px;flex:0 0 auto}
+.formula-bar .fx{font-style:italic;font-weight:700;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:2px 9px;background:var(--surface-alt)}
+.formula-bar .addr{border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px;color:#48586a;background:#fff;min-width:86px;text-align:center}
+.formula-bar input{flex:1;font:inherit;font-size:12.5px;padding:4px 9px;border:1px solid var(--border-strong);border-radius:4px}
+.app[data-concept="excelbook"] .tabs-bar{order:5;border-top:1px solid var(--border-strong);background:#e7edf3;padding:5px 12px 7px}
+.app[data-concept="excelbook"] main{order:3}
+.app[data-concept="excelbook"] .tab-btn{border-radius:3px 3px 9px 9px;background:#d5e0ea;padding:7px 18px}
+.app[data-concept="excelbook"] .tab-btn.active{background:var(--surface);color:var(--primary-dark);font-weight:700;box-shadow:0 2px 0 var(--primary) inset}
+.app[data-concept="excelbook"] .table-card{border-radius:2px}
+.app[data-concept="excelbook"] thead th{background:#dde6ee;font-family:Consolas,"Cascadia Mono",monospace;font-size:10.5px}
+.app[data-concept="excelbook"] tbody td:first-child{background:var(--surface-alt);color:var(--muted);text-align:center}
+.app[data-concept="excelbook"] tbody tr:nth-child(even) td{background:#f7f9fb}
+.app[data-concept="excelbook"] tbody tr:hover td{background:var(--surface-hover)}
+
+/* №10 — ТЕРМИНАЛ СЕТКИ */
+.app[data-concept="terminal"]{border-radius:0 0 6px 6px}
+.app[data-concept="terminal"] .topbar{border-bottom:2px solid var(--primary)}
+.app[data-concept="terminal"] .topbar-actions{gap:0}
+.app[data-concept="terminal"] .topbar-actions .btn{border-radius:0;margin-left:-1px;font-family:Consolas,"Cascadia Mono",monospace;text-transform:uppercase;font-size:10.5px;letter-spacing:.02em;padding:7px 9px}
+.app[data-concept="terminal"] .topbar-actions .btn:first-child{margin-left:0}
+.app[data-concept="terminal"] .tabs-bar{padding-top:6px}
+.app[data-concept="terminal"] .tab-btn{border-radius:0;font-family:Consolas,"Cascadia Mono",monospace;text-transform:uppercase;font-size:11px}
+.app[data-concept="terminal"] .table-card{border-radius:0;border-color:var(--border-strong)}
+.app[data-concept="terminal"] thead th{background:var(--surface-alt);color:#4a5b6c;font-family:Consolas,"Cascadia Mono",monospace;text-transform:uppercase;letter-spacing:.04em;font-size:9.5px;border-bottom:2px solid var(--border-strong)}
+.app[data-concept="terminal"] tbody td{font-variant-numeric:tabular-nums}
+.app[data-concept="terminal"] tbody tr:nth-child(even) td{background:#f3f6f8}
+.app[data-concept="terminal"] tbody tr:hover td{background:var(--surface-hover)}
+.app[data-concept="terminal"] .qty,.app[data-concept="terminal"] .seg{border-radius:0}
+.app[data-concept="terminal"] .seg{border-radius:50%}
+.foot{font-size:12.5px;color:#48586a;margin-top:14px;line-height:1.6;background:#fff;border:1px solid var(--border);border-radius:8px;padding:11px 14px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head"><h1>Остатки 2 — вторая пятёрка концептов №6–10</h1><span class="sub">Все 5 на одной странице, листайте вниз · те же настоящие строки ведомости</span></div>
+  <div class="note"><b>Учтено из ваших правок:</b> вертикальных панелей (боковых колонок слева/справа) — <b>нет ни в одном варианте</b>, всё только горизонтальные плашки · пятый вариант «Острова» вам понравился — он доработан и идёт первым под №6 · <b>рейтинг — только цифра</b> в цветном кружке, без слов · в таблице <b>вертикальные границы столбцов</b> во всех вариантах. Как прежде: палитра «кабинет», одна высота строк, кнопки в одну линию одного цвета, выключенные фильтры — белые.</div>
+  <nav class="nav" id="nav"></nav>
+  <div id="sections"></div>
+  <div class="foot"><b>Как выбрать:</b> напишите в чат цифру <b>6–10</b> (или «5-й старый», если прежний «Острова» без сетки был лучше, или что смешать). Первая пятёрка №1–5 по-прежнему лежит отдельным файлом <b>design-concepts.html</b> в папке mockups. В боевую сборку ничего не уходит без вашего выбора.</div>
+</div>
+
+<template id="appTpl">
+  <div class="app">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="app-logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M3 3v18h18"/><path d="M7 16l4-5 4 3 5-7"/></svg></div>
+        <div>
+          <div class="brand-title-row"><h1>Остатки 2</h1><span class="badge">Сборка: Вариант 7 • PRO SCM</span><span class="badge badge-accent">Рейтинг 5..0 • SBA</span></div>
+          <div class="file-meta">Ведомость с периодом ОК (1).xlsx · 1 850 позиций · <span class="ok">Эталон: загружен сегодня ✓</span> · Сохранение: 10:42</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn">Загрузить новую ведомость</button>
+        <button class="btn">Загрузить сохраненную ведомость</button>
+        <button class="btn">Очистить ведомость</button>
+        <button class="btn tgl" aria-pressed="true">Продажи 12 мес.</button>
+        <button class="btn tgl" aria-pressed="true">Актуально</button>
+        <button class="btn">Загрузить эталон</button>
+        <button class="btn">Сделать автозаказ</button>
+        <button class="btn">Загрузить заказ</button>
+        <button class="btn">Подсветить заказ<span class="order-hint-sep"></span><span class="plus-badge">+</span></button>
+        <button class="btn">Параметры ▸</button>
+      </div>
+    </header>
+    <div class="formula-bar"><span class="fx">fx</span><span class="addr">D8 · Товар</span><input type="search" placeholder="Поиск по номенклатуре — как строка формул: начните вводить название или артикул…"></div>
+    <div class="kpi-strip">
+      <div class="kpi accent"><div class="lab">Бюджет закупки</div><div class="val">48 320,50 руб.</div><div class="sub">все поставщики выбранного склада</div></div>
+      <div class="kpi"><div class="lab">Поставщик выбранной строки</div><div class="val">ООО «ГолдДекор»</div><div class="sub">заказ 8 022,50 руб. · 24 SKU</div></div>
+      <div class="kpi"><div class="lab">К закупке</div><div class="val">232 ед.</div><div class="sub">18 рекомендованных позиций</div></div>
+      <div class="kpi"><div class="lab">Ведомость</div><div class="val">1 850 поз.</div><div class="sub">Мир 1 065 · Кореличи 785</div></div>
+    </div>
+    <nav class="tabs-bar">
+      <div class="tabs-left">
+        <button class="tab-btn active" data-tab>Ведомость <span class="tab-counter">1 850</span></button>
+        <button class="tab-btn" data-tab>Заказ <span class="tab-counter">12</span></button>
+        <button class="tab-btn" data-tab>Графики</button>
+        <button class="tab-btn" data-tab>Аналитика</button>
+        <span class="stock-match">Совпадение, % <input value="80"> <button class="btn">Другой склад</button><button class="hints-off" title="Подсказки выключены">×</button></span>
+      </div>
+      <div class="summary">
+        <div class="sum-card"><span>Поставщик выбранной строки</span><strong>ООО «ГолдДекор» · 8 022,50 руб.</strong></div>
+        <div class="sum-card budget"><span>Бюджет закупки</span><strong>48 320,50 руб.</strong></div>
+      </div>
+    </nav>
+    <main>
+      <div class="table-card">
+        <table>
+          <thead><tr>
+            <th class="ctr">+<button class="flt">▾</button></th><th class="ctr">№</th><th>Склад<button class="flt">▾</button></th><th>Группа<button class="flt">▾</button></th><th>Артикул<button class="flt">▾</button></th><th>Номенклатура ⌕<button class="flt">▾</button></th><th>Ед.<button class="flt">▾</button></th><th>Рейтинг<button class="flt">▾</button></th><th class="num">Продажи<button class="flt">▾</button></th><th class="num">Остаток<button class="flt">▾</button></th><th class="num">Заказ<button class="flt">▾</button></th><th class="num">Цена<button class="flt">▾</button></th><th class="num">Розница<button class="flt">▾</button></th><th class="num">Сумма<button class="flt">▾</button></th><th>Поставщик<button class="flt">▾</button></th>
+          </tr></thead>
+          <tbody class="tbody"></tbody>
+          <tfoot><tr><td colspan="8">Итого по ведомости (показаны первые строки)</td><td class="num">7 845</td><td class="num">—</td><td class="num">232</td><td></td><td></td><td class="num">1 845,10</td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <footer class="pagination"><span>Показано 14 из 1 850 · Склад Мир: светло-зелёный, Склад Кореличи: бежевый (только столбец «Склад»)</span><span>Высота строк — как в программе</span></footer>
+    </main>
+  </div>
+</template>
+
+<script>
+const ROWS=[
+ [1,8,"kor","Склад Кореличи","2 краски растворители","—","Краситель ОРЕОЛ 100 мл","шт",5,"3 036",8,55,"2,22","3,35","122,10","ООО «ГолдДекор»"],
+ [0,412,"mir","Склад Мир","2 замки фурнитура","—","Уголок крепеж. 40×40×40×1,5 усил. цинк","шт",5,"929",69,0,"0,31","0,53","0,00","ООО «Оберег Торг»"],
+ [0,413,"mir","Склад Мир","2 замки фурнитура","—","Кронштейн МК 20×20 цинк","шт",5,"860",22,15,"0,11","0,19","1,65","ООО «Оберег Торг»"],
+ [1,414,"mir","Склад Мир","2 замки фурнитура","—","Кронштейн МК 16×16 цинк","шт",4,"706",0,16,"0,08","—","1,28","ООО «Оберег Торг»"],
+ [0,415,"mir","Склад Мир","2 замки фурнитура","—","Уголок меб. 47×47×40×2,3 цинк","шт",4,"690",2,15,"0,79","1,35","11,85","ООО «Оберег Торг»"],
+ [0,88,"kor","Склад Кореличи","2 краски растворители","0282286","Растворитель 646 0,9 л Нафтан","шт",4,"645",13,0,"7,43","11,07","0,00","ЧТУП «АвтоНикахим»"],
+ [0,416,"mir","Склад Мир","2 замки фурнитура","—","Кронштейн МК 32×32 цинк","шт",3,"644",15,0,"0,18","0,31","0,00","ООО «Оберег Торг»"],
+ [1,417,"mir","Склад Мир","2 замки фурнитура","—","Уголок крепеж. 70×70×55×2,0","шт",3,"641",0,10,"0,65","—","6,50","ООО «Оберег Торг»"],
+ [0,418,"mir","Склад Мир","2 замки фурнитура","SMP-76210-1","Уголок креп. 90×100×100","шт",3,"624",30,20,"1,51","2,42","30,20","ООО «ТД Комплект»"],
+ [0,419,"mir","Склад Мир","2 замки фурнитура","—","Петля гаражная с шар. 20×110 б/п","шт",2,"623",0,3,"2,83","—","8,49","ООО «Оберег Торг»"],
+ [0,9,"kor","Склад Кореличи","2 краски растворители","—","Аммиак водный 0,5 л Адмирал","шт",2,"8",3,0,"2,37","3,55","0,00","ООО «БелАдмиралСтрой»"],
+ [1,14,"kor","Склад Кореличи","2 краски растворители","—","Ацетон техн. 0,5 л","шт",1,"45",0,1,"6,71","—","6,71","ООО «ГолдДекор»"],
+ [0,15,"kor","Склад Кореличи","2 краски растворители","0242345","Ацетон техн. 1,0 л","шт",1,"32",3,0,"11,86","17,78","0,00","ООО «ГолдДекор»"],
+ [0,20,"kor","Склад Кореличи","2 краски растворители","—","Антикороз. бит. покрытие-праймер «Инкор» 0,8 кг","шт",0,"0",2,0,"19,06","26,68","0,00","ООО «ПилотЭлектроПлюс»"],
+];
+const rowsHTML = ROWS.map(r=>`<tr>
+ <td class="ctr"><input type="checkbox" class="plus-inp" ${r[0]?'checked':''}></td><td class="ctr">${r[1]}</td>
+ <td class="wh ${r[2]==='mir'?'wh-mir':'wh-kor'}">${r[3].replace(' ','<br>')}</td><td class="grp">${r[4].replace(' ','<br>')}</td>
+ <td>${r[5]}</td><td class="name-cell">${r[6]}</td><td class="ctr">${r[7]}</td>
+ <td class="ctr"><span class="seg seg${r[8]}" title="Рейтинг ${r[8]}">${r[8]}</span></td>
+ <td class="num">${r[9]}</td><td class="num">${r[10]}</td>
+ <td class="num"><input class="qty ${r[11]>0?'hl':''}" value="${r[11]||''}"></td>
+ <td class="num">${r[12]}</td><td class="num">${r[13]}</td><td class="num">${r[14]}</td>
+ <td class="sup-cell"><button class="swap" title="Заменить поставщика">+</button>${r[15]}</td></tr>`).join('');
+
+const CONCEPTS=[
+ {id:'islands', n:'Острова+', d:'Доработанный №5: карточки + сетка таблицы', p:'Ваш фаворит №5, доведённый по правкам: плавающие карточки и кнопки-пилюли сохранены, но в таблицу возвращена полная сетка с вертикальными границами, а рейтинг — только цифра в кружке.', lis:['Силуэт: мягкие «острова» на сером холсте — как №5','Таблица: вертикальные + горизонтальные линии, шапка белая','Рейтинг: кружок только с цифрой 5…0']},
+ {id:'ribbon', n:'Лента-карточка', d:'Группы команд и вкладки-папки на карточках', p:'Та же «островная» подача, но верх — офисная лента: команды сгруппированы с подписями групп, вкладки — папки, прилепленные к карточке таблицы.', lis:['Силуэт: карточка-лента сверху + карточка-таблица','Шапка таблицы: тёмно-синяя, белые заголовки, сетка полная','Для тех, кому привычна логика Excel/1С']},
+ {id:'console', n:'Пульт', d:'Горизонтальная полоса показателей над таблицей', p:'Под командной строкой — широкая горизонтальная полоса из 4 плиток: бюджет (акцентная), поставщик строки, к закупке, состав ведомости. Дальше сегмент-вкладки и таблица.', lis:['Силуэт: сначала цифры «что происходит», потом детали','Никаких боковых панелей — полоса строго горизонтальная','Плашки бюджета у вкладок убраны: всё в полосе пульты']},
+ {id:'excelbook', n:'Книга Excel', d:'Строка формул + листы-вкладки снизу', p:'Поиск — «строкой формул» fx под командами, вкладки — листами снизу, как в книге Excel. Таблица — с серым желобом номеров и лёгкой зеброй.', lis:['Силуэт: вы внутри самой ведомости Excel','Вкладки снизу не крадут высоту у шапки','Сетка полная, моно-заголовки столбцов']},
+ {id:'terminal', n:'Терминал сетки', d:'Квадрат, моноширинность, кнопки встык', p:'Противоположный полюс «Островам»: никаких скруглений и теней. Кнопки — сегментами встык моноширинным шрифтом, таблица — плотная сетка с зеброй.', lis:['Силуэт: строгий терминал данных / учётная система','Цифры и заголовки — моноширинные, всё выровнено как в сетке','Рейтинг-кружок остаётся круглым — единственный «мягкий» элемент']},
+];
+const nav=document.getElementById('nav'), sections=document.getElementById('sections'), tpl=document.getElementById('appTpl');
+nav.innerHTML=CONCEPTS.map((c,i)=>`<a href="#c${i+6}">${i+6}. ${c.n}<span>${c.d}</span></a>`).join('');
+CONCEPTS.forEach((c,i)=>{
+  const sec=document.createElement('section'); sec.className='concept-section'; sec.id='c'+(i+6);
+  sec.innerHTML=`<div class="concept-head"><h2><span class="num">${i+6}</span>${c.n}</h2><p>${c.p}</p><ul>${c.lis.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
+  const clone=tpl.content.firstElementChild.cloneNode(true);
+  clone.dataset.concept=c.id;
+  clone.querySelector('.tbody').innerHTML=rowsHTML;
+  clone.querySelectorAll('.tgl').forEach(b=>b.addEventListener('click',()=>b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')!=='true')));
+  clone.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>clone.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b))));
+  sec.appendChild(clone); sections.appendChild(sec);
+});
+</script>
+</body>
+</html>
