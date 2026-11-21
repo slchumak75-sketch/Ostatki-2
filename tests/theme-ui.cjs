@@ -15,45 +15,38 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  assert.equal(d.getElementById('themeSelect'),null,'themeSelect удалён');
  assert.equal(d.querySelector('body').getAttribute('data-theme'),null,'в статическом index.html нет data-theme');
  assert.ok(!js.includes('THEME_KEY'),'app.js без переключателя тем');
- // Б50: вторая пятёрка дизайнов (макеты №6–10) объявлена в CSS, старых тем нет.
- for(const t of ['islands','ribbon','console','excelbook','terminal']){
-   assert.ok(css.includes(`[data-theme="${t}"]`),`тема ${t} в CSS`);
+ // Б52: дизайн один — «Острова+» (islands, макет №6); остальных тем нет.
+ assert.ok(css.includes('[data-theme="islands"]'),'тема islands в CSS');
+ for(const t of ['classic','cabinet','saas','paper','ribbon','console','excelbook','terminal']){
+   assert.ok(!css.includes(`[data-theme="${t}"]`),`тема ${t} удалена (батч-52: только islands)`);
  }
- for(const t of ['classic','cabinet','saas','paper']){
-   assert.ok(!css.includes(`[data-theme="${t}"]`),`старая тема ${t} удалена`);
- }
+ // Все кнопки верхней плашки — одного цвета, выключенные фильтры белеют.
  assert.ok(css.includes('--btnbar-bg'),'единый цвет кнопок (btnbar-токены)');
  assert.ok(css.includes('.topbar-actions .btn.property-filter-active[aria-pressed="false"]'),'выключенные фильтры белеют');
- assert.ok(!css.includes('.btn.property-filter-active { background:#bde5c4'),'старое зелёное правило фильтров убрано');
- // Скелеты концептов (не перекраска): острова/лента/пульт/книга/терминал.
+ assert.ok(css.includes('.topbar-actions #btnFillOrder'),'единый цвет: автозаказ не выделяется');
+ assert.ok(!css.includes('#fde047'),'жёлтых кнопок нет');
+ assert.ok(!css.includes('#btnUpload.workbook-ready, #btnLoadSavedDb.workbook-ready {background:#bde5c4'),'зелёных кнопок загрузки нет');
+ // Скелет «Островов»: пилюли, карточки, сегмент-вкладки.
  assert.ok(css.includes('[data-theme="islands"] .topbar-actions .btn { border-radius: 99px'),'islands: кнопки-пилюли');
  assert.ok(css.includes('[data-theme="islands"] .table-container'),'islands: карточка таблицы');
- assert.ok(css.includes('[data-theme="ribbon"] .topbar-actions::after'),'ribbon: подписи групп команд');
- assert.ok(css.includes('[data-theme="ribbon"] #btnClearDatabase'),'ribbon: разрывы групп');
- assert.ok(css.includes('[data-theme="console"] .tabs-order-summary { order: -1'),'console: полоса показателей первой строкой');
- assert.ok(css.includes('[data-theme="console"] .budget-inline-card'),'console: акцентная плитка бюджета');
- assert.ok(css.includes('[data-theme="excelbook"] .tabs-bar {\n  position: fixed;'),'excelbook: вкладки-листы закреплены снизу');
- assert.ok(css.includes('[data-theme="excelbook"] .header-controls-strip::before'),'excelbook: строка fx');
- assert.ok(css.includes('[data-theme="terminal"] .data-table tbody tr:nth-child(even) td'),'terminal: зебра');
- assert.ok(css.includes('monospace'),'terminal: моноширинные цифры');
- // Вертикальных (боковых) панелей нет: темы не сдвигают workspace и не фиксируют панели по бокам.
- assert.ok(!/\[data-theme="[a-z]+"\] \.workspace \{[^}]*margin-(left|right)/.test(css),'нет боковых панелей (workspace без боковых отступов от тем)');
- assert.ok(!css.includes('grid-template-columns: 198px'),'нет левой колонки навигации');
- // Вертикальные границы столбцов — во всех вариантах.
- assert.ok(css.includes('.data-table td { border-right: 1px solid #d7e0e9; }'),'вертикальные границы ячеек');
- for(const t of ['islands','ribbon','console','excelbook','terminal']){
-   assert.ok(css.includes(`[data-theme="${t}"] .data-table td { border-right: 1px solid #d7e0e9; }`)||css.includes('[data-theme="islands"] .data-table td, [data-theme="ribbon"] .data-table td,'),'границы заданы для всех тем');
- }
- // Рейтинг — только цифра в кружке, без текстовых подписей в ячейке.
+ assert.ok(css.includes('[data-theme="islands"] .tabs-bar-left { background: #dfe8f0; border-radius: 99px;'),'islands: сегмент-вкладки');
+ // Соответствие макету №6 (батч-52).
+ assert.ok(css.includes('[data-theme="islands"] .order-cell { background: transparent; }'),'без заливки вокруг поля заказа');
+ assert.ok(css.includes('[data-theme="islands"] .data-table thead th.order-col-head'),'шапка заказа без подложки');
+ assert.ok(css.includes('#itemsTable td.wh-cell.wh-mir { background:#e4f0e7; }'),'Мир: цвет как в макете');
+ assert.ok(css.includes('#itemsTable td.wh-cell.wh-korelichi { background:#f5ead6; }'),'Кореличи: цвет как в макете');
+ assert.ok(!css.includes('background-color: #dc2626;'),'красных «птичек» нет');
+ assert.ok(css.includes('background-color: #4c6e8b;'),'«птички» кабинетного цвета');
+ assert.ok(css.includes('[data-theme="islands"] #itemsTable td.grp-cell { font-size: 8px;'),'группа мелким в две строки');
+ // Вертикальные границы столбцов.
+ assert.ok(css.includes('[data-theme="islands"] .data-table td { border-right: 1px solid #d7e0e9; }'),'вертикальные границы ячеек');
+ // Рейтинг — только цифра в кружке.
  assert.ok(js.includes('<span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span>'),'рейтинг: только цифра');
- assert.ok(!js.includes('seg-pill seg-${segNum}">${segNum} ·'),'рейтинг без слов');
- // Высота строк одинакова во всех вариантах: паддинги td темами не переопределяются.
+ // Высота строк одинакова: паддинги td темой не переопределяются.
  assert.ok(!/\[data-theme="[a-z]+"\][^{]*\.data-table[^{]*td[^{]*\{[^}]*padding/.test(css),'паддинги строк не зависят от темы');
- // Кнопки верхней панели — в одну линию.
  assert.ok(css.includes('.topbar-actions .btn { white-space: nowrap'),'кнопки в одну линию');
- // Приглушённые цвета рейтинга прежние (б47).
  assert.ok(css.includes('.seg-pill.seg-5 { background-color: #5fae77 !important'),'рейтинг приглушён');
  assert.match(css,/--bg: #f6f1e7;/);
  assert.match(css,/--primary: #b45309;/);
- console.log('THEME UI б50: 5 скелетов №6–10, без боковых панелей, рейтинг-цифра, сетка: OK');
+ console.log('THEME UI б52: только «Острова+», соответствие макету №6, кнопки одного цвета: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();

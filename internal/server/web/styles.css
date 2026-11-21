@@ -1220,15 +1220,15 @@ body.col-resize-active * {
 }
 
 /* Подсветка заказа — тем же цветом, что и цвет склада строки
-   (как ячейка столбца «Склад»): Мир — #d1fae5, Кореличи — #f5ead6.
+   (как ячейка столбца «Склад»): Мир — #e4f0e7, Кореличи — #f5ead6.
    Класс склада (wh-mir / wh-korelichi) ставит buildTableRowHTML. */
 .qty-input.order-highlighted {
   border-color: var(--primary);
   background: var(--surface);
 }
-.qty-input.order-highlighted.wh-mir { background: #d1fae5; border-color: #7fb894; }
+.qty-input.order-highlighted.wh-mir { background: #e4f0e7; border-color: #7fb894; }
 .qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: #cbb995; }
-.order-cell.order-cell-highlighted.wh-mir { background: #d1fae5; }
+.order-cell.order-cell-highlighted.wh-mir { background: #e4f0e7; }
 .order-cell.order-cell-highlighted.wh-korelichi { background: #f5ead6; }
 
 .reset-cell-btn {
@@ -1818,8 +1818,8 @@ body.col-resize-active * {
 
 .plus-input:checked,
 .plus-input.has-plus {
-  border-color: #b91c1c;
-  background-color: #dc2626;
+  border-color: #3d5d78;
+  background-color: #4c6e8b;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.2 8.4L6.5 11.7L12.8 4.6' stroke='%23ffffff' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
@@ -2595,18 +2595,15 @@ body {
 #safetyStatus {margin-left:10px;padding:0;white-space:normal;}
 
 /* Подсветка столбца «Склад» таблицы Номенклатуры: Мир — светло-зелёный, Кореличи — бежевый. */
-#itemsTable td.wh-cell.wh-mir { background:#d1fae5; }
+#itemsTable td.wh-cell.wh-mir { background:#e4f0e7; }
 #itemsTable td.wh-cell.wh-korelichi { background:#f5ead6; }
 .data-table tbody tr:hover td.wh-cell.wh-mir,
 .data-table tbody tr:hover td.wh-cell.wh-korelichi { background:var(--surface-hover); }
 
-/* «Сделать автозаказ» и «Подсветить заказ» — жёлтые кнопки верхней плашки. */
-#btnFillOrder, #btnHighlightOrder {background:#fde047;border-color:#ca8a04;color:#713f12;}
-#btnFillOrder:hover, #btnHighlightOrder:hover {background:#facc15;}
-
-/* Workbook buttons stay enabled and green: a stale reference only changes the hint. */
-#btnUpload.workbook-ready, #btnLoadSavedDb.workbook-ready {background:#bde5c4;color:#164d25;border-color:#438955;opacity:1;}
-#btnUpload.workbook-ready:hover, #btnLoadSavedDb.workbook-ready:hover {background:#a8dcb2;}
+/* Батч-52: отдельных цветов у кнопок верхней плашки больше нет (жёлтые
+   автозаказ/подсветка и зелёный workbook-ready удалены) — все кнопки
+   одного цвета, см. единое правило .topbar-actions в конце файла.
+   Класс workbook-ready остаётся только признаком состояния в JS. */
 
 /* Keep dropdown actions above Windows taskbar; scroll the list, not off screen. */
 .excel-filter-popover, .supplier-dd-menu {
@@ -2819,15 +2816,12 @@ body {
   color: var(--text-muted);
 }
 
-/* Общая палитра всех пяти вариантов — «кабинет» (холодный серо-голубой).
-   Батч-50 (макеты №6–10, вторая пятёрка): вертикальных (боковых) панелей
-   нет ни в одном варианте — только горизонтальные плашки; рейтинг —
-   только цифра в кружке (seg-pill в app.js, оттенки б47 не меняются);
-   у таблицы во всех вариантах вертикальные границы столбцов. */
+/* Дизайн программы — единственный, «Острова+» (макет №6, тема islands).
+   Батч-52: остальные варианты (ribbon/console/excelbook/terminal) убраны
+   из сборок и из CSS по выбору пользователя. Палитра — «кабинет». */
 
-[data-theme="islands"], [data-theme="ribbon"], [data-theme="console"],
-[data-theme="excelbook"], [data-theme="terminal"] {
-  --bg: #f4f6f8;
+[data-theme="islands"] {
+  --bg: #e9eff4;
   --surface: #ffffff;
   --surface-alt: #f7f9fb;
   --surface-hover: #eef2f6;
@@ -2855,28 +2849,17 @@ body {
   --btnbar-hover: #dbe4ec;
   --btnbar-border: #b9c6d2;
   --btnbar-text: #2e3742;
-}
-
-/* Вертикальные границы столбцов таблицы — во всех пяти вариантах. */
-[data-theme="islands"] .data-table td, [data-theme="ribbon"] .data-table td,
-[data-theme="console"] .data-table td, [data-theme="excelbook"] .data-table td,
-[data-theme="terminal"] .data-table td { border-right: 1px solid #d7e0e9; }
-[data-theme="islands"] .data-table thead th, [data-theme="ribbon"] .data-table thead th,
-[data-theme="console"] .data-table thead th, [data-theme="excelbook"] .data-table thead th,
-[data-theme="terminal"] .data-table thead th { border-right: 1px solid #d7e0e9; }
-[data-theme="islands"] .data-table td:last-child, [data-theme="ribbon"] .data-table td:last-child,
-[data-theme="console"] .data-table td:last-child, [data-theme="excelbook"] .data-table td:last-child,
-[data-theme="terminal"] .data-table td:last-child,
-[data-theme="islands"] .data-table thead th:last-child, [data-theme="ribbon"] .data-table thead th:last-child,
-[data-theme="console"] .data-table thead th:last-child, [data-theme="excelbook"] .data-table thead th:last-child,
-[data-theme="terminal"] .data-table thead th:last-child { border-right: none; }
-
-/* ---- 7.1 islands «Острова+» (макет №6): плавающие карточки, пилюли ---- */
-[data-theme="islands"] {
-  --bg: #e9eff4;
   --shadow: 0 6px 20px rgba(31, 58, 82, 0.10);
   --radius: 12px;
 }
+
+/* Вертикальные границы столбцов таблицы. */
+[data-theme="islands"] .data-table td { border-right: 1px solid #d7e0e9; }
+[data-theme="islands"] .data-table thead th { border-right: 1px solid #d7e0e9; }
+[data-theme="islands"] .data-table td:last-child,
+[data-theme="islands"] .data-table thead th:last-child { border-right: none; }
+
+/* Плавающие карточки и кнопки-пилюли (как в макете №6). */
 [data-theme="islands"] .topbar {
   margin: 8px 12px 0;
   background: var(--surface);
@@ -2907,178 +2890,25 @@ body {
 [data-theme="islands"] .params-panel, [data-theme="islands"] .toolbar { border-radius: 16px; }
 [data-theme="islands"] .budget-inline-card, [data-theme="islands"] .current-supplier-card { border-radius: 12px; }
 
-/* ---- 7.2 ribbon «Лента-карточка» (макет №7): группы команд, вкладки-папки ---- */
-[data-theme="ribbon"] {
-  --bg: #e9eff4;
-  --shadow: 0 6px 18px rgba(31, 58, 82, 0.09);
-  --radius: 10px;
-}
-[data-theme="ribbon"] .topbar {
-  margin: 8px 12px 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(31, 58, 82, 0.09);
-}
-[data-theme="ribbon"] .brand-block { flex: 1 1 100%; }
-[data-theme="ribbon"] .topbar-actions {
-  flex: 1 1 100%;
-  justify-content: flex-start;
-  position: relative;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 6px 8px 15px;
-}
-[data-theme="ribbon"] .topbar-actions::after {
-  content: "Файл  ·  Фильтры  ·  Эталон  ·  Заказ  ·  Сервис";
-  position: absolute;
-  left: 10px;
-  bottom: 2px;
-  font-size: 9px;
-  color: var(--text-muted);
-}
-[data-theme="ribbon"] .topbar-actions .btn { border-radius: 5px; }
-[data-theme="ribbon"] #btnClearDatabase, [data-theme="ribbon"] #btnRelevant,
-[data-theme="ribbon"] #btnLoadEtalon, [data-theme="ribbon"] #btnHighlightOrder { margin-right: 16px; }
-[data-theme="ribbon"] .tab-btn.tab-beige { border-radius: 9px 9px 0 0; border-bottom: none; background: #dde6ee; }
-[data-theme="ribbon"] .tab-btn.tab-beige.active { background: var(--surface); color: var(--primary-hover); border-color: var(--border-strong); }
-[data-theme="ribbon"] .table-container { border-radius: 0 12px 12px 12px; box-shadow: 0 8px 24px rgba(31, 58, 82, 0.09); }
-[data-theme="ribbon"] .data-table thead th {
-  background: var(--primary);
-  color: #ffffff;
-  border-bottom: 2px solid var(--primary-hover);
-  border-right: 1px solid #5d81a0;
-  box-shadow: none;
-}
-[data-theme="ribbon"] .data-table thead th:hover { color: #ffffff; }
-[data-theme="ribbon"] .data-table thead th .th-filter-btn { color: #cfe0ee; }
-[data-theme="ribbon"] .qty-input, [data-theme="ribbon"] .order-hint-popover { border-radius: 5px; }
+/* Соответствие макету №6: без заливки вокруг поля заказа. */
+[data-theme="islands"] .order-cell { background: transparent; }
+[data-theme="islands"] .data-table thead th.order-col-head { background: var(--surface) !important; color: var(--text-muted) !important; }
 
-/* ---- 7.3 console «Пульт» (макет №8): горизонтальная полоса показателей ---- */
-[data-theme="console"] {
-  --shadow: 0 1px 3px rgba(46, 55, 66, 0.07), 0 1px 2px rgba(46, 55, 66, 0.05);
-  --radius: 10px;
-}
-[data-theme="console"] .tabs-order-summary { order: -1; flex: 1 1 100%; margin-left: 0; }
-[data-theme="console"] .current-supplier-card {
-  flex: 1 1 0;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 1px;
-  min-height: 48px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 7px 12px;
-}
-[data-theme="console"] .budget-inline-card {
-  flex: 1 1 0;
-  height: auto;
-  max-width: none;
-  min-height: 48px;
-  background: var(--primary);
-  border-color: var(--primary);
-  border-radius: 10px;
-  padding: 7px 12px;
-}
-[data-theme="console"] .budget-inline-card .kpi-label,
-[data-theme="console"] .budget-inline-card .kpi-value { color: #ffffff; }
-[data-theme="console"] .budget-inline-card .kpi-value { font-size: 17px; }
-[data-theme="console"] .tab-btn.tab-beige { border-radius: 99px; }
-[data-theme="console"] .data-table thead th {
-  background: #dfe8f0;
-  color: #48586a;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 10px;
-  border-bottom: 2px solid var(--border-strong);
-  box-shadow: none;
-}
-[data-theme="console"] .qty-input, [data-theme="console"] .order-hint-popover { border-radius: 8px; }
+/* Соответствие макету №6: склад и группа — мелким шрифтом, в две строки.
+   Паддинги ячеек не трогаются (высота строк едина). */
+[data-theme="islands"] #itemsTable td.wh-cell,
+[data-theme="islands"] #itemsTable td.grp-cell { font-size: 8px; line-height: 1.05; white-space: normal; }
 
-/* ---- 7.4 excelbook «Книга Excel» (макет №9): листы снизу, строка-подсказка fx ---- */
-[data-theme="excelbook"] {
-  --shadow: none;
-  --radius: 2px;
+/* Батч-52: ВСЕ кнопки верхней плашки строго одного цвета — включая
+   «Сделать автозаказ», «Подсветить заказ» и кнопки загрузки ведомости
+   в состоянии workbook-ready (раньше жёлтые и зелёные по ID-правилам). */
+.topbar-actions #btnFillOrder, .topbar-actions #btnHighlightOrder,
+.topbar-actions #btnUpload.workbook-ready, .topbar-actions #btnLoadSavedDb.workbook-ready {
+  background: var(--btnbar-bg);
+  border-color: var(--btnbar-border);
+  color: var(--btnbar-text);
 }
-[data-theme="excelbook"] .header-controls-strip::before {
-  content: "fx  ·  Поиск по номенклатуре — в заголовке столбца «Номенклатура»";
-  display: block;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  font-size: 11px;
-  color: var(--text-muted);
+.topbar-actions #btnFillOrder:hover, .topbar-actions #btnHighlightOrder:hover,
+.topbar-actions #btnUpload.workbook-ready:hover, .topbar-actions #btnLoadSavedDb.workbook-ready:hover {
+  background: var(--btnbar-hover);
 }
-[data-theme="excelbook"] .tabs-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 60;
-  background: #e7edf3;
-  border-top: 1px solid var(--border-strong);
-  padding: 5px 12px 7px;
-  box-shadow: 0 -4px 14px rgba(46, 55, 66, 0.08);
-}
-[data-theme="excelbook"] .workspace { padding-bottom: 54px; }
-[data-theme="excelbook"] .tab-btn.tab-beige { border-radius: 3px 3px 9px 9px; background: #d5e0ea; }
-[data-theme="excelbook"] .tab-btn.tab-beige.active { background: var(--surface); color: var(--primary-hover); box-shadow: inset 0 2px 0 var(--primary); }
-[data-theme="excelbook"] .table-container { border-radius: 2px; }
-[data-theme="excelbook"] .data-table thead th {
-  background: #dde6ee;
-  border-right: 1px solid #c9d5e0;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  font-size: 10.5px;
-  box-shadow: none;
-}
-[data-theme="excelbook"] .data-table tbody tr:nth-child(even) td { background: #f7f9fb; }
-[data-theme="excelbook"] .data-table tbody tr:hover td { background: var(--surface-hover); }
-[data-theme="excelbook"] .qty-input, [data-theme="excelbook"] .order-hint-popover { border-radius: 2px; }
-
-/* ---- 7.5 terminal «Терминал сетки» (макет №10): квадрат, моно, кнопки встык ---- */
-[data-theme="terminal"] {
-  --shadow: none;
-  --radius: 0px;
-}
-[data-theme="terminal"] .btn {
-  border-radius: 0;
-  box-shadow: none;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  text-transform: uppercase;
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
-}
-[data-theme="terminal"] .topbar { border-bottom: 2px solid var(--primary); }
-[data-theme="terminal"] .toolbar { border-radius: 0; box-shadow: none; border: 1px solid var(--border-strong); }
-[data-theme="terminal"] .topbar-actions { gap: 0; }
-[data-theme="terminal"] .topbar-actions .btn { margin-left: -1px; }
-[data-theme="terminal"] .topbar-actions .btn:first-of-type { margin-left: 0; }
-[data-theme="terminal"] .tab-btn.tab-beige {
-  border-radius: 0;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  text-transform: uppercase;
-  font-size: 11px;
-}
-[data-theme="terminal"] .table-container { border-radius: 0; border-color: var(--border-strong); }
-[data-theme="terminal"] .data-table thead th {
-  background: var(--surface-alt);
-  color: #4a5b6c;
-  font-family: Consolas, "Cascadia Mono", monospace;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 9.5px;
-  border-bottom: 2px solid var(--border-strong);
-  box-shadow: none;
-}
-[data-theme="terminal"] .data-table tbody tr:nth-child(even) td { background: #f3f6f8; }
-[data-theme="terminal"] .data-table tbody tr:hover td { background: var(--surface-hover); }
-[data-theme="terminal"] td.num-col, [data-theme="terminal"] .qty-input, [data-theme="terminal"] .order-hint-popover {
-  font-family: Consolas, "Cascadia Mono", monospace;
-  font-variant-numeric: tabular-nums;
-}
-[data-theme="terminal"] .qty-input, [data-theme="terminal"] .order-hint-popover { border-radius: 0; }
