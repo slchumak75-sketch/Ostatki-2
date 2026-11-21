@@ -123,12 +123,19 @@ html, body {
   width: 28px;
   height: 28px;
   border-radius: 7px;
-  background: linear-gradient(135deg, #0f766e, var(--primary));
+  background: linear-gradient(135deg, #4c6e8b, #3d5d78);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.brand-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .badge-v2 {
@@ -2898,6 +2905,28 @@ body {
    Паддинги ячеек не трогаются (высота строк едина). */
 [data-theme="islands"] #itemsTable td.wh-cell,
 [data-theme="islands"] #itemsTable td.grp-cell { font-size: 8px; line-height: 1.05; white-space: normal; }
+
+/* Батч-53: плашка вкладок — все элементы одной высоты (27px) и одного
+   шрифта: вкладки, «Совпадение», бюджет, поставщик, «Очистить фильтры». */
+[data-theme="islands"] .tabs-bar .tab-btn,
+[data-theme="islands"] .stock-match-control,
+[data-theme="islands"] .stock-mode-switch,
+[data-theme="islands"] .budget-inline-card,
+[data-theme="islands"] .current-supplier-card,
+[data-theme="islands"] #btnClearAllExcelFilters {
+  height: 27px;
+  min-height: 27px;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  align-items: center;
+}
+[data-theme="islands"] .tabs-bar .tab-counter,
+[data-theme="islands"] .budget-inline-card .kpi-label,
+[data-theme="islands"] .budget-inline-card .kpi-value,
+[data-theme="islands"] #stockSimilarityPercent { font-size: 12px; }
+[data-theme="islands"] .budget-inline-card .kpi-label { text-transform: none; letter-spacing: 0; }
 
 /* Батч-52: ВСЕ кнопки верхней плашки строго одного цвета — включая
    «Сделать автозаказ», «Подсветить заказ» и кнопки загрузки ведомости

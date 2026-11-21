@@ -48,5 +48,13 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  assert.ok(css.includes('.seg-pill.seg-5 { background-color: #5fae77 !important'),'рейтинг приглушён');
  assert.match(css,/--bg: #f6f1e7;/);
  assert.match(css,/--primary: #b45309;/);
- console.log('THEME UI б52: только «Острова+», соответствие макету №6, кнопки одного цвета: OK');
+ // Б53: шапка «Заказ» + дата, без бейджей; плашка вкладок одной высоты/шрифта.
+ assert.equal(d.querySelector('.brand-title-row h1').textContent,'Заказ','название — Заказ');
+ assert.ok(d.getElementById('brandCurrentDate'),'текущая дата в шапке');
+ assert.ok(!d.querySelector('.badge-v2') && !d.querySelector('.badge-accent'),'бейджи сборки/рейтинга убраны');
+ assert.ok(d.getElementById('brandCurrentDate').textContent.length>=8,'дата проставлена JS');
+ assert.ok(css.includes('[data-theme="islands"] .tabs-bar .tab-btn,'),'плашка: единая высота элементов');
+ assert.ok(css.includes('[data-theme="islands"] #btnClearAllExcelFilters'),'плашка: очистить фильтры в общем правиле');
+ assert.ok(css.includes('.brand-date'),'стиль даты');
+ console.log('THEME UI б53: «Заказ»+дата, плашка одной высоты, только «Острова+»: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();

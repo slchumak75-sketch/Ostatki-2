@@ -4994,7 +4994,15 @@
     scheduleActionHistory();
   }
 
+  // Текущая дата рядом с названием «Заказ» в верхней плашке (батч-53).
+  function updateBrandDate() {
+    const node = el('brandCurrentDate');
+    if (node) node.textContent = new Date().toLocaleDateString('ru-RU');
+  }
+
   async function bootstrap() {
+    updateBrandDate();
+    setInterval(updateBrandDate, 60000);
     el('itemsTable').style.setProperty('--item-row-height', `${VIRTUAL_ROW_HEIGHT}px`);
     initColumnResizers();
     bindEvents();
