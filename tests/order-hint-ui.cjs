@@ -22,6 +22,10 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  const badge=d.getElementById('orderHintBadge');
  assert.ok(badge,'бейдж «+» есть');
  assert.equal(badge.parentElement.id,'btnHighlightOrder','бейдж внутри кнопки «Подсветить заказ»');
+ // Б46: перегородка между «Подсветить заказ» и «+».
+ const sep=badge.previousElementSibling;
+ assert.ok(sep&&sep.classList.contains('order-hint-sep'),'перегородка перед «+»');
+ assert.equal(d.getElementById('btnHighlightOrder').textContent.startsWith('Подсветить заказ'),true,'текст кнопки до перегородки');
  assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnToggleAdvanced');
  // Без подсвеченного заказа «+» не включается — подсказка.
  badge.click();await tick();

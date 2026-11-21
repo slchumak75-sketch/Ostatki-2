@@ -3367,7 +3367,7 @@
       const rect = cellEl.getBoundingClientRect();
       const left = Math.max(8, Math.min(rect.right + 8, window.innerWidth - pop.offsetWidth - 8));
       pop.style.left = `${left}px`;
-      pop.style.top = `${Math.max(8, Math.min(rect.top - 2, window.innerHeight - pop.offsetHeight - 8))}px`;
+      pop.style.top = `${Math.max(8, Math.min(rect.top + (rect.height - pop.offsetHeight) / 2, window.innerHeight - pop.offsetHeight - 8))}px`;
     }
     el('orderHintBadge').addEventListener('click', (e) => {
       e.stopPropagation();

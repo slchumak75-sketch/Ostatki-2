@@ -394,13 +394,15 @@ func TestServerAPIEndpoints(t *testing.T) {
 			t.Fatalf("removed button still present: %s", removed)
 		}
 	}
-	// Батч-45: «+» подсказки — окошечко на самой кнопке «Подсветить заказ» (справа).
+	// Батч-45/46: «+» подсказки — окошечко на самой кнопке «Подсветить заказ»
+	// (справа), между текстом и «+» — перегородка order-hint-sep.
 	{
 		hlIdx := strings.Index(htmlBody, `id="btnHighlightOrder"`)
 		badgeIdx := strings.Index(htmlBody, `id="orderHintBadge"`)
+		sepIdx := strings.Index(htmlBody, `class="order-hint-sep"`)
 		panelIdx := strings.Index(htmlBody, `id="paramsPanel"`)
-		if hlIdx < 0 || panelIdx < 0 || badgeIdx < hlIdx || badgeIdx > panelIdx {
-			t.Fatalf("orderHintBadge must be inside btnHighlightOrder in the header")
+		if hlIdx < 0 || panelIdx < 0 || badgeIdx < hlIdx || badgeIdx > panelIdx || sepIdx < hlIdx || sepIdx > badgeIdx {
+			t.Fatalf("orderHintBadge must be inside btnHighlightOrder in the header, after the separator")
 		}
 	}
 	{
