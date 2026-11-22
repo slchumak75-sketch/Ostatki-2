@@ -174,7 +174,7 @@ func (s *AppServer) handleMailSettings(w http.ResponseWriter, r *http.Request) {
 			password = req.Password
 		}
 		s.settings.Mail = mailSettings{
-			Host: strings.TrimSpace(req.Host), Port: req.Port,
+			Host: normalizeSMTPHost(req.Host), Port: req.Port,
 			Username: strings.TrimSpace(req.Username), Password: password,
 			From: strings.TrimSpace(req.From), UseTLS: req.UseTLS,
 		}
@@ -198,4 +198,94 @@ func (s *AppServer) handleSupplierEmails(w http.ResponseWriter, r *http.Request)
 	last := s.settings.LastSupplierEmail[key]
 	s.settingsMu.Unlock()
 	writeJSON(w, 200, map[string]any{"emails": emails, "last": last})
+}
+
+// Батч-71: известные почтовые службы — голый домен («mail.ru») сам по
+// себе не SMTP-сервер; подставляем правильный адрес автоматически.
+var knownSMTPHosts = map[string]string{
+	"mail.ru":    "smtp.mail.ru",
+	"bk.ru":      "smtp.mail.ru",
+	"inbox.ru":   "smtp.mail.ru",
+	"list.ru":    "smtp.mail.ru",
+	"yandex.ru":  "smtp.yandex.ru",
+	"ya.ru":      "smtp.yandex.ru",
+	"gmail.com":  "smtp.gmail.com",
+	"outlook.com": "smtp.office365.com",
+	"hotmail.com": "smtp.office365.com",
+	"rambler.ru": "smtp.rambler.ru",
+}
+
+func normalizeSMTPHost(host string) string {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if mapped, ok := knownSMTPHosts[h]; ok {
+		return mapped
+	}
+	return strings.TrimSpace(host)
+}
+
+func (s *AppServer) handlePickFolder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "требуется POST")
+		return
+	}
+	if !s.desktopMode {
+		writeError(w, 400, "Выбор папки окном доступен в настольной программе")
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req)
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		title = "Выберите папку"
+	}
+	path, err := pickFolderDialog(title)
+	if err != nil {
+		writeError(w, 500, "Не удалось открыть окно выбора папки: "+err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]any{"path": path, "cancelled": path == ""})
+}
+
+// Батч-71: проверка почты — тестовое письмо самому себе с понятной ошибкой.
+func (s *AppServer) handleMailTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "требуется POST")
+		return
+	}
+	s.settingsMu.Lock()
+	s.loadUserSettingsLocked()
+	cfg := s.settings.Mail
+	s.settingsMu.Unlock()
+	if strings.TrimSpace(cfg.Host) == "" {
+		writeError(w, 400, "Сначала укажите почтовый сервер в «Настройка почты»")
+		return
+	}
+	from := strings.TrimSpace(cfg.From)
+	if from == "" {
+		from = strings.TrimSpace(cfg.Username)
+	}
+	var req struct {
+		To string `json:"to"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req)
+	to := strings.TrimSpace(req.To)
+	if to == "" {
+		to = from
+	}
+	if !strings.Contains(to, "@") {
+		writeError(w, 400, "Не указан адрес для тестового письма")
+		return
+	}
+	msg, err := buildOrderMailMessage(from, to, "Проверка почты — программа «Заказ»", "Здравствуйте!\n\nЭто тестовое письмо: отправка заказов по почте из программы «Заказ» настроена правильно.\nНастраивать больше ничего не нужно.", "Проверка.txt", []byte("Проверка вложения: заказы будут приходить файлами Excel, как этот текстовый файл."))
+	if err != nil {
+		writeError(w, 500, "не удалось собрать письмо: "+err.Error())
+		return
+	}
+	if err := sendMailSMTP(cfg, from, to, msg); err != nil {
+		writeError(w, 502, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]any{"sent": true, "to": to})
 }

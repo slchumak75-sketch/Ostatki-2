@@ -101,3 +101,29 @@ func TestUserSettingsPathsAndMail(t *testing.T) {
 		t.Fatalf("emails = %+v", emails)
 	}
 }
+
+// Батч-71: голый домен почты превращается в SMTP-сервер; проверка без
+// настроек отвечает понятной ошибкой.
+func TestMailHostNormalizationAndTestGate(t *testing.T) {
+	app := server.New(true)
+	app.SetSaveDir(t.TempDir())
+	h := app.Handler()
+
+	rec := httptest.NewRecorder()
+	body, _ := json.Marshal(map[string]any{"host": "mail.ru", "port": 465, "username": "u@mail.ru", "password": "x", "from": "", "useTLS": true})
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/settings/mail", bytes.NewReader(body)))
+	if rec.Code != 200 {
+		t.Fatalf("POST mail: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/settings/mail", nil))
+	var mailResp struct {
+		Host string `json:"host"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &mailResp); err != nil {
+		t.Fatal(err)
+	}
+	if mailResp.Host != "smtp.mail.ru" {
+		t.Fatalf("host = %q, want smtp.mail.ru", mailResp.Host)
+	}
+}
