@@ -931,6 +931,8 @@
     fitTableToViewport(table);
   }
 
+  // Б77: «Сохранить поля» — ширины столбцов всех таблиц одним нажатием.
+  const FIELD_TABLE_IDS = ['itemsTable', 'suppliersTable', 'overstockTable', 'orderPreviewTable'];
   const COLUMN_WIDTHS_KEY = 'ostatki.savedColumnWidths.v1';
   let savedColumnWidths = {};
   let legacyWidthMigrationDone = false;
@@ -960,7 +962,7 @@
           apiPost('api/column-widths', {widths:saved}).catch(() => {});
         }
       }
-      for (const id of ['itemsTable','suppliersTable']) {
+      for (const id of FIELD_TABLE_IDS) {
         const widths = saved[id];
         // Живую раскладку itemsTable не перезаписываем: сохранённые ширины применяются
         // только при её отсутствии (первая загрузка/сброс), иначе ответы сервера
@@ -972,20 +974,26 @@
   }
   async function saveFields() {
     try {
+      // Б77: одним нажатием сохраняются ширины всех таблиц: главная,
+      // «Заказ», «Неликвиды» и предпросмотр заказа.
       const saved = {...savedColumnWidths};
-      for (const id of ['itemsTable','suppliersTable']) {
+      for (const id of FIELD_TABLE_IDS) {
         const table = el(id);
         if (!table) continue;
-        const cols = [...table.querySelectorAll(':scope > colgroup > col')];
-        const widths = cols.length ? cols.map(col => parseFloat(col.style.width)) : [...table.querySelectorAll('thead tr:first-child th')].map(th => th.getBoundingClientRect().width);
-        if (widths.length && widths.every(n => Number.isFinite(n) && n > 0)) saved[id] = widths;
+        let widths = readTableColumnWidths(table);
+        if (!widths || !widths.length) {
+          const cols = [...table.querySelectorAll(':scope > colgroup > col')];
+          widths = cols.length ? cols.map(col => parseFloat(col.style.width)) : [...table.querySelectorAll('thead tr:first-child th')].map(th => th.getBoundingClientRect().width);
+        }
+        if (widths && widths.length && widths.every(n => Number.isFinite(n) && n > 0)) saved[id] = widths;
       }
       saved.__plusFirst = true;
       await apiPost('api/column-widths', {widths:saved});
       savedColumnWidths = saved;
+      if (Array.isArray(saved.overstockTable)) state.ovColWidths = [...saved.overstockTable];
       try { localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(saved)); } catch (_) {}
       state.hasUnsavedChanges = true;
-      showToast('Ширина столбцов сохранена');
+      showToast('Ширина столбцов сохранена для всех таблиц');
     } catch (err) { showToast(`Не удалось сохранить поля: ${err.message}`); }
   }
 
@@ -2760,11 +2768,12 @@
 
     initColumnResizers(ovContainer);
     const ovTable = el('overstockTable');
-    if (ovTable && Array.isArray(state.ovColWidths)) {
+    const ovSavedWidths = Array.isArray(state.ovColWidths) ? state.ovColWidths : savedColumnWidths.overstockTable;
+    if (ovTable && Array.isArray(ovSavedWidths)) {
       const ovThs = [...ovTable.querySelectorAll('thead tr th')];
-      if (ovThs.length === state.ovColWidths.length) {
+      if (ovThs.length === ovSavedWidths.length) {
         const colgroup = document.createElement('colgroup');
-        state.ovColWidths.forEach((w, idx) => {
+        ovSavedWidths.forEach((w, idx) => {
           const col = document.createElement('col');
           col.style.width = `${w}px`;
           colgroup.appendChild(col);
@@ -3071,6 +3080,8 @@
 
   function bindEvents() {
     el('btnSaveFields').addEventListener('click', saveFields);
+    // Б77: окно предпросмотра перекрывает основную кнопку — своя рядом.
+    el('btnSaveFieldsPreview')?.addEventListener('click', saveFields);
     function closeAdminNotice() {
       el('adminNoticeModal').classList.add('hidden');
       el('btnToggleAdvanced').focus();
@@ -4832,6 +4843,9 @@
       }
     });
 
+    // Б77: кнопка «Выход» открывает вопрос «Сохранить эталон?» —
+    // раньше диалог существовал, но его ничего не открывало.
+    el('btnAppExit')?.addEventListener('click', () => openCloseConfirmModal());
     el('btnCloseSaveCancel').addEventListener('click', () => {
       closeCloseConfirmModal();
     });
@@ -4869,7 +4883,21 @@
       await performFinalAppClose();
     });
     el('btnCloseSaveNo').addEventListener('click', async () => {
-      if (!(await saveProperties(false))) return;
+      const yesBtn = el('btnCloseSaveYes');
+      const noBtn = el('btnCloseSaveNo');
+      if (yesBtn) yesBtn.disabled = true;
+      if (noBtn) noBtn.disabled = true;
+      const stay = () => {
+        if (yesBtn) yesBtn.disabled = false;
+        if (noBtn) noBtn.disabled = false;
+      };
+      // Б77: «Не сохранять» относится только к эталону — ведомость при
+      // выходе сохраняется автоматически в любом случае.
+      if (!(await saveProperties(false))) { stay(); return; }
+      if (state.report) {
+        const ok = await saveDatabase('close');
+        if (!ok) { stay(); return; }
+      }
       await performFinalAppClose();
     });
 
@@ -4904,7 +4932,13 @@
     });
 
     window.addEventListener('beforeunload', (e) => {
-      if (!isClosingConfirmed && !isDownloadingFile && (propertiesDirty || (state.report && state.hasUnsavedChanges))) {
+      if (isClosingConfirmed || isDownloadingFile) return;
+      if (state.report || propertiesDirty || state.hasUnsavedChanges) {
+        // Б77: закрытие окна крестиком сначала показывает наш вопрос
+        // «Сохранить эталон?» — если пользователь останется в программе,
+        // диалог уже открыт и выход завершится через него (ведомость
+        // при этом сохранится автоматически).
+        openCloseConfirmModal();
         e.preventDefault();
         e.returnValue = 'Сохранить эталон?';
       }

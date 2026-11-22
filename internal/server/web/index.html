@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Заказ — Вариант 7.20 • Управление закупками • Рейтинг • SBA</title>
+  <title>Заказ — Вариант 7.21 • Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
   <link rel="stylesheet" href="styles.css?v=4.26" />
 </head>
@@ -32,7 +32,7 @@
         <div class="brand-title-row">
           <h1>Заказ</h1>
           <span class="brand-date" id="brandCurrentDate" title="Текущая дата"></span>
-          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.20</span>
+          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.21</span>
           <span class="file-meta"><span id="fileMetaLine">Загрузка ведомости…</span><span id="safetyStatus" role="status" aria-live="polite"></span></span>
         </div>
       </div>
@@ -80,6 +80,7 @@
             <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
             <button type="button" class="btn btn-beige" id="btnSavePaths" title="Папки, куда сохраняются эталон и текущая ведомость">Указать путь сохранения</button>
             <button type="button" class="btn btn-beige" id="btnMailSettings" title="Параметры вашей почты для отправки заказов поставщикам">Настройка почты</button>
+            <button type="button" class="btn btn-beige" id="btnAppExit" title="Закрыть программу: спросит про эталон, ведомость сохранится автоматически">Выход</button>
             <button type="button" class="btn btn-beige" id="btnOverstockTab" title="Открыть вкладку Неликвиды">Неликвиды <span class="tab-counter" id="cntTabOverstock">0</span></button>
           </div>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
@@ -91,6 +92,7 @@
           <div class="params-header" style="grid-column:1/-1">
             <div class="presets-bar">
               <span class="presets-title">Режим планирования:</span>
+              <span class="field-hint" id="configAutosaveHint">Изменения конфигурации сохраняются автоматически</span>
               <button class="preset-chip" data-preset="short">Оперативный (14 дн.)</button>
               <button class="preset-chip active" data-preset="standard">Стандарт (30+4 дн.)</button>
               <button class="preset-chip" data-preset="budget5k">Лимит бюджета 5 000 р.</button>
@@ -723,9 +725,9 @@
   <div id="orderPreviewModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="orderPreviewTitle">
     <div class="v4-modal-card v4-modal-wide">
       <h3 id="orderPreviewTitle">Предварительный просмотр заказа</h3>
-      <div class="order-preview-scroll"><table class="data-table"><thead><tr><th>Артикул</th><th>Номенклатура</th><th>Ед.</th><th>Продажи</th><th>Остаток</th><th>Заказ</th><th>Сумма</th></tr></thead><tbody id="orderPreviewBody"></tbody></table></div>
+      <div class="order-preview-scroll"><table class="data-table" id="orderPreviewTable"><thead><tr><th>Артикул</th><th>Номенклатура</th><th>Ед.</th><th>Продажи</th><th>Остаток</th><th>Заказ</th><th>Сумма</th></tr></thead><tbody id="orderPreviewBody"></tbody></table></div>
       <p id="orderPreviewTotal"></p>
-      <div class="v4-modal-actions"><button type="button" class="btn btn-beige" id="btnCloseOrderPreview">Закрыть</button></div>
+      <div class="v4-modal-actions"><button type="button" class="btn btn-beige" id="btnSaveFieldsPreview" title="Сохранить ширины столбцов всех таблиц (главная, Заказ, Неликвиды, предпросмотр)">Сохранить поля</button><button type="button" class="btn btn-beige" id="btnCloseOrderPreview">Закрыть</button></div>
     </div>
   </div>
   <div id="savePathsModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="savePathsTitle">
@@ -813,7 +815,7 @@
 
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=19"></script>
-  <script src="app.js?v=5.37"></script>
+  <script src="app.js?v=5.38"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>

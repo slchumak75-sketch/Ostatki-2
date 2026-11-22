@@ -29,7 +29,7 @@ var embeddedWeb embed.FS
 
 // uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/52: дизайн
 // вшивается в сборку при отдаче index.html; с батча-52 вариант один —
-// «Острова+» (макет №6, релиз variant-7.20; индекс релиза растёт с каждой публикацией, батч-76). Значение переопределяется:
+// «Острова+» (макет №6, релиз variant-7.21; индекс релиза растёт с каждой публикацией, батч-77). Значение переопределяется:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
 // Доступное значение: islands (warm — только fallback-токены :root).
 var uiTheme = "warm"
@@ -459,6 +459,9 @@ func (s *AppServer) handleUpdateParams(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.mu.Unlock()
+
+	// Б77: «Конфигурация» сохраняется автоматически при каждом изменении.
+	s.persistConfigParams(normParams)
 
 	var rep *model.CalculationReport
 	if wb != nil {
