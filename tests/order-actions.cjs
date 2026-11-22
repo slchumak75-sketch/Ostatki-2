@@ -32,6 +32,13 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  // Б58: движение курсора на другую строку уводит подсветку за курсором; предыдущая гаснет.
  d.querySelector('[data-qty-row="8"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
  assert.deepEqual([...d.querySelectorAll('tr.selected-row')].map(tr=>tr.dataset.row),['8'],'Б58: подсветка следует за курсором');
+ // Б66: стрелки вверх/вниз перемещаются по колонке «Заказ» между строками.
+ const navInp=d.querySelector('[data-qty-row="8"]');navInp.focus();
+ const navOrder=state.filteredItems.map(it=>it.excelRow),navIdx=navOrder.indexOf(8);
+ navInp.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));
+ assert.equal(d.activeElement.dataset.qtyRow,String(navOrder[navIdx+1]),'Б66: ArrowDown — окошко заказа следующей видимой строки');
+ d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
+ assert.equal(d.activeElement.dataset.qtyRow,'8','Б66: ArrowUp — окошко заказа предыдущей строки');
  const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
  // Заказ, проставленный в подсвеченной ячейке, не снимает подсветку.
  assert.ok(qty.classList.contains('order-highlighted'),'Typing an order must keep the highlight');

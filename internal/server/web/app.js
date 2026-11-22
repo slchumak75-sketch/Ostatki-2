@@ -4107,9 +4107,32 @@
       inp.dataset.dirty = '1';
     });
 
+    // Батч-66: фокус на окошко заказа по excelRow (с прокруткой виртуального окна).
+    function focusQtyRow(rowNum){
+      const find=()=>el('tableBody').querySelector(`input[data-qty-row="${rowNum}"]`);
+      let inp=find();
+      if(!inp){
+        const idx=state.filteredItems.findIndex(it=>it.excelRow===rowNum);
+        if(idx<0)return;
+        el('tableScrollContainer').scrollTop=Math.max(0,idx*VIRTUAL_ROW_HEIGHT-el('tableScrollContainer').clientHeight/2);
+        renderTableBodyWindow(true);
+        inp=find();
+      }
+      if(inp){inp.focus();inp.select();}
+    }
     el('tableBody').addEventListener('keydown', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
       if (!inp) return;
+      // Батч-66: стрелки вверх/вниз перемещаются по колонке «Заказ».
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const idx=state.filteredItems.findIndex(it=>it.excelRow===Number(inp.dataset.qtyRow));
+        const target=state.filteredItems[idx+(e.key==='ArrowDown'?1:-1)];
+        if(!target)return;
+        if(inp.dataset.dirty==='1')commitQtyOverride(inp);
+        focusQtyRow(target.excelRow);
+        return;
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
         inp.blur();
@@ -4277,7 +4300,16 @@
     // введённый символ гарантированно очищает окошко перед вводом.
     el('orderPreviewBody').addEventListener('keydown', (e) => {
       const inp=e.target.closest('input[data-preview-qty-row]');
-      if(inp&&inp.dataset.replaceOnType==='1'&&e.key.length===1){inp.value='';inp.dataset.replaceOnType='';}
+      if(!inp)return;
+      // Батч-66: стрелки вверх/вниз ходят и по окошкам заказа предпросмотра.
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault();
+        const inputs=[...el('orderPreviewBody').querySelectorAll('input[data-preview-qty-row]')];
+        const next=inputs[inputs.indexOf(inp)+(e.key==='ArrowDown'?1:-1)];
+        if(next){next.focus();try{next.select();}catch(_){} next.dataset.replaceOnType='1';}
+        return;
+      }
+      if(inp.dataset.replaceOnType==='1'&&e.key.length===1){inp.value='';inp.dataset.replaceOnType='';}
     });
     el('orderPreviewBody').addEventListener('mouseover', (e) => {
       const inp=e.target.closest('input[data-preview-qty-row]');
