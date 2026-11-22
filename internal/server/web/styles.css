@@ -3035,3 +3035,13 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 /* Батч-63: стрелки «Совпадение, %» — текстовые глифы (span), а не кнопки:
    кнопочной подложки-«облака» не существует в принципе, фон прозрачный. */
 .sim-step { display: block; background: transparent !important; user-select: none; text-align: center; }
+
+/* Батч-65: «Совпадение, %» перерисовано с нуля. Стрелки — треугольники
+   чистым CSS (границы элемента <i>): не кнопки, не символы шрифта и не
+   системный спиннер; подложки-«облака» у конструкции нет в принципе. */
+.sim-arrows { display: inline-flex; flex-direction: column; gap: 3px; margin-left: 6px; }
+.sim-arrow { display: block; width: 0; height: 0; background: none; border-left: 8px solid transparent; border-right: 8px solid transparent; cursor: pointer; }
+.sim-arrow-up { border-bottom: 10px solid var(--text-muted); }
+.sim-arrow-down { border-top: 10px solid var(--text-muted); }
+.sim-arrow:hover { border-bottom-color: var(--text); }
+.sim-arrow-down:hover { border-top-color: var(--text); border-bottom-color: transparent; }
