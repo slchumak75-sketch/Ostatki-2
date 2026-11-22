@@ -270,7 +270,7 @@ jobs:
         run: |
           go vet ./cmd/... ./internal/...
           go test -v -race ./internal/... > /tmp/gotest.txt 2>&1; ec=$?
-          { echo '## gotest failures'; grep -E -A 12 '^(--- FAIL|FAIL|panic|WARNING: DATA RACE)' /tmp/gotest.txt | head -120; } >> "$GITHUB_STEP_SUMMARY" || true
+          grep -E -A 10 '^(--- FAIL|FAIL|panic|WARNING: DATA RACE)' /tmp/gotest.txt | head -45 | sed -e 's/%/%25/g' | while IFS= read -r line; do echo "::error::$line"; done || true
           exit $ec
 
       - name: Проверка фильтров заголовков таблицы
