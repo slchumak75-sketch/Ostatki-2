@@ -3655,11 +3655,25 @@
     // Батч-67: «Подсказка» следует за фокусом — при клавиатурной навигации
     // стрелками ↑/↓ по колонке «Заказ» (и при клике в окошко) окошко
     // показывается для текущей строки без наведения мыши.
+    let hintNavTimer = 0;
     el('tableBody').addEventListener('focusin', (e) => {
       const inp = e.target.closest && e.target.closest('input[data-qty-row]');
       if (!inp) return;
       const cell = inp.closest('td.order-cell');
-      if (cell) showOrderHint(cell);
+      if (!cell) return;
+      // Б76: в быстром потоке шагов (зажатая стрелка) подсказку не
+      // перемеряем на каждой строке — покажем для текущей на паузе.
+      // Одиночный шаг — сразу, как раньше.
+      if (kbdNavActive && kbdNavBurstSteps >= 3) {
+        clearTimeout(hintNavTimer);
+        hintNavTimer = setTimeout(() => {
+          const ae = document.activeElement;
+          const ac = ae && ae.closest ? ae.closest('td.order-cell') : null;
+          if (ac) showOrderHint(ac);
+        }, 160);
+        return;
+      }
+      showOrderHint(cell);
     });
     el('tableScrollContainer').addEventListener('scroll', () => {
       // Прокрутка от клавиатурной навигации не гасит подсказку текущей строки.
@@ -4395,16 +4409,30 @@
     // в середину экрана — когда до края видимой области остаётся 5 строк,
     // таблица при каждом нажатии стрелки сдвигается ровно на одну строку;
     // первая/последняя строки достигаются только в начале/конце таблицы.
+    // Б76: отметки шагов навигации: по ним отличаем одиночное нажатие
+    // (всё сразу, как раньше) от быстрого потока зажатой стрелки.
+    let lastKbdNavStepAt = 0;
+    let kbdNavBurstSteps = 0;
+    let deferredPitchTimer = 0;
+    function noteKbdNavStep() {
+      const nowMs = performance.now();
+      kbdNavBurstSteps = nowMs - lastKbdNavStepAt < 180 ? kbdNavBurstSteps + 1 : 1;
+      lastKbdNavStepAt = nowMs;
+    }
     function focusQtyRow(rowNum){
-      // Б69: перед переходом шаг строки уточняется по факту; при смене
-      // шага высота просмотра заново подгоняется под целое число строк.
-      if(calibrateRowPitch())snapTableViewportToRows();
+      // Б76: калибровка шага и подгонка высоты окна — не на ходу в
+      // быстром потоке шагов (высота окна «прыгала» посреди прокрутки),
+      // а на паузе; одиночный переход — сразу, как раньше.
+      if(performance.now()-lastKbdNavStepAt>350){ if(calibrateRowPitch())snapTableViewportToRows(); }
+      else if(!deferredPitchTimer){ deferredPitchTimer=setTimeout(()=>{deferredPitchTimer=0;if(calibrateRowPitch())snapTableViewportToRows();},450); }
       const find=()=>el('tableBody').querySelector(`input[data-qty-row="${rowNum}"]`);
       const idx=filteredIndexOf(rowNum);
       const c=el('tableScrollContainer');
-      if(idx>=0&&c){
-        const H=VIRTUAL_ROW_HEIGHT,margin=5*H;
-        // Смещение строк внутри контейнера — по любой отрисованной строке.
+      const H=VIRTUAL_ROW_HEIGHT,margin=5*H;
+      let inp=find();
+      if(!inp&&idx>=0&&c){
+        // Строки нет в отрисованном окне: один расчётный сдвиг по шагу
+        // строки и одна отрисовка (дальше — только фактическая поправка).
         let base=0;
         const anyRow=el('tableBody').querySelector('tr[data-row]');
         if(anyRow){const ai=filteredIndexOf(Number(anyRow.dataset.row));if(ai>=0)base=anyRow.offsetTop-ai*H;}
@@ -4412,23 +4440,23 @@
         let st=c.scrollTop;
         if(rowBottom>st+c.clientHeight-margin)st=rowBottom-c.clientHeight+margin;
         else if(rowTop<st+margin)st=rowTop-margin;
-        st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
+        st=Math.max(0,Math.min(Math.round(st),Math.max(0,c.scrollHeight-c.clientHeight)));
         if(st!==c.scrollTop){c.scrollTop=st;renderTableBodyWindow(false);}
+        inp=find();
       }
-      let inp=find();
-      // Б69: если строка уже отрисована — позиция берётся фактическая
-      // (по её геометрии), а не расчётная: ошибка шага не накапливается
-      // и курсор не уходит за экран на дальних строках.
+      // Б76: одна фактическая поправка по реальной геометрии строки.
+      // Раньше перед ней шёл ещё и «расчётный» сдвиг от условной высоты —
+      // пара микродвижений туда-обратно на каждом шаге и дёргала экран.
+      // Сдвиг привязан к целым пикселям: строки не «плавают» на долях.
       if(inp&&c){
         const tr=inp.closest('tr[data-row]');
         const rr=tr?.getBoundingClientRect(),cr=c.getBoundingClientRect();
         if(rr&&rr.height>0&&cr.height>0){
-          const mH=VIRTUAL_ROW_HEIGHT,margin=5*mH;
           const rowTop=c.scrollTop+(rr.top-cr.top-(c.clientTop||0)),rowBottom=rowTop+rr.height;
           let st=c.scrollTop;
           if(rowBottom>st+c.clientHeight-margin)st=rowBottom-c.clientHeight+margin;
           else if(rowTop<st+margin)st=rowTop-margin;
-          st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
+          st=Math.max(0,Math.min(Math.round(st),Math.max(0,c.scrollHeight-c.clientHeight)));
           if(Math.abs(st-c.scrollTop)>0.5){c.scrollTop=st;renderTableBodyWindow(false);inp=find();}
         }
       }
@@ -4441,6 +4469,7 @@
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const step=e.key==='ArrowDown'?1:-1;
+        noteKbdNavStep();
         // Б75: повторы клавиши при зажатой стрелке копятся и применяются
         // одним переходом за кадр — очередь событий не растёт и таблица
         // не «подвисает», догоняя прокрутку после отпускания клавиши.
