@@ -4,7 +4,10 @@
   const VIRTUAL_THRESHOLD = 400;
   const VIRTUAL_WINDOW = 180;
   const VIRTUAL_OVERSCAN = 55;
-  const VIRTUAL_ROW_HEIGHT = 24;
+  // Батч-69: шаг строки калибруется по фактической отрисовке
+  // (calibrateRowPitch): если реальный шаг не 24px, вся виртуальная
+  // математика обязана идти от измеренного, иначе курсор «съезжает».
+  let VIRTUAL_ROW_HEIGHT = 24;
   const AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000;
   const ruCollator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
   const activeControllers = new Set();
@@ -983,6 +986,7 @@
     if(nextTab === 'analytics') window.SalesCharts?.renderAnalytics?.();
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === nextTab));
     document.querySelectorAll('.tab-view').forEach((v) => v.classList.toggle('active', v.id === `view-${nextTab}`));
+    if (nextTab === 'table') requestAnimationFrame(() => snapTableViewportToRows());
     if(nextTab==='suppliers' && state.pendingSuppliersRender && state.report){state.pendingSuppliersRender=false;renderSuppliersView(state.report);}
   }
 
@@ -2039,6 +2043,36 @@
       }
     }
     return { start, end };
+  }
+
+  // Батч-69: фактический шаг строки — средний по всему отрисованному
+  // окну (первая/последняя строки): единичные подрагивания высоты
+  // отдельных строк на среднем не сказываются. Вызывается только из
+  // клавиатурной навигации, НЕ из колёсной отрисовки окна.
+  function calibrateRowPitch() {
+    const rows = el('tableBody')?.querySelectorAll('tr[data-row]');
+    if (!rows || rows.length < 2) return false;
+    const first = rows[0].getBoundingClientRect(), last = rows[rows.length - 1].getBoundingClientRect();
+    const p = (last.top - first.top) / (rows.length - 1);
+    if (!(p > 8 && p < 80) || Math.abs(p - VIRTUAL_ROW_HEIGHT) < 0.01) return false;
+    VIRTUAL_ROW_HEIGHT = p;
+    return true;
+  }
+
+  // Батч-69: высота области просмотра кратна целому числу строк —
+  // частично обрезанных строк внизу нет, позиции строк не «плывут».
+  function snapTableViewportToRows() {
+    const c = el('tableScrollContainer'); if (!c || !c.clientHeight) return;
+    const head = el('itemsTable')?.querySelector('thead');
+    if (!head) return;
+    const headerH = head.getBoundingClientRect().height, H = VIRTUAL_ROW_HEIGHT;
+    if (!(headerH > 0) || !(H > 0)) return;
+    const k = Math.floor((c.clientHeight - headerH) / H);
+    if (k < 3) return;
+    const desiredClient = headerH + k * H;
+    if (Math.abs(desiredClient - c.clientHeight) < 0.5) return;
+    c.style.flex = '0 0 auto';
+    c.style.height = `${Math.round(desiredClient + (c.offsetHeight - c.clientHeight))}px`;
   }
 
   function renderTableBodyWindow(force = true) {
@@ -4144,6 +4178,9 @@
     // таблица при каждом нажатии стрелки сдвигается ровно на одну строку;
     // первая/последняя строки достигаются только в начале/конце таблицы.
     function focusQtyRow(rowNum){
+      // Б69: перед переходом шаг строки уточняется по факту; при смене
+      // шага высота просмотра заново подгоняется под целое число строк.
+      if(calibrateRowPitch())snapTableViewportToRows();
       const find=()=>el('tableBody').querySelector(`input[data-qty-row="${rowNum}"]`);
       const idx=state.filteredItems.findIndex(it=>it.excelRow===rowNum);
       const c=el('tableScrollContainer');
@@ -4160,7 +4197,23 @@
         st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
         if(st!==c.scrollTop){c.scrollTop=st;renderTableBodyWindow(true);}
       }
-      const inp=find();
+      let inp=find();
+      // Б69: если строка уже отрисована — позиция берётся фактическая
+      // (по её геометрии), а не расчётная: ошибка шага не накапливается
+      // и курсор не уходит за экран на дальних строках.
+      if(inp&&c){
+        const tr=inp.closest('tr[data-row]');
+        const rr=tr?.getBoundingClientRect(),cr=c.getBoundingClientRect();
+        if(rr&&rr.height>0&&cr.height>0){
+          const mH=VIRTUAL_ROW_HEIGHT,margin=5*mH;
+          const rowTop=c.scrollTop+(rr.top-cr.top-(c.clientTop||0)),rowBottom=rowTop+rr.height;
+          let st=c.scrollTop;
+          if(rowBottom>st+c.clientHeight-margin)st=rowBottom-c.clientHeight+margin;
+          else if(rowTop<st+margin)st=rowTop-margin;
+          st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
+          if(Math.abs(st-c.scrollTop)>0.5){c.scrollTop=st;renderTableBodyWindow(true);inp=find();}
+        }
+      }
       if(inp){try{inp.focus({preventScroll:true});}catch(_){inp.focus();}inp.select();}
     }
     el('tableBody').addEventListener('keydown', (e) => {
@@ -5162,6 +5215,7 @@
     bindEvents();
     initActionHistory();
     window.addEventListener('resize',repositionFloatingMenus,{passive:true});
+    window.addEventListener('resize',()=>snapTableViewportToRows(),{passive:true});
     window.visualViewport?.addEventListener('resize',repositionFloatingMenus,{passive:true});
     window.visualViewport?.addEventListener('scroll',repositionFloatingMenus,{passive:true});
     syncWorkbookGate();
