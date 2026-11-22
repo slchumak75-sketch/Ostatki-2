@@ -16,7 +16,7 @@ w.eval(fs.readFileSync('internal/server/web/app.js','utf8'));
 const tick=()=>new Promise(resolve=>setTimeout(resolve,45));
 (async()=>{
  try {
-  await tick();for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+  await tick();for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б59: один клик
   const scroll=d.getElementById('tableScrollContainer');
   // Reserve 12px below the viewport; virtual scrolling must still reach the
   // final line with the actual, smaller container height.

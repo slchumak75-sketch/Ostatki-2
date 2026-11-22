@@ -29,7 +29,7 @@ var embeddedWeb embed.FS
 
 // uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/52: дизайн
 // вшивается в сборку при отдаче index.html; с батча-52 вариант один —
-// «Острова+» (макет №6, релиз variant-7.2; индекс релиза растёт с каждой публикацией, батч-58). Значение переопределяется:
+// «Острова+» (макет №6, релиз variant-7.3; индекс релиза растёт с каждой публикацией, батч-59). Значение переопределяется:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
 // Доступное значение: islands (warm — только fallback-токены :root).
 var uiTheme = "warm"
@@ -802,7 +802,7 @@ func (s *AppServer) handleExportSingleSupplierOrderXLSX(w http.ResponseWriter, r
 		whForName = strings.Join(whList, " + ")
 	}
 
-	outBytes, err := xlsx.GenerateSingleSupplierOrderXLSX(rep, filterWarehouse, filterSupplier)
+	outBytes, err := xlsx.GenerateSingleSupplierOrderXLSXEx(rep, filterWarehouse, filterSupplier, r.URL.Query().Get("extended") == "1")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "ошибка генерации заказа поставщику: "+err.Error())
 		return

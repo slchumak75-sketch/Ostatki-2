@@ -68,7 +68,7 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
   assert.equal(compare.getAttribute('aria-pressed'),'false');assert.ok(d.getElementById('comparisonHint').classList.contains('hidden'));assert.deepEqual(rows(),[10]);
  }
  // A stock-only match must survive live checkbox edits: reference is frozen.
- for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+ for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б59: один клик
  assert.equal(d.querySelector('#tableBody tr[data-row="9"] .seg-pill').textContent,'0','Ordinary table displays the same current rating as comparison');
  compare.click();await tick();
  const mark=d.querySelector('[data-plus-row="8"]');mark.checked=false;mark.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();

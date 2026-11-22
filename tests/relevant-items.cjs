@@ -32,15 +32,13 @@ thsAll.forEach((th,i)=>{th.getBoundingClientRect=()=>({width:fakeW0.get(i),top:0
  for(const id of ['btnSales12','btnRelevant'])assert.ok(d.getElementById(id).closest('.topbar-actions'));
  for(const id of ['btnExportProperties','btnImportProperties','btnSaveProperties','btnSaveDb'])assert.equal(d.getElementById(id),null);
  for(const button of [sales,relevant])assert.equal(button.getAttribute('aria-pressed'),'true');
- for(let i=0;i<3;i++){sales.click();assert.deepEqual(rows(),[8],'First three clicks must not disable sales');}
- sales.click();assert.deepEqual(rows(),[8,9,10,12],'Fourth click disables sales');
- for(let i=0;i<3;i++){relevant.click();assert.deepEqual(rows(),[8,9,10,12]);}
- relevant.click();assert.deepEqual(rows(),[8,9,10,11,12],'Fourth click disables unmarked');
+ sales.click();assert.deepEqual(rows(),[8,9,10,12],'Б59: один клик выключает продажи');
+ relevant.click();assert.deepEqual(rows(),[8,9,10,11,12],'Б59: один клик выключает актуально');
  sales.click();assert.deepEqual(rows(),[8,11],'Re-enable sales immediately');
  relevant.click();assert.deepEqual(rows(),[8]);
  const chk=d.querySelector('[data-plus-row="8"]');chk.checked=true;chk.dispatchEvent(new w.Event('change',{bubbles:true}));
  assert.deepEqual(rows(),[],'Live marking hides the current row immediately');
- for(const button of [sales,relevant])for(let i=0;i<4;i++)button.click();
+ for(const button of [sales,relevant])button.click(); // Б59: один клик
  assert.deepEqual(rows(),[8,9,10,11,12]);
  assert.equal(relevant.getAttribute('aria-pressed'),'false');
  assert.deepEqual([...d.querySelectorAll('.row-number-cell')].map(el=>el.textContent),['1','2','3','4','5']);

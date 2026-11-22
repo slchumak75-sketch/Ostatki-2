@@ -733,6 +733,13 @@ func FormatSupplierOrderFilename(warehouse string, supplier string, orderDate ti
 //  6. Остаток
 //  7. Заказ
 func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWarehouse string, filterSupplier string) ([]byte, error) {
+	return GenerateSingleSupplierOrderXLSXEx(report, filterWarehouse, filterSupplier, true)
+}
+
+// GenerateSingleSupplierOrderXLSXEx: extended=true — текущий формат из 7 столбцов
+// (со столбцами 5 «Продажи» и 6 «Остаток»); extended=false — короткий формат
+// из 5 столбцов без «Продажи» и «Остаток» (батч-59, столбец «Расширенный заказ»).
+func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWarehouse string, filterSupplier string, extended bool) ([]byte, error) {
 	var orderItems []model.CalculatedItem
 	for _, it := range report.Items {
 		if it.FinalOrderQty <= 0 {
@@ -837,8 +844,12 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
   <col min="5" max="7" width="12" customWidth="1"/>
 </cols><sheetData>`)
 
+	headers := []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Продажи", "Остаток", "Заказ"}
+	if !extended {
+		headers = []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Заказ"}
+	}
 	s1.WriteString(`<row r="1" ht="26" customHeight="1">`)
-	for i, h := range []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Продажи", "Остаток", "Заказ"} {
+	for i, h := range headers {
 		s1.WriteString(inlineStrCell(ColIndexToLetters(i+1)+"1", 1, h))
 	}
 	s1.WriteString(`</row>`)
@@ -850,14 +861,22 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 		s1.WriteString(inlineStrCell("B"+rs, 2, it.SKU))
 		s1.WriteString(inlineStrCell("C"+rs, 2, it.Name))
 		s1.WriteString(inlineStrCell("D"+rs, 4, "шт."))
-		s1.WriteString(numCell("E"+rs, 3, it.SumSalesLast12M))
-		s1.WriteString(numCell("F"+rs, 3, it.ClosingStock))
-		s1.WriteString(numCell("G"+rs, 3, float64(it.FinalOrderQty)))
+		if extended {
+			s1.WriteString(numCell("E"+rs, 3, it.SumSalesLast12M))
+			s1.WriteString(numCell("F"+rs, 3, it.ClosingStock))
+			s1.WriteString(numCell("G"+rs, 3, float64(it.FinalOrderQty)))
+		} else {
+			s1.WriteString(numCell("E"+rs, 3, float64(it.FinalOrderQty)))
+		}
 		s1.WriteString(`</row>`)
 	}
 	s1.WriteString(`</sheetData>`)
 	if len(orderItems) > 0 {
-		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:G%d"/>`, len(orderItems)+1))
+		lastCol := "G"
+		if !extended {
+			lastCol = "E"
+		}
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:%s%d"/>`, lastCol, len(orderItems)+1))
 	}
 	s1.WriteString(`</worksheet>`)
 	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {

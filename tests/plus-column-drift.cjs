@@ -32,7 +32,7 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
   const widthsPct=colWidths();
 
   // Выключаем «Актуально» (4 клика) — раскладка неизменна, помеченные строки видны
-  for(let i=0;i<4;i++){relevant.click();await tick();}
+  relevant.click();await tick(); // Б59: «Актуально» — один клик
   assert.equal(t.querySelector(':scope > colgroup'),cg,'colgroup node survives toggling');
   assert.ok(colWidths().every((v,i)=>v===widthsPct[i]),'widths unchanged after 4 toggles');
   assert.equal(colWidths().length,ths().length,'colgroup covers all columns');

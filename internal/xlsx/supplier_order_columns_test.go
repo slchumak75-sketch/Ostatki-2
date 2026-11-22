@@ -42,3 +42,36 @@ func TestSingleSupplierOrderSalesStockAndOrderColumns(t *testing.T) {
 		t.Fatal("nonselected supplier or zero order leaked")
 	}
 }
+
+func TestSingleSupplierOrderShortFormatDropsSalesAndStock(t *testing.T) {
+	report := &model.CalculationReport{Items: []model.CalculatedItem{
+		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "001", Name: "Товар", Supplier: "Поставщик", ClosingStock: 7.5}, SumSalesLast12M: 32.5, FinalOrderQty: 4},
+	}}
+	raw, err := GenerateSingleSupplierOrderXLSXEx(report, "Мир", "Поставщик", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sheet string
+	for _, f := range zr.File {
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			r, _ := f.Open()
+			b, _ := io.ReadAll(r)
+			r.Close()
+			sheet = string(b)
+		}
+	}
+	for _, cell := range []string{inlineStrCell("E1", 1, "Заказ"), numCell("E2", 3, 4), `<autoFilter ref="A1:E2"/>`} {
+		if !strings.Contains(sheet, cell) {
+			t.Fatalf("missing short-format cell: %s", cell)
+		}
+	}
+	for _, banned := range []string{"Продажи", "Остаток", `r="G`} {
+		if strings.Contains(sheet, banned) {
+			t.Fatalf("short format must not contain %q", banned)
+		}
+	}
+}

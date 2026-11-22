@@ -32,12 +32,12 @@ const load=async()=>{
  const input=d.getElementById('fileInput');
  Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['x'],'new.xlsx')]});
  input.dispatchEvent(new w.Event('change'));await tick();
- for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+ for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б59: один клик
 };
 (async()=>{
  await tick();
  const referenceInput=d.getElementById('etalonFileInput');Object.defineProperty(referenceInput,'files',{configurable:true,value:[new w.File(['ref'],'Эталон.xlsx')]});referenceInput.dispatchEvent(new w.Event('change'));await tick();
-for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б59: один клик
  assert.equal(checked(8),true);
  assert.equal(checked(9),false,'A mark on one warehouse must not affect another');
  const other=d.querySelector('[data-plus-row="9"]');other.checked=true;other.dispatchEvent(new w.Event('change',{bubbles:true}));

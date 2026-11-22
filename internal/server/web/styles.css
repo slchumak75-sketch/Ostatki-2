@@ -2994,3 +2994,22 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 [data-theme="islands"] .topbar-actions #btnRelevant[aria-pressed="false"],
 [data-theme="islands"] .topbar-actions #btnToggleAdvanced[aria-expanded="false"] { background: #ffffff !important; }
 #stockSimilarityPercent::-webkit-inner-spin-button { height: auto; }
+
+/* Батч-59: цифры без обводки везде (включая счётчики вкладок «Ведомость»/
+   «Заказ» и поля на вкладке «Заказ»), стрелки «Совпадение, %» — явные
+   кнопки ▲▼ без обводки поля, «Параметры» в отжатом состоянии — серая,
+   у «Бюджета закупки» убран «полумесяц» слева, кнопки «Очистить фильтры
+   таблицы» и «Другой склад» — в общем формате плашки. */
+.tab-counter { background: transparent !important; border: none !important; box-shadow: none !important; }
+.param-field input[type="number"], #stockSimilarityPercent, .qty-input { border: none !important; box-shadow: none !important; }
+#stockSimilarityPercent { -moz-appearance: textfield; appearance: textfield; background: transparent; }
+#stockSimilarityPercent::-webkit-outer-spin-button,
+#stockSimilarityPercent::-webkit-inner-spin-button { -webkit-appearance: none; display: none; }
+.sim-stepper { display: inline-flex; flex-direction: column; margin-left: 2px; }
+.sim-step { border: none; background: transparent; color: var(--text-muted); font-size: 8px; line-height: 1; padding: 0 2px; cursor: pointer; }
+[data-theme="islands"] .stock-match-control { border: none; }
+[data-theme="islands"] .budget-inline-card { border-left: 1px solid var(--border-strong); }
+[data-theme="islands"] .topbar-actions #btnToggleAdvanced[aria-expanded="false"] { background: var(--btnbar-bg) !important; color: var(--btnbar-text); }
+[data-theme="islands"] #btnClearAllExcelFilters { border-radius: 99px; padding: 0 12px; background: var(--surface); border: 1px solid var(--btnbar-border); color: var(--btnbar-text); }
+[data-theme="islands"] .stock-mode-switch > #btnStockSearchMode { height: 27px; min-height: 27px; font-size: 12px; font-weight: 600; border-radius: 99px 0 0 99px; padding: 0 10px; }
+[data-theme="islands"] .stock-hints-close { border-radius: 0 99px 99px 0; }
