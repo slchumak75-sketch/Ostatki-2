@@ -40,6 +40,18 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.equal(d.activeElement.dataset.qtyRow,String(navOrder[navIdx+1]),'Б66: ArrowDown — окошко заказа следующей видимой строки');
  d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
  assert.equal(d.activeElement.dataset.qtyRow,'8','Б66: ArrowUp — окошко заказа предыдущей строки');
+ // Б68: при навигации стрелками полоса под курсором мыши гаснет до движения мыши/клика.
+ assert.ok(d.getElementById('tableScrollContainer').classList.contains('kbd-nav-strip-off'),'Б68: полоса мыши погашена при навигации стрелками');
+ assert.ok(fs.readFileSync('internal/server/web/styles.css','utf8').includes('kbd-nav-strip-off'),'Б68: CSS гасит hover-полосу мыши');
+ d.querySelector('[data-qty-row="9"]').dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
+ assert.deepEqual([...d.querySelectorAll('tr.selected-row')].map(tr=>tr.dataset.row),['8'],'Б68: мышь не перехватывает текущую строку при навигации стрелками');
+ d.querySelector('[data-qty-row="9"]').dispatchEvent(new w.MouseEvent('mousemove',{bubbles:true,clientX:120,clientY:200}));
+ assert.ok(!d.getElementById('tableScrollContainer').classList.contains('kbd-nav-strip-off'),'Б68: движение мыши возвращает полосу');
+ assert.deepEqual([...d.querySelectorAll('tr.selected-row')].map(tr=>tr.dataset.row),['9'],'Б68: полоса снова за курсором мыши');
+ d.querySelector('[data-qty-row="9"]').dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
+ assert.ok(d.getElementById('tableScrollContainer').classList.contains('kbd-nav-strip-off'),'Б68: стрелка снова гасит полосу мыши');
+ d.querySelector('[data-qty-row="9"]').dispatchEvent(new w.MouseEvent('mousedown',{bubbles:true,clientX:120,clientY:200}));
+ assert.ok(!d.getElementById('tableScrollContainer').classList.contains('kbd-nav-strip-off'),'Б68: клик мышью возвращает полосу');
  assert.ok(!js66.includes('clientHeight/2'),'Б68: навигация не прыгает в середину экрана');
  assert.ok(js66.includes('margin=5*H'),'Б68: сдвиг за 5 строк до края, по одной строке');
  const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
