@@ -175,7 +175,7 @@ func (s *AppServer) handleMailSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		s.settings.Mail = mailSettings{
 			Host: strings.TrimSpace(req.Host), Port: req.Port,
-			Username: strings.TrimSpace(req.Username), Password: password
+			Username: strings.TrimSpace(req.Username), Password: password,
 			From: strings.TrimSpace(req.From), UseTLS: req.UseTLS,
 		}
 		s.persistUserSettingsLocked()
