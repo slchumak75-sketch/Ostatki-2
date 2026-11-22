@@ -269,7 +269,7 @@ jobs:
       - name: Автотесты актуальной сборки «Вариант 7»
         run: |
           go vet ./cmd/... ./internal/...
-          go test -v -race ./internal/... > /tmp/gotest.txt 2>&1; ec=$?
+          ec=0; go test -v -race ./internal/... > /tmp/gotest.txt 2>&1 || ec=$?
           grep -E -A 10 '^(--- FAIL|FAIL|panic|WARNING: DATA RACE)' /tmp/gotest.txt | head -45 | sed -e 's/%/%25/g' | while IFS= read -r line; do echo "::error::$line"; done || true
           exit $ec
 
