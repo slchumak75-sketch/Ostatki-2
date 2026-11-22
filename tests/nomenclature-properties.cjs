@@ -12,14 +12,14 @@ const env=(name,items)=>({report:{fileName:name,items,warehouses:[],groups:[],su
 let uploaded=env('new.xlsx',[makeItem(55,'A'),makeItem(56,'B'),makeItem(57,'','Без артикула')]);
 let snapshots=0;
 let importedProps=null;
-w.fetch=async(path,options={})=>{if(path==='api/etalon/import')return {ok:true,json:async()=>({etalonLoaded:true,etalonProperties:{},properties:{...props},nomenclature:{}})};if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};
+w.fetch=async(path,options={})=>{if(path==='api/etalon/import')return {ok:true,json:async()=>({etalonLoaded:true,etalonProperties:{...props},properties:{...props},nomenclature:{}})};if(path==='api/workbook/check')return {ok:true,json:async()=>({items:3,fileName:'new.xlsx',warehouses:[],duplicates:0,noPrices:0})};
  if(path==='api/properties/import') return {ok:true,json:async()=>({properties:importedProps})};
  if(path==='api/properties') {
   const req=options.body ? JSON.parse(options.body):{};
   for(const key of req.removeKeys || []) delete props[key];
   Object.assign(props,req.properties || {});
   if(req.save) snapshots++;
-  return {ok:true,json:async()=>({properties:{...props},etalonLoaded:true,etalonProperties:{},fileName:'Свойства Номенклатуры.json',persisted:Boolean(req.persist || req.save),markedCount:Object.values(props).filter(Boolean).length,directory:'test-properties',savedAt:'2026-10-24T10:20:30+03:00',lastFileName:'Свойства Номенклатуры.json'})};
+  return {ok:true,json:async()=>({properties:{...props},etalonLoaded:true,etalonProperties:Object.fromEntries(Object.keys(props).map(k=>[k,Boolean(props[k])])),fileName:'Свойства Номенклатуры.json',persisted:Boolean(req.persist || req.save),markedCount:Object.values(props).filter(Boolean).length,directory:'test-properties',savedAt:'2026-10-24T10:20:30+03:00',lastFileName:'Свойства Номенклатуры.json'})};
  }
  return {ok:true,json:async()=>path==='api/upload' ? uploaded : env('old.xlsx',[makeItem(8,'A'),{...makeItem(9,'A'),warehouse:'Другой склад'},makeItem(10,'B'),makeItem(11,'','Без артикула'),makeItem(12,'LEG'),{...makeItem(13,'LEG'),warehouse:'Другой склад'}])};
 };

@@ -10,7 +10,7 @@ const calls=[],intervals=[];
 w.setInterval=(cb,ms)=>{intervals.push({cb,ms});return intervals.length;};
 w.fetch=async(path,options={})=>{
  const body=options.body && typeof options.body==='string'?JSON.parse(options.body):{};calls.push({path,body});
- if(path==='api/properties') {Object.assign(props,body.properties);return {ok:true,json:async()=>({properties:props,etalonProperties:{[JSON.stringify(['sku','8','Склад'])]:true},etalonLoaded:true})};}
+ if(path==='api/properties') {Object.assign(props,body.properties);return {ok:true,json:async()=>({properties:props,etalonProperties:{[JSON.stringify(['sku','8','Склад'])]:true,[JSON.stringify(['sku','11','Склад'])]:false},etalonLoaded:true})};}
  return {ok:true,json:async()=>({report:{items,warehouses:[],groups:[],suppliers:[],periods:[],params:{},fileName:'test.xlsx'}})};
 };
 w.scrollTo=()=>{};

@@ -33,6 +33,10 @@ func (s *AppServer) SaveDir() string {
 }
 
 func (s *AppServer) resolveSaveDirLocked() string {
+	// Батч-70: папка из «Указать путь сохранения» имеет приоритет.
+	if dir := s.workbookDirSetting(); dir != "" {
+		return dir
+	}
 	if s.customSaveDir != "" {
 		return s.customSaveDir
 	}

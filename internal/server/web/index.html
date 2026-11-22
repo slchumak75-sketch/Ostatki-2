@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Заказ — Вариант 7.13 • Управление закупками • Рейтинг • SBA</title>
+  <title>Заказ — Вариант 7.14 • Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
   <link rel="stylesheet" href="styles.css?v=4.26" />
 </head>
@@ -32,7 +32,7 @@
         <div class="brand-title-row">
           <h1>Заказ</h1>
           <span class="brand-date" id="brandCurrentDate" title="Текущая дата"></span>
-          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.13</span>
+          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.14</span>
           <span class="file-meta"><span id="fileMetaLine">Загрузка ведомости…</span><span id="safetyStatus" role="status" aria-live="polite"></span></span>
         </div>
       </div>
@@ -78,6 +78,8 @@
             <button type="button" class="btn btn-beige" id="btnCompareEtalon" aria-pressed="false">Сравнить с эталоном</button>
             <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
             <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
+            <button type="button" class="btn btn-beige" id="btnSavePaths" title="Папки, куда сохраняются эталон и текущая ведомость">Указать путь сохранения</button>
+            <button type="button" class="btn btn-beige" id="btnMailSettings" title="Параметры вашей почты для отправки заказов поставщикам">Настройка почты</button>
             <button type="button" class="btn btn-beige" id="btnOverstockTab" title="Открыть вкладку Неликвиды">Неликвиды <span class="tab-counter" id="cntTabOverstock">0</span></button>
           </div>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
@@ -308,6 +310,7 @@
                 <th class="right-col">Предварительный просмотр</th>
                 <th class="center-col">Расширенный заказ</th>
                 <th class="right-col">Заказ</th>
+                <th class="right-col">Почта</th>
               </tr>
             </thead>
             <tbody id="suppliersBody"></tbody>
@@ -692,13 +695,13 @@
   <div id="closeConfirmModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="closeConfirmTitle">
     <div class="v4-modal-card v4-modal-confirm">
       <div class="v4-modal-head">
-        <h3 id="closeConfirmTitle">Сохранить текущую ведомость?</h3>
+        <h3 id="closeConfirmTitle">Сохранить эталон?</h3>
         <button type="button" class="btn btn-ghost icon-only" id="btnCloseSaveCancel" aria-label="Отмена">✕</button>
       </div>
       <p class="v4-modal-sub" id="closeConfirmSub">При сохранении будут записаны все текущие заказы, фильтры, отметки и настройки.</p>
       <div class="v4-modal-actions">
-        <button type="button" class="btn btn-modal-yes" id="btnCloseSaveYes">ДА</button>
-        <button type="button" class="btn btn-modal-no" id="btnCloseSaveNo">НЕТ</button>
+        <button type="button" class="btn btn-modal-yes" id="btnCloseSaveYes">Сохранить эталон</button>
+        <button type="button" class="btn btn-modal-no" id="btnCloseSaveNo">Не сохранять</button>
       </div>
     </div>
   </div>
@@ -725,9 +728,88 @@
       <div class="v4-modal-actions"><button type="button" class="btn btn-beige" id="btnCloseOrderPreview">Закрыть</button></div>
     </div>
   </div>
+  <div id="savePathsModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="savePathsTitle">
+    <div class="v4-modal-card v4-modal-wide">
+      <div class="v4-modal-head">
+        <div>
+          <h3 id="savePathsTitle">Пути сохранения</h3>
+          <div class="v4-modal-sub">Отдельные папки для эталона и для текущей ведомости. Автосохранение ведомости идёт в папку ведомостей; «Загрузить сохраненную ведомость» берёт файлы оттуда. Пустое поле — стандартная папка.</div>
+        </div>
+        <button type="button" class="btn btn-ghost icon-only" id="btnCloseSavePaths" aria-label="Закрыть окно">✕</button>
+      </div>
+      <label class="mail-field">Папка сохранения эталона
+        <input type="text" id="savePathEtalon" autocomplete="off" placeholder="Например: D:\\Закупки\\Эталоны" />
+        <span class="field-hint" id="savePathEtalonHint"></span>
+      </label>
+      <label class="mail-field">Папка сохранения текущей ведомости
+        <input type="text" id="savePathWorkbook" autocomplete="off" placeholder="Например: D:\\Закупки\\Ведомости" />
+        <span class="field-hint" id="savePathWorkbookHint"></span>
+      </label>
+      <div class="v4-modal-actions">
+        <button type="button" class="btn btn-modal-yes" id="btnSavePathsOk">Сохранить пути</button>
+        <button type="button" class="btn btn-ghost" id="btnSavePathsCancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mailSettingsModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="mailSettingsTitle">
+    <div class="v4-modal-card v4-modal-wide">
+      <div class="v4-modal-head">
+        <div>
+          <h3 id="mailSettingsTitle">Настройка почты</h3>
+          <div class="v4-modal-sub">Параметры вашей исходящей почты (SMTP) для отправки заказов из вкладки «Заказ». При смене почты просто измените их здесь. Пароль хранится в файле настроек программы на этом компьютере.</div>
+        </div>
+        <button type="button" class="btn btn-ghost icon-only" id="btnCloseMailSettings" aria-label="Закрыть окно">✕</button>
+      </div>
+      <label class="mail-field">Почтовый сервер (SMTP)
+        <input type="text" id="mailHost" autocomplete="off" placeholder="Например: smtp.yandex.ru" />
+      </label>
+      <label class="mail-field">Порт
+        <input type="number" id="mailPort" min="1" max="65535" placeholder="465 — SSL, 587 — STARTTLS" />
+      </label>
+      <label class="mail-field">Логин (обычно ваш e-mail)
+        <input type="text" id="mailUsername" autocomplete="off" placeholder="user@example.ru" />
+      </label>
+      <label class="mail-field">Пароль почты (или пароль приложения)
+        <input type="password" id="mailPassword" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять" />
+      </label>
+      <label class="mail-field">Адрес отправителя (От кого)
+        <input type="text" id="mailFrom" autocomplete="off" placeholder="Совпадает с логином, если пусто" />
+      </label>
+      <label class="mail-check"><input type="checkbox" id="mailUseTLS" /> Защищённое соединение SSL (обычно порт 465; для 587 снимите — включится STARTTLS)</label>
+      <div class="v4-modal-actions">
+        <button type="button" class="btn btn-modal-yes" id="btnMailSettingsOk">Сохранить настройки</button>
+        <button type="button" class="btn btn-ghost" id="btnMailSettingsCancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mailSendModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="mailSendTitle">
+    <div class="v4-modal-card v4-modal-wide">
+      <div class="v4-modal-head">
+        <div>
+          <h3 id="mailSendTitle">Отправить заказ по почте</h3>
+          <div class="v4-modal-sub" id="mailSendSub"></div>
+        </div>
+        <button type="button" class="btn btn-ghost icon-only" id="btnCloseMailSend" aria-label="Закрыть окно">✕</button>
+      </div>
+      <label class="mail-field">Электронная почта получателя
+        <input type="text" id="mailToInput" autocomplete="off" placeholder="zakaz@postavschik.ru" />
+        <span class="field-hint">Адрес запомнится за этим поставщиком; в следующий раз подставится тот, на который отправляли в последний раз.</span>
+      </label>
+      <label class="mail-field" id="mailToSelectWrap">Или выбрать из сохранённых
+        <select id="mailToSelect"></select>
+      </label>
+      <div class="v4-modal-actions">
+        <button type="button" class="btn btn-modal-yes" id="btnMailSendOk">Отправить</button>
+        <button type="button" class="btn btn-ghost" id="btnMailSendCancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=19"></script>
-  <script src="app.js?v=5.30"></script>
+  <script src="app.js?v=5.31"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>
