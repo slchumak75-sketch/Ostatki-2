@@ -321,7 +321,9 @@
       // Каталог групп (по убыванию продаж) для панели галочек; выбор чистится от исчезнувших.
       const totals=new Map();
       for(const r of data.rows)for(const [g,v] of r.values)totals.set(g,(totals.get(g)||0)+v);
-      groupCatalog=[...totals.entries()].sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0]),'ru')).map(([name,total])=>({name,total}));
+      // Батч-60: в динамике — только серии с продажами за выбранный период
+      // (для поставщиков: нет реализации за период — нет в графике и в списке).
+      groupCatalog=[...totals.entries()].filter(([,total])=>total>0).sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0]),'ru')).map(([name,total])=>({name,total}));
       const names=new Set(groupCatalog.map(g=>g.name));
       const sel=activeSelection();
       for(const g of [...sel])if(!names.has(g))sel.delete(g);

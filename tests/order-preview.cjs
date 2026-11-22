@@ -48,6 +48,16 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.equal(d.querySelectorAll('#orderPreviewBody tr').length,1);assert.match(d.getElementById('orderPreviewBody').textContent,/Товар <9>/);assert.ok(!d.getElementById('orderPreviewBody').textContent.includes('Товар <10>'));assert.equal(d.getElementById('orderPreviewBody').querySelector('script'),null);
  assert.match(d.getElementById('orderPreviewTotal').textContent,/Заказ: 5/);assert.equal(search.value,'нет совпадений');assert.equal(calls.length,beforeCalls,'Preview is read-only, no server writes');assert.equal(JSON.stringify(items),before);assert.equal(d.getElementById('kpiOrderCost').textContent,budget);
  d.getElementById('orderPreviewModal').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.ok(d.getElementById('orderPreviewModal').classList.contains('hidden'));
+ // Б60: количество в предпросмотре редактируется и сохраняется; сумма строки видна и пересчитывается.
+ const pin=d.querySelector('#orderPreviewBody input[data-preview-qty-row="9"]');
+ assert.ok(pin,'Preview quantity is an editable input');
+ assert.match(d.querySelector('#orderPreviewBody .preview-row-sum').textContent,/10,00 руб\./,'Б60: сумма строки = количество × цена');
+ pin.value='3';pin.dispatchEvent(new w.Event('input',{bubbles:true}));
+ assert.match(d.querySelector('#orderPreviewBody .preview-row-sum').textContent,/6,00 руб\./,'Б60: сумма строки пересчитана при вводе');
+ pin.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();
+ assert.equal(items[1].finalOrderQty,3,'Б60: количество из предпросмотра сохранено (api/override)');
+ assert.match(d.getElementById('orderPreviewTotal').textContent,/Заказ: 3 шт\./);
+ assert.ok(calls.some(c=>c.path==='api/override'),'Б60: сохранение идёт через api/override');
  items[1].finalOrderQty=0;d.querySelector('[data-filter-sup="Поставщик"][data-filter-wh="Мир"]').click();assert.match(d.getElementById('orderPreviewBody').textContent,/В заказе нет позиций/);
  console.log('Variant 7 title, blank zero orders, supplier/warehouse positive-only read-only preview and close/empty states passed');
 }finally{w.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
