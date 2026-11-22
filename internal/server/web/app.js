@@ -4088,6 +4088,7 @@
     // подсвечена только строка под курсором; предыдущая (в том числе та,
     // где только что вводили заказ) сразу гаснет.
     el('tableBody').addEventListener('mouseover', (e) => {
+      if (kbdNavActive) return; // Б68: полоса мыши погашена при навигации стрелками.
       const tr = e.target.closest && e.target.closest('tr[data-row]');
       if (!tr || tr.classList.contains('selected-row')) return;
       el('tableBody').querySelectorAll('tr.selected-row').forEach(n=>n.classList.remove('selected-row'));
@@ -4115,18 +4116,52 @@
       inp.dataset.dirty = '1';
     });
 
-    // Батч-66: фокус на окошко заказа по excelRow (с прокруткой виртуального окна).
+    // Батч-68: при движении стрелками ↑/↓ полоса под курсором мыши
+    // временно гаснет: hover-подсветка отключена, мышь не перехватывает
+    // текущую строку, пока курсор реально не двинется или не кликнет.
+    // Координаты сравниваются, чтобы «мышиные» события от прокрутки под
+    // неподвижным курсором режим не сбрасывали.
+    let kbdNavActive=false;
+    let lastMouseX=null,lastMouseY=null;
+    const setKbdNav=(on)=>{kbdNavActive=on;el('tableScrollContainer')?.classList.toggle('kbd-nav-strip-off',on);};
+    document.addEventListener('mousemove',(e)=>{
+      const moved=lastMouseX!==e.clientX||lastMouseY!==e.clientY;
+      lastMouseX=e.clientX;lastMouseY=e.clientY;
+      if(!kbdNavActive||!moved)return;
+      setKbdNav(false);
+      const tr=e.target&&e.target.closest?e.target.closest('#tableBody tr[data-row]'):null;
+      if(tr){
+        el('tableBody').querySelectorAll('tr.selected-row').forEach(n=>{if(n!==tr)n.classList.remove('selected-row');});
+        tr.classList.add('selected-row');
+        state.selectedExcelRow=Number(tr.dataset.row);
+        renderCurrentSupplier();
+      }
+    });
+    document.addEventListener('mousedown',(e)=>{lastMouseX=e.clientX;lastMouseY=e.clientY;if(kbdNavActive)setKbdNav(false);});
+
+    // Батч-66/68: фокус на окошко заказа по excelRow. Батч-68: без прыжков
+    // в середину экрана — когда до края видимой области остаётся 5 строк,
+    // таблица при каждом нажатии стрелки сдвигается ровно на одну строку;
+    // первая/последняя строки достигаются только в начале/конце таблицы.
     function focusQtyRow(rowNum){
       const find=()=>el('tableBody').querySelector(`input[data-qty-row="${rowNum}"]`);
-      let inp=find();
-      if(!inp){
-        const idx=state.filteredItems.findIndex(it=>it.excelRow===rowNum);
-        if(idx<0)return;
-        el('tableScrollContainer').scrollTop=Math.max(0,idx*VIRTUAL_ROW_HEIGHT-el('tableScrollContainer').clientHeight/2);
-        renderTableBodyWindow(true);
-        inp=find();
+      const idx=state.filteredItems.findIndex(it=>it.excelRow===rowNum);
+      const c=el('tableScrollContainer');
+      if(idx>=0&&c){
+        const H=VIRTUAL_ROW_HEIGHT,margin=5*H;
+        // Смещение строк внутри контейнера — по любой отрисованной строке.
+        let base=0;
+        const anyRow=el('tableBody').querySelector('tr[data-row]');
+        if(anyRow){const ai=state.filteredItems.findIndex(it=>it.excelRow===Number(anyRow.dataset.row));if(ai>=0)base=anyRow.offsetTop-ai*H;}
+        const rowTop=base+idx*H,rowBottom=rowTop+H;
+        let st=c.scrollTop;
+        if(rowBottom>st+c.clientHeight-margin)st=rowBottom-c.clientHeight+margin;
+        else if(rowTop<st+margin)st=rowTop-margin;
+        st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
+        if(st!==c.scrollTop){c.scrollTop=st;renderTableBodyWindow(true);}
       }
-      if(inp){inp.focus();inp.select();}
+      const inp=find();
+      if(inp){try{inp.focus({preventScroll:true});}catch(_){inp.focus();}inp.select();}
     }
     el('tableBody').addEventListener('keydown', (e) => {
       const inp = e.target.closest('input[data-qty-row]');
@@ -4138,6 +4173,7 @@
         const target=state.filteredItems[idx+(e.key==='ArrowDown'?1:-1)];
         if(!target)return;
         if(inp.dataset.dirty==='1')commitQtyOverride(inp);
+        setKbdNav(true);
         focusQtyRow(target.excelRow);
         return;
       }

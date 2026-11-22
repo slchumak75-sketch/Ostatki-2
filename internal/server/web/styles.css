@@ -3045,3 +3045,13 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 .sim-arrow-down { border-top: 10px solid var(--text-muted); }
 .sim-arrow:hover { border-bottom-color: var(--text); }
 .sim-arrow-down:hover { border-top-color: var(--text); border-bottom-color: transparent; }
+
+/* Батч-68: при навигации стрелками ↑/↓ по «Заказу» полоса под курсором
+   мыши временно гаснет (до движения мыши или клика): заливки наведения
+   нет, цвета ячеек склада и подсвеченного заказа не страдают. */
+#tableScrollContainer.kbd-nav-strip-off #itemsTable tbody tr:hover { background: transparent !important; }
+#tableScrollContainer.kbd-nav-strip-off #itemsTable tbody tr:hover td { background: transparent !important; }
+#tableScrollContainer.kbd-nav-strip-off #itemsTable tbody tr:hover td.wh-cell.wh-mir { background: #e4f0e7 !important; }
+#tableScrollContainer.kbd-nav-strip-off #itemsTable tbody tr:hover td.wh-cell.wh-korelichi { background: #f5ead6 !important; }
+#tableScrollContainer.kbd-nav-strip-off #itemsTable tbody tr:hover td.order-cell.order-cell-highlighted.wh-mir { background: #e4f0e7 !important; }
+#tableScrollContainer.kbd-nav-strip-off #itemsTable tbody tr:hover td.order-cell.order-cell-highlighted.wh-korelichi { background: #f5ead6 !important; }
