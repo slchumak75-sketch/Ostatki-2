@@ -29,7 +29,7 @@ var embeddedWeb embed.FS
 
 // uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/52: дизайн
 // вшивается в сборку при отдаче index.html; с батча-52 вариант один —
-// «Острова+» (макет №6, релиз variant-7.7; индекс релиза растёт с каждой публикацией, батч-63). Значение переопределяется:
+// «Острова+» (макет №6, релиз variant-7.8; индекс релиза растёт с каждой публикацией, батч-64). Значение переопределяется:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
 // Доступное значение: islands (warm — только fallback-токены :root).
 var uiTheme = "warm"
@@ -386,6 +386,8 @@ func (s *AppServer) Handler() http.Handler {
 	// каждый вариант программы (7.1…7.5) несёт свой дизайн.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+			// Батч-64: интерфейс не кэшируется — WebView всегда берёт файлы текущей сборки.
+			w.Header().Set("Cache-Control", "no-store")
 			fileServer.ServeHTTP(w, r)
 			return
 		}
