@@ -8,6 +8,7 @@ items[2].closingStock=4;items[4].closingStock=2;items[5].closingStock=99;items[5
 const report={fileName:'Тест.xlsx',items,params:{budgetCap:0},periods:[],warehouses:[],groups:[],suppliers:[]};
 w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='api/properties')return {ok:true,json:async()=>({properties:{},etalonLoaded:true})};if(path==='api/override'){const req=JSON.parse(options.body);items.find(it=>it.excelRow===req.excelRow).finalOrderQty=req.value;}if(path==='api/orders/fill'){const req=JSON.parse(options.body);for(const it of items)if((it.warehouse===req.warehouse)&&(req.suppliers||[req.supplier]).includes(it.supplier)){it.finalOrderQty=(req.clear||req.cancel)?0:it.autoOrderQty;it.manualOverride=(req.clear||req.cancel)?null:it.finalOrderQty;}}return {ok:true,json:async()=>({report})};};
 w.eval(fs.readFileSync('internal/server/web/app.js','utf8').replace('  bootstrap();','  window.__actions={state,refreshExcelTable,collectUIState,applyEnvelope}; bootstrap();'));
+const js66=fs.readFileSync('internal/server/web/app.js','utf8');
 const tick=()=>new Promise(r=>setTimeout(r,70));
 (async()=>{try{
  await tick();const {state,refreshExcelTable,collectUIState,applyEnvelope}=w.__actions;
@@ -39,6 +40,8 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.equal(d.activeElement.dataset.qtyRow,String(navOrder[navIdx+1]),'Б66: ArrowDown — окошко заказа следующей видимой строки');
  d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true}));
  assert.equal(d.activeElement.dataset.qtyRow,'8','Б66: ArrowUp — окошко заказа предыдущей строки');
+ assert.ok(!js66.includes('clientHeight/2'),'Б68: навигация не прыгает в середину экрана');
+ assert.ok(js66.includes('margin=5*H'),'Б68: сдвиг за 5 строк до края, по одной строке');
  const qty=d.querySelector('[data-qty-row="8"]');qty.dispatchEvent(new w.FocusEvent('focusin',{bubbles:true}));qty.value='4';qty.dispatchEvent(new w.Event('input',{bubbles:true}));qty.dispatchEvent(new w.FocusEvent('focusout',{bubbles:true}));await tick();
  // Заказ, проставленный в подсвеченной ячейке, не снимает подсветку.
  assert.ok(qty.classList.contains('order-highlighted'),'Typing an order must keep the highlight');
