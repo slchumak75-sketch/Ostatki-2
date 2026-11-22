@@ -70,6 +70,15 @@ func buildOrderMailMessage(from, to, subject, bodyText, fileName string, attachm
 	return msg.Bytes(), nil
 }
 
+// orderMailSubject/orderMailBody (батч-74): склад в письме — организация.
+func orderMailSubject(supplier, warehouse string, now time.Time) string {
+	return fmt.Sprintf("Заказ: %s — %s, %s", supplier, xlsx.DisplayWarehouseName(warehouse), now.Format("02.01.2006"))
+}
+
+func orderMailBody(supplier, warehouse, fileName string) string {
+	return fmt.Sprintf("Здравствуйте!\n\nВо вложении заказ: %s.\nСклад: %s.\nФайл: %s\n\nСформировано программой «Заказ» автоматически.", supplier, xlsx.DisplayWarehouseName(warehouse), fileName)
+}
+
 func sendMailSMTP(cfg mailSettings, from, to string, msg []byte) error {
 	host := strings.TrimSpace(cfg.Host)
 	if host == "" || cfg.Port <= 0 {
@@ -196,8 +205,10 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 		writeError(w, 400, "Почта не настроена: откройте «Настройка почты» рядом с «Конфигурация» и укажите параметры вашей почты")
 		return
 	}
-	subject := fmt.Sprintf("Заказ: %s — %s, %s", filterSupplier, filterWarehouse, time.Now().Format("02.01.2006"))
-	bodyText := fmt.Sprintf("Здравствуйте!\n\nВо вложении заказ: %s.\nСклад: %s.\nФайл: %s\n\nСформировано программой «Заказ» автоматически.", filterSupplier, filterWarehouse, fileName)
+	// Б74: в теме и тексте письма склад называем организацией, как в имени
+	// файла и в самом файле («Мирстроймаркет», а не «Склад Мир»).
+	subject := orderMailSubject(filterSupplier, filterWarehouse, time.Now())
+	bodyText := orderMailBody(filterSupplier, filterWarehouse, fileName)
 	msg, err := buildOrderMailMessage(from, to, subject, bodyText, fileName, outBytes)
 	if err != nil {
 		writeError(w, 500, "не удалось собрать письмо: "+err.Error())

@@ -701,11 +701,35 @@ var supplierOrderWarehouseNames = map[string]string{
 	"Склад Мир":      "Мирстроймаркет",
 }
 
+// normalizeWarehouseKey приводит название склада к виду для сравнения:
+// любые пробельные символы (включая неразрывный) схлопываются в один
+// обычный пробел, регистр не важен (батч-74: в ведомости склад может быть
+// записан как «Склад  Мир» или с неразрывным пробелом — переименование
+// в организацию обязано срабатывать и тогда).
+func normalizeWarehouseKey(warehouse string) string {
+	return strings.ToLower(strings.Join(strings.Fields(warehouse), " "))
+}
+
 func displayWarehouseName(warehouse string) string {
-	if v, ok := supplierOrderWarehouseNames[strings.TrimSpace(warehouse)]; ok {
-		return v
+	key := normalizeWarehouseKey(warehouse)
+	for name, display := range supplierOrderWarehouseNames {
+		if normalizeWarehouseKey(name) == key {
+			return display
+		}
+	}
+	switch key {
+	case "мир":
+		return "Мирстроймаркет"
+	case "кореличи":
+		return "Мирсититорг"
 	}
 	return warehouse
+}
+
+// DisplayWarehouseName — отображаемое название склада (организация) для
+// писем и подписей: «Склад Мир» -> «Мирстроймаркет» (батч-74).
+func DisplayWarehouseName(warehouse string) string {
+	return displayWarehouseName(warehouse)
 }
 
 // FormatSupplierOrderFilename формирует имя файла заказа поставщику строго по шаблону:
@@ -764,7 +788,7 @@ func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWa
 
 	if err := addFile("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats.package.relationships+xml"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
@@ -833,9 +857,20 @@ func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWa
 		return nil, err
 	}
 
+	lastColLetter := "G"
+	if !extended {
+		lastColLetter = "E"
+	}
+	dimensionRef := "A1:" + lastColLetter + "1"
+	if len(orderItems) > 0 {
+		dimensionRef = fmt.Sprintf("A1:%s%d", lastColLetter, len(orderItems)+1)
+	}
 	var s1 strings.Builder
 	s1.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<dimension ref="` + dimensionRef + `"/>
+<sheetViews><sheetView workbookViewId="0"/></sheetViews>
+<sheetFormatPr defaultRowHeight="15"/>
 <cols>
   <col min="1" max="1" width="22" customWidth="1"/>
   <col min="2" max="2" width="16" customWidth="1"/>
@@ -872,11 +907,7 @@ func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWa
 	}
 	s1.WriteString(`</sheetData>`)
 	if len(orderItems) > 0 {
-		lastCol := "G"
-		if !extended {
-			lastCol = "E"
-		}
-		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:%s%d"/>`, lastCol, len(orderItems)+1))
+		s1.WriteString(fmt.Sprintf(`<autoFilter ref="A1:%s%d"/>`, lastColLetter, len(orderItems)+1))
 	}
 	s1.WriteString(`</worksheet>`)
 	if err := addFile("xl/worksheets/sheet1.xml", s1.String()); err != nil {

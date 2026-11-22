@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Батч-73: русское имя вложения в письме кодируется по RFC 5987 и
@@ -38,5 +39,18 @@ func TestOrderMailAttachmentFileNameRoundTrip(t *testing.T) {
 	}
 	if fileName != name {
 		t.Fatalf("attachment name = %q, want %q", fileName, name)
+	}
+}
+
+// Батч-74: в теме и тексте письма склад — организация, как в имени файла.
+func TestOrderMailSubjectBodyUseOrganizationName(t *testing.T) {
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	subject := orderMailSubject("ИТУП «Элсви»", "Склад Мир", now)
+	if subject != "Заказ: ИТУП «Элсви» — Мирстроймаркет, 22.11.2026" {
+		t.Fatalf("subject = %q", subject)
+	}
+	body := orderMailBody("ИТУП «Элсви»", "Склад Мир", "Мирстроймаркет, ИТУП «Элсви», 22.11.2026.xlsx")
+	if !strings.Contains(body, "Склад: Мирстроймаркет.") || strings.Contains(body, "Склад Мир") {
+		t.Fatalf("body = %q", body)
 	}
 }

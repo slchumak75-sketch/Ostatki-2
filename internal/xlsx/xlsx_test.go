@@ -384,3 +384,58 @@ func TestSupplierOrderWarehouseRenameAndZipLayout(t *testing.T) {
 		}
 	}
 }
+
+// Батч-74: Excel предлагал «восстановить содержимое» именно на заказе
+// поставщику: в [Content_Types].xml тип части связей пакета был записан
+// с точкой (openxmlformats.package.relationships) вместо нормативного
+// дефиса (openxmlformats-package.relationships). Плюс переименование
+// склада в организацию должно срабатывать при любом написании склада.
+func TestSupplierOrderContentTypesAndWarehouseNames(t *testing.T) {
+	rep := &model.CalculationReport{Items: []model.CalculatedItem{
+		{RawItem: model.RawItem{Warehouse: "Склад Мир", SKU: "1", Name: "Т1", Supplier: "ИТУП «Элсви»", ClosingStock: 0}, SumSalesLast12M: 3, FinalOrderQty: 100},
+	}}
+	raw, err := xlsx.GenerateSingleSupplierOrderXLSXEx(rep, "Склад Мир", "ИТУП «Элсви»", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var contentTypes, sheet string
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch f.Name {
+		case "[Content_Types].xml":
+			contentTypes = string(data)
+		case "xl/worksheets/sheet1.xml":
+			sheet = string(data)
+		}
+	}
+	if !strings.Contains(contentTypes, "application/vnd.openxmlformats-package.relationships+xml") {
+		t.Fatalf("нет нормативного типа части связей: %s", contentTypes)
+	}
+	if strings.Contains(contentTypes, "openxmlformats.package.relationships") {
+		t.Fatalf("остался битый тип части связей (точка вместо дефиса): %s", contentTypes)
+	}
+	if !strings.Contains(sheet, "<dimension ref=\"A1:E2\"/>") {
+		t.Fatalf("нет dimension листа: %s", sheet)
+	}
+	for _, wh := range []string{"Склад Мир", "Склад Мир", "склад мир", "Мир"} {
+		name := xlsx.FormatSupplierOrderFilename(wh, "ИТУП «Элсви»", time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC))
+		if !strings.HasPrefix(name, "Мирстроймаркет, ") {
+			t.Fatalf("склад %q: имя файла %q", wh, name)
+		}
+	}
+	if name := xlsx.FormatSupplierOrderFilename("Склад  Кореличи", "Поставщик", time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC)); !strings.HasPrefix(name, "Мирсититорг, ") {
+		t.Fatalf("двойной пробел в складе: имя файла %q", name)
+	}
+}
