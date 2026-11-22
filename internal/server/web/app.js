@@ -4244,21 +4244,57 @@
       refreshAfterSupplierCheckChange();
     });
 
+    // Батч-60: предварительный просмотр — количество редактируется прямо в окне
+    // (тот же api/override, что и ввод в основной таблице), по каждой строке
+    // видна сумма (количество × цена); в файл заказа сумма не попадает.
+    let orderPreviewCtx=null;
+    function renderOrderPreview(){
+      if(!orderPreviewCtx)return;
+      const items=[...orderPreviewCtx.rows].map(r=>state.rowMap.get(r)).filter(Boolean);
+      el('orderPreviewBody').innerHTML=items.map(it=>`<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>шт.</td><td>${fmtInt(it.sumSalesLast12M)}</td><td>${fmtStock(it.closingStock)}</td><td><input type="number" class="qty-input preview-qty-input" data-preview-qty-row="${it.excelRow}" min="0" step="1" value="${Number(it.finalOrderQty)>0?Number(it.finalOrderQty):''}" aria-label="Заказ: ${esc(it.name)}" /></td><td class="preview-row-sum">${fmtMoney(calcLineSum(it.finalOrderQty,it.purchasePrice))} руб.</td></tr>`).join('') || '<tr><td colspan="7">В заказе нет позиций</td></tr>';
+      const totalQty=items.reduce((sum,it)=>sum+Number(it.finalOrderQty||0),0);
+      const totalSum=items.reduce((sum,it)=>sum+calcLineSum(it.finalOrderQty,it.purchasePrice),0);
+      el('orderPreviewTotal').textContent=`Позиций: ${items.length} • Заказ: ${fmtInt(totalQty)} шт. • Сумма: ${fmtMoney(totalSum)} руб.`;
+    }
     el('suppliersBody').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
       const supplier=btn.dataset.filterSup,warehouse=btn.dataset.filterWh||'';
       const items=(state.report?.items||[]).filter(it=>normalizeSupName(it.supplier)===normalizeSupName(supplier) && (it.warehouse||'')===warehouse && Number(it.finalOrderQty)>0);
+      orderPreviewCtx={supplier,warehouse,rows:new Set(items.map(it=>it.excelRow))};
       el('orderPreviewTitle').textContent=`Предварительный просмотр: ${supplier} • ${warehouse||'Склад не указан'}`;
-      el('orderPreviewBody').innerHTML=items.map(it=>`<tr><td>${esc(it.sku)}</td><td>${esc(it.name)}</td><td>шт.</td><td>${fmtInt(it.sumSalesLast12M)}</td><td>${fmtStock(it.closingStock)}</td><td>${fmtInt(it.finalOrderQty)}</td></tr>`).join('') || '<tr><td colspan="6">В заказе нет позиций</td></tr>';
-      el('orderPreviewTotal').textContent=`Позиций: ${items.length} • Заказ: ${fmtInt(items.reduce((sum,it)=>sum+Number(it.finalOrderQty),0))} шт. • Сумма: ${fmtMoney(items.reduce((sum,it)=>sum+calcLineSum(it.finalOrderQty,it.purchasePrice),0))} руб.`;
+      renderOrderPreview();
       const modal=el('orderPreviewModal');modal.classList.remove('hidden');modal._returnFocus=btn;el('btnCloseOrderPreview').focus();
+    });
+    // Локальный пересчёт суммы строки и итога при вводе; сохранение — по change.
+    el('orderPreviewBody').addEventListener('input', (e) => {
+      const inp=e.target.closest('input[data-preview-qty-row]');
+      if(!inp)return;
+      const it=state.rowMap.get(Number(inp.dataset.previewQtyRow));
+      const val=Math.max(0,Math.round(Number(inp.value)||0));
+      const sumTd=inp.closest('tr')?.querySelector('.preview-row-sum');
+      if(sumTd&&it)sumTd.textContent=`${fmtMoney(calcLineSum(val,it.purchasePrice))} руб.`;
+      let totalQty=0,totalSum=0,count=0;
+      el('orderPreviewBody').querySelectorAll('input[data-preview-qty-row]').forEach(other=>{
+        const item=state.rowMap.get(Number(other.dataset.previewQtyRow));if(!item)return;
+        const v=Math.max(0,Math.round(Number(other.value)||0));totalQty+=v;totalSum+=calcLineSum(v,item.purchasePrice);count++;
+      });
+      el('orderPreviewTotal').textContent=`Позиций: ${count} • Заказ: ${fmtInt(totalQty)} шт. • Сумма: ${fmtMoney(totalSum)} руб.`;
+    });
+    el('orderPreviewBody').addEventListener('change', async (e) => {
+      const inp=e.target.closest('input[data-preview-qty-row]');
+      if(!inp)return;
+      const rowNum=Number(inp.dataset.previewQtyRow);
+      const val=Math.max(0,Math.round(Number(inp.value)||0));
+      inp.value=val>0?String(val):'';
+      await pushOverrideToServer(rowNum,val);
+      renderOrderPreview();
     });
 
     const closeOrderPreview=()=>{const modal=el('orderPreviewModal');modal.classList.add('hidden');modal._returnFocus?.focus();};
     el('btnCloseOrderPreview').addEventListener('click',closeOrderPreview);
     el('orderPreviewModal').addEventListener('click',e=>{if(e.target===el('orderPreviewModal'))closeOrderPreview();});
-    el('orderPreviewModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeOrderPreview();}if(e.key==='Tab'){e.preventDefault();el('btnCloseOrderPreview').focus();}});
+    el('orderPreviewModal').addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeOrderPreview();}if(e.key==='Tab'){const focusables=[...el('orderPreviewModal').querySelectorAll('button,input')].filter(x=>!x.disabled);if(!focusables.length)return;const first=focusables[0],last=focusables[focusables.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
 
     // «Загрузить новую ведомость» открывает выбор из трёх действий: ведомость,
     // эталон или отмена (возврат в основное меню без каких-либо проверок).

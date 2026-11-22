@@ -80,6 +80,12 @@ s2.checked=true;s2.dispatchEvent(new w.Event('change',{bubbles:true}));
 assert.equal(d.querySelectorAll('#chartsContent path').length,1,'Only the checked supplier is drawn');
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Reset restores top suppliers');
+// Б60: за период без реализации поставщик не отображается (месяц 2: у S2 продаж нет).
+change('chartFrom','1');change('chartTo','1');
+assert.equal(d.querySelectorAll('#chartGroupList input[data-cgp-group]').length,1,'Picker lists only suppliers with sales in the period');
+assert.equal(d.querySelectorAll('#chartsContent path').length,1,'Only selling suppliers are drawn');
+change('chartFrom','0');change('chartTo','2');
+assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Full period restores both suppliers');
 const supData=w.SalesCharts.aggregate(rep,'monthlySuppliers','',0,2);
 assert.equal(supData.total,130);assert.equal(supData.rows[0].values.get('S1'),10);
 // Аналитика тенденций — отдельная вкладка справа от «Графики»; таблица всегда в рублях.

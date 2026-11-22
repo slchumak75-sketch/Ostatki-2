@@ -3013,3 +3013,11 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 [data-theme="islands"] #btnClearAllExcelFilters { border-radius: 99px; padding: 0 12px; background: var(--surface); border: 1px solid var(--btnbar-border); color: var(--btnbar-text); }
 [data-theme="islands"] .stock-mode-switch > #btnStockSearchMode { height: 27px; min-height: 27px; font-size: 12px; font-weight: 600; border-radius: 99px 0 0 99px; padding: 0 10px; }
 [data-theme="islands"] .stock-hints-close { border-radius: 0 99px 99px 0; }
+
+/* Батч-60: кнопки модальных диалогов (в т.ч. «Склад … + сумма» в очистке
+   заказа поставщика) переносятся внутри окна и не выезжают за границу;
+   количество в предварительном просмотре редактируется. */
+.v4-modal-actions { flex-wrap: wrap; }
+.v4-modal-actions .btn { max-width: 100%; white-space: normal; height: auto; min-height: 27px; }
+#safetyDialog .v4-modal-card { min-width: 0; }
+.preview-qty-input { width: 64px; min-width: 0; }

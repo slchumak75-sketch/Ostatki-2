@@ -84,5 +84,7 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  // Б59: стрелки «Совпадение, %» реально меняют значение на ±1.
  d.querySelector('[data-sim-step="1"]').click();assert.equal(d.getElementById('stockSimilarityPercent').value,'81','стрелка вверх: 80 -> 81');
  d.querySelector('[data-sim-step="-1"]').click();assert.equal(d.getElementById('stockSimilarityPercent').value,'80','стрелка вниз: 81 -> 80');
+ assert.ok(css.includes('.v4-modal-actions { flex-wrap: wrap; }'),'Б60: кнопки диалогов переносятся внутри окна');
+ assert.ok(css.includes('.preview-qty-input'),'Б60: поле количества в предпросмотре');
  console.log('THEME UI б55: «Заказ»+дата, «Подсказка», умолчания 20/5, цифры без обводки, только «Острова+»: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();
