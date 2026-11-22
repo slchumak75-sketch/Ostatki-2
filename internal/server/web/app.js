@@ -4266,6 +4266,24 @@
       renderOrderPreview();
       const modal=el('orderPreviewModal');modal.classList.remove('hidden');modal._returnFocus=btn;el('btnCloseOrderPreview').focus();
     });
+    // Батч-61: при наведении на окошко заказа и при получении фокуса текущее
+    // значение выделяется целиком — ввод нового значения сразу заменяет его,
+    // стирать вручную не нужно.
+    const selectPreviewQty=inp=>{if(!inp)return;if(document.activeElement!==inp)inp.focus();try{inp.select();}catch(_){} inp.dataset.replaceOnType='1';};
+    // У number-полей выделение текста доступно не везде, поэтому первый
+    // введённый символ гарантированно очищает окошко перед вводом.
+    el('orderPreviewBody').addEventListener('keydown', (e) => {
+      const inp=e.target.closest('input[data-preview-qty-row]');
+      if(inp&&inp.dataset.replaceOnType==='1'&&e.key.length===1){inp.value='';inp.dataset.replaceOnType='';}
+    });
+    el('orderPreviewBody').addEventListener('mouseover', (e) => {
+      const inp=e.target.closest('input[data-preview-qty-row]');
+      if(inp)selectPreviewQty(inp);
+    });
+    el('orderPreviewBody').addEventListener('focusin', (e) => {
+      const inp=e.target.closest('input[data-preview-qty-row]');
+      if(inp)inp.select();
+    });
     // Локальный пересчёт суммы строки и итога при вводе; сохранение — по change.
     el('orderPreviewBody').addEventListener('input', (e) => {
       const inp=e.target.closest('input[data-preview-qty-row]');

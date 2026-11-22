@@ -52,6 +52,11 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  const pin=d.querySelector('#orderPreviewBody input[data-preview-qty-row="9"]');
  assert.ok(pin,'Preview quantity is an editable input');
  assert.match(d.querySelector('#orderPreviewBody .preview-row-sum').textContent,/10,00 руб\./,'Б60: сумма строки = количество × цена');
+ // Б61: наведение на окошко выделяет текущее значение целиком — ввод заменяет его.
+ pin.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
+ assert.equal(pin.dataset.replaceOnType,'1','Б61: окошко вооружено на автозамену');
+ pin.dispatchEvent(new w.KeyboardEvent('keydown',{key:'3',bubbles:true}));
+ assert.equal(pin.value,'','Б61: первый введённый символ очищает текущее значение');
  pin.value='3';pin.dispatchEvent(new w.Event('input',{bubbles:true}));
  assert.match(d.querySelector('#orderPreviewBody .preview-row-sum').textContent,/6,00 руб\./,'Б60: сумма строки пересчитана при вводе');
  pin.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();

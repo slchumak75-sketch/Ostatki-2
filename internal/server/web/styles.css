@@ -3021,3 +3021,6 @@ input[type="number"]:focus-visible { outline: none; box-shadow: none; }
 .v4-modal-actions .btn { max-width: 100%; white-space: normal; height: auto; min-height: 27px; }
 #safetyDialog .v4-modal-card { min-width: 0; }
 .preview-qty-input { width: 64px; min-width: 0; }
+
+/* Батч-61: стрелки «Совпадение, %» — в два раза шире, чтобы удобнее попадать. */
+.sim-step { width: 24px; padding: 0 6px; font-size: 10px; }
