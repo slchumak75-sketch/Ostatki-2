@@ -29,7 +29,7 @@ var embeddedWeb embed.FS
 
 // uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/52: дизайн
 // вшивается в сборку при отдаче index.html; с батча-52 вариант один —
-// «Острова+» (макет №6, релиз variant-7.13; индекс релиза растёт с каждой публикацией, батч-69). Значение переопределяется:
+// «Острова+» (макет №6, релиз variant-7.14; индекс релиза растёт с каждой публикацией, батч-70). Значение переопределяется:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
 // Доступное значение: islands (warm — только fallback-токены :root).
 var uiTheme = "warm"
@@ -63,6 +63,9 @@ type AppServer struct {
 	savedDBName             string
 	lastSavedAt             string
 	customSaveDir           string
+	settingsMu              sync.Mutex
+	settingsLoaded          bool
+	settings                userSettings
 	uiState                 model.SavedUIState
 	report                  *model.CalculationReport
 	dirtySinceSave          bool
@@ -357,6 +360,10 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/params", s.handleUpdateParams)
 	mux.HandleFunc("/api/override", s.handleOverride)
 	mux.HandleFunc("/api/orders/fill", s.handleFillOrder)
+	mux.HandleFunc("/api/settings/paths", s.handleSavePaths)
+	mux.HandleFunc("/api/settings/mail", s.handleMailSettings)
+	mux.HandleFunc("/api/supplier-emails", s.handleSupplierEmails)
+	mux.HandleFunc("/api/orders/send-mail", s.handleSendSupplierOrderMail)
 	mux.HandleFunc("/api/supplier-override", s.handleSupplierOverride)
 	mux.HandleFunc("/api/selected-suppliers", s.handleSelectedSuppliers)
 	mux.HandleFunc("/api/upload", s.handleUpload)

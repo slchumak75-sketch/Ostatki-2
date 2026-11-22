@@ -190,11 +190,15 @@
   function updateEtalon(data) {
     resetActionHistory();
     etalonLoaded = Boolean(data.etalonLoaded);
+    if (data.etalonProperties) etalonPropertyKeys = data.etalonProperties;
     referenceDate=etalonLoaded?(data.etalonSavedAt || data.savedAt || referenceDate):'';referenceName=etalonLoaded?(data.etalonFileName || data.fileName || referenceName):'';renderSafetyStatus();
     syncWorkbookGate();
     if(state.report){refreshExcelTable();renderOverstockView(state.report);}
   }
   let nomenclatureProperties = {};
+  // Батч-70: ключи действующего эталона — чтобы новый товар (которого в
+  // эталоне нет) никогда не получал птичку «+» автоматически.
+  let etalonPropertyKeys = {};
   // Остаток на момент постановки отметки «+» (батч-35): если остаток вырос — отметка снимается.
   let markStocks = {};
   let nomenclatureRecords = {};
@@ -250,6 +254,10 @@
       const key = propertyKey(it);
       if (!Object.hasOwn(nomenclatureProperties, key)) continue;
       if (nomenclatureProperties[key]) {
+        // Б70: птички «+» — только ручные. Товар, которого нет в эталоне
+        // (новый), автоматически не отмечается; поставленная вручную в
+        // этом сеансе птичка (строка уже в staryoRows) не трогается.
+        if (etalonLoaded && !Object.hasOwn(etalonPropertyKeys, key) && !state.staryoRows.has(it.excelRow)) continue;
         state.staryoRows.add(it.excelRow);
         if (it._unmarkedAutoOrderQty === undefined) it._unmarkedAutoOrderQty = it.autoOrderQty;
         it.autoOrderQty = 0;
@@ -2530,6 +2538,9 @@
         <td class="right-col" style="white-space:nowrap">
           ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ</a>` : ''}
         </td>
+        <td class="right-col" style="white-space:nowrap">
+          ${isReadyToSend ? `<button type="button" class="btn btn-secondary btn-sm" data-mail-sup="${esc(s.supplier)}" data-mail-wh="${esc(s.warehouse || '')}" data-mail-ext="${isExtended ? '1' : ''}" title="Отправить этот же заказ по электронной почте">Почта</button>` : ''}
+        </td>
       </tr>`;
     }).join('');
 
@@ -2553,7 +2564,7 @@
         <td class="num-col">${fmtInt(sumSupOrderSKU)}</td>
         <td class="num-col" style="color:var(--primary)">${fmtInt(sumSupOrderUnits)}</td>
         <td class="num-col">${fmtMoney(Math.round(sumSupOrderCost * 100) / 100)} руб.</td>
-        <td colspan="4"></td>
+        <td colspan="5"></td>
       </tr>`;
     }
   }
@@ -2954,12 +2965,12 @@
     if (sub) {
       if (state.report) {
         const wh = [...state.msFilters.warehouse].join(' + ') || state.report.warehouses?.map((w) => w.warehouse).join(' + ') || 'Все склады';
-        sub.textContent = `Активная ведомость: ${wh} (${state.report.fileName}). Свойства номенклатуры будут сохранены при выходе. Сохранить текущую ведомость?`;
+        sub.textContent = `Активная ведомость: ${wh} (${state.report.fileName}). Сохранить эталон по текущим данным? Текущая ведомость также будет сохранена. Эталон сохраняется только вручную — автоматически он не записывается.`;
       } else {
         sub.textContent = 'Свойства номенклатуры будут сохранены при выходе. Закрыть программу?';
       }
     }
-    el('closeConfirmTitle').textContent = state.report ? 'Сохранить текущую ведомость?' : 'Закрыть программу?';
+    el('closeConfirmTitle').textContent = state.report ? 'Сохранить эталон?' : 'Закрыть программу?';
     modal.classList.remove('hidden');
   }
 
@@ -3062,25 +3073,34 @@
         const data=await apiGet('api/etalon/compare');
         if(generation!==comparisonGeneration || epoch!==state.clientEpoch)return;
         state.comparison=new Map((data.rows||[]).map(row=>[Number(row.excelRow),row]));
+        // Б70: уведомление о птичках, снятых автоматически (товар «ожил»
+        // или остаток вырос по сравнению с эталоном).
+        const unmarked=(data.rows||[]).filter(row=>row.etalonChecked&&row.stockIncreased).length;
+        if(unmarked)showToast(`Сняты птички «+» (остаток вырос): ${unmarked} поз.`);
         closeExcelFilter();hideRatingChartPopover();switchTabUI('table');
         button.setAttribute('aria-pressed','true');button.classList.add('property-filter-active');el('comparisonHint').classList.remove('hidden');
         refreshExcelTable();
       } catch(err) {if(generation===comparisonGeneration)showToast(`Ошибка сравнения: ${err.message}`);}
       finally {button.disabled=false;}
     });
+    // Б70: эталон сохраняется ТОЛЬКО вручную — этой функцией пользуются
+    // кнопка «Сохранить эталон Номенклатуры» и вопрос при выходе.
+    async function saveEtalonWithConfirm(epoch) {
+      await syncProperties();
+      const preview=await apiGet('api/etalon/preview');
+      if(!await safetyDialog('Заменить действующий эталон?',`Действующий эталон: ${preview.source||'источник неизвестен'} • ${preview.savedAt||'не сохранён'}\nНовый источник: ${preview.newSource}\nПозиций: ${preview.total}\nИзменится галочек: ${preview.marks}\nОстатков: ${preview.stocks}\nРейтингов: ${preview.ratings}\nДобавится новых строк: ${preview.added}\n\nПредыдущий эталон останется в истории (до 10 версий).`))return false;
+      const result=await apiPost('api/etalon/save-confirmed',{token:preview.token}, {unabortable:true});
+      if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
+      updateEtalon(result);
+      exitComparison(true);
+      showToast(`Эталон сохранён: ${formatStorageStatus(result.fileName,result.savedAt)}`);
+      return true;
+    }
     el('btnSaveEtalon').addEventListener('click', async () => {
       const epoch=state.clientEpoch;
       const button=el('btnSaveEtalon');button.disabled=true;
-      try {
-        await syncProperties();
-        const preview=await apiGet('api/etalon/preview');
-        if(!await safetyDialog('Заменить действующий эталон?',`Действующий эталон: ${preview.source||'источник неизвестен'} • ${preview.savedAt||'не сохранён'}\nНовый источник: ${preview.newSource}\nПозиций: ${preview.total}\nИзменится галочек: ${preview.marks}\nОстатков: ${preview.stocks}\nРейтингов: ${preview.ratings}\nДобавится новых строк: ${preview.added}\n\nПредыдущий эталон останется в истории (до 10 версий).`))return;
-        const result=await apiPost('api/etalon/save-confirmed',{token:preview.token}, {unabortable:true});
-        if(epoch===state.clientEpoch && result.state) keepPropertyRowsStable(()=>applyEnvelope(result.state));
-        updateEtalon(result);
-        exitComparison(true);
-        showToast(`Эталон сохранён: ${formatStorageStatus(result.fileName,result.savedAt)}`);
-      } catch(err) {showToast(`Ошибка сохранения эталона: ${err.message}`);}
+      try { await saveEtalonWithConfirm(epoch); }
+      catch(err) {showToast(`Ошибка сохранения эталона: ${err.message}`);}
       finally {button.disabled=false;}
     });
     el('btnExportEtalon').addEventListener('click',async()=>{
@@ -3092,6 +3112,91 @@
       } catch(err) {showToast(`Ошибка выгрузки эталона: ${err.message}`);}
       finally {button.disabled=false;}
     });
+    // Б70: «Указать путь сохранения» — отдельные папки эталона и ведомости.
+    el('btnSavePaths').addEventListener('click', async () => {
+      el('savePathsModal').classList.remove('hidden');
+      try {
+        const data = await apiGet('api/settings/paths');
+        el('savePathEtalon').value = data.etalonCustom ? data.etalonDir : '';
+        el('savePathWorkbook').value = data.workbookCustom ? data.workbookDir : '';
+        el('savePathEtalonHint').textContent = `Сейчас эталон сохраняется: ${data.etalonDir}`;
+        el('savePathWorkbookHint').textContent = `Сейчас ведомости сохраняются: ${data.workbookDir}`;
+      } catch (err) { showToast(err.message); }
+    });
+    el('btnSavePathsOk').addEventListener('click', async () => {
+      const btn = el('btnSavePathsOk'); btn.disabled = true;
+      try {
+        await apiPost('api/settings/paths', {etalonDir: el('savePathEtalon').value.trim(), workbookDir: el('savePathWorkbook').value.trim()}, {unabortable:true});
+        el('savePathsModal').classList.add('hidden');
+        showToast('Пути сохранения обновлены');
+      } catch (err) { showToast(`Не удалось сохранить пути: ${err.message}`); }
+      finally { btn.disabled = false; }
+    });
+    el('btnCloseSavePaths').addEventListener('click', () => el('savePathsModal').classList.add('hidden'));
+    el('btnSavePathsCancel').addEventListener('click', () => el('savePathsModal').classList.add('hidden'));
+
+    // Б70: «Настройка почты» — параметры SMTP своей почты.
+    el('btnMailSettings').addEventListener('click', async () => {
+      el('mailSettingsModal').classList.remove('hidden');
+      try {
+        const data = await apiGet('api/settings/mail');
+        el('mailHost').value = data.host || '';
+        el('mailPort').value = data.port || '';
+        el('mailUsername').value = data.username || '';
+        el('mailFrom').value = data.from || '';
+        el('mailUseTLS').checked = Boolean(data.useTLS);
+        el('mailPassword').value = '';
+        el('mailPassword').placeholder = data.hasPassword ? 'Пароль сохранён — оставьте пустым, чтобы не менять' : 'Пароль почты или пароль приложения';
+      } catch (err) { showToast(err.message); }
+    });
+    el('btnMailSettingsOk').addEventListener('click', async () => {
+      const btn = el('btnMailSettingsOk'); btn.disabled = true;
+      try {
+        await apiPost('api/settings/mail', {host: el('mailHost').value.trim(), port: Number(el('mailPort').value) || 0, username: el('mailUsername').value.trim(), password: el('mailPassword').value, from: el('mailFrom').value.trim(), useTLS: el('mailUseTLS').checked}, {unabortable:true});
+        el('mailSettingsModal').classList.add('hidden');
+        showToast('Настройки почты сохранены');
+      } catch (err) { showToast(`Не удалось сохранить настройки почты: ${err.message}`); }
+      finally { btn.disabled = false; }
+    });
+    el('btnCloseMailSettings').addEventListener('click', () => el('mailSettingsModal').classList.add('hidden'));
+    el('btnMailSettingsCancel').addEventListener('click', () => el('mailSettingsModal').classList.add('hidden'));
+
+    // Б70: отправка заказа по почте из вкладки «Заказ» (столбец «Почта»).
+    let mailCtx = null;
+    async function openMailSend(supplier, warehouse, extended) {
+      mailCtx = { supplier, warehouse, extended };
+      el('mailSendSub').textContent = `Заказ: ${supplier} • ${warehouse || 'Склад не указан'} — тот же файл, что по кнопке «Заказ», уйдёт вложением в письмо.`;
+      el('mailToInput').value = '';
+      el('mailToSelect').innerHTML = '';
+      el('mailToSelectWrap').classList.add('hidden');
+      el('mailSendModal').classList.remove('hidden');
+      try {
+        const data = await apiGet(`api/supplier-emails?supplier=${encodeURIComponent(supplier)}&warehouse=${encodeURIComponent(warehouse)}`);
+        const emails = data.emails || [];
+        if (emails.length) {
+          el('mailToSelect').innerHTML = emails.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+          el('mailToSelectWrap').classList.remove('hidden');
+        }
+        const preset = data.last || emails[0] || '';
+        el('mailToInput').value = preset;
+        if (preset && emails.includes(preset)) el('mailToSelect').value = preset;
+      } catch (_) {}
+      el('mailToInput').focus();
+    }
+    el('mailToSelect').addEventListener('change', () => { el('mailToInput').value = el('mailToSelect').value; });
+    el('btnMailSendOk').addEventListener('click', async () => {
+      if (!mailCtx) return;
+      const btn = el('btnMailSendOk'); btn.disabled = true;
+      try {
+        const res = await apiPost('api/orders/send-mail', {supplier: mailCtx.supplier, warehouse: mailCtx.warehouse, extended: mailCtx.extended, to: el('mailToInput').value.trim()}, {unabortable:true});
+        el('mailSendModal').classList.add('hidden');
+        showToast(`Заказ отправлен по почте: ${res.to} (${res.fileName})`);
+      } catch (err) { showToast(`Не удалось отправить заказ: ${err.message}`); }
+      finally { btn.disabled = false; }
+    });
+    el('btnCloseMailSend').addEventListener('click', () => el('mailSendModal').classList.add('hidden'));
+    el('btnMailSendCancel').addEventListener('click', () => el('mailSendModal').classList.add('hidden'));
+
     el('btnLoadEtalon').addEventListener('click',()=>el('etalonFileInput').click());
     el('etalonFileInput').addEventListener('change',async e=>{
       const file=e.target.files?.[0];if(!file)return;
@@ -3446,11 +3551,16 @@
       else showToast('Наведите курсор на подсвеченную ячейку заказа');
     });
     el('tableBody').addEventListener('mouseover', (e) => {
+      // Б70: при навигации стрелками таблица едет под неподвижной мышью, и
+      // браузер шлёт «мышиные» события от прокрутки — они не должны гасить
+      // подсказку текущей строки (иначе она умирала после первого экрана).
+      if (kbdNavActive) return;
       const cell = e.target.closest && e.target.closest('td.order-cell');
       if (!cell) { if (orderHintRow !== null) hideOrderHint(); return; }
       showOrderHint(cell);
     });
     el('tableBody').addEventListener('mouseout', (e) => {
+      if (kbdNavActive) return; // Б70: см. mouseover выше.
       if (orderHintRow === null) return;
       if (!(e.target && e.target.closest && e.target.closest('td.order-cell'))) return;
       const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('td.order-cell') : null;
@@ -4380,6 +4490,9 @@
       el('orderPreviewTotal').textContent=`Позиций: ${items.length} • Заказ: ${fmtInt(totalQty)} шт. • Сумма: ${fmtMoney(totalSum)} руб.`;
     }
     el('suppliersBody').addEventListener('click', (e) => {
+      // Б70: столбец «Почта» — тот же заказ уходит письмом с подтверждением.
+      const mailBtn = e.target.closest('[data-mail-sup]');
+      if (mailBtn) { openMailSend(mailBtn.dataset.mailSup, mailBtn.dataset.mailWh || '', mailBtn.dataset.mailExt === '1'); return; }
       const btn = e.target.closest('[data-filter-sup]');
       if (!btn) return;
       const supplier=btn.dataset.filterSup,warehouse=btn.dataset.filterWh||'';
@@ -4595,6 +4708,16 @@
           if (noBtn) noBtn.disabled = false;
           return;
         }
+        // Б70: при выходе спрашиваем «Сохранить эталон?» — эталон пишется
+        // только вручную, этим явным подтверждением.
+        let etalonSaved = false;
+        try { etalonSaved = await saveEtalonWithConfirm(state.clientEpoch); }
+        catch (err) { showToast(`Ошибка сохранения эталона: ${err.message}`); }
+        if (!etalonSaved) {
+          if (yesBtn) yesBtn.disabled = false;
+          if (noBtn) noBtn.disabled = false;
+          return;
+        }
       }
       await performFinalAppClose();
     });
@@ -4636,7 +4759,7 @@
     window.addEventListener('beforeunload', (e) => {
       if (!isClosingConfirmed && !isDownloadingFile && (propertiesDirty || (state.report && state.hasUnsavedChanges))) {
         e.preventDefault();
-        e.returnValue = 'Сохранить текущую ведомость?';
+        e.returnValue = 'Сохранить эталон?';
       }
     });
 

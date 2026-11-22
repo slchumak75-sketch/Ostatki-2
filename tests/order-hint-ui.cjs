@@ -92,5 +92,12 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  const fRec=Math.round(fItem.autoOrderQty||0)>0?Math.round(fItem.autoOrderQty):Math.round(fItem.finalOrderQty||0);
  assert.ok(!pop.classList.contains('hidden'),'Б67: подсказка не гаснет при переходе стрелкой');
  assert.equal(pop.textContent.trim(),String(fRec),'Б67: подсказка показывает рекомендацию новой строки');
+ // Б70: «мышиные» события от прокрутки под неподвижной мышью не гасят подсказку.
+ const beforeHint=pop.textContent.trim();
+ const otherTd=d.querySelector('input[data-qty-row="9"]').closest('td.order-cell');
+ otherTd.dispatchEvent(new w.MouseEvent('mouseover',{bubbles:true}));
+ otherTd.dispatchEvent(new w.MouseEvent('mouseout',{bubbles:true,relatedTarget:d.body}));
+ assert.ok(!pop.classList.contains('hidden'),'Б70: подсказка не гаснет от «мышиных» событий прокрутки');
+ assert.equal(pop.textContent.trim(),beforeHint,'Б70: подсказка остаётся у текущей строки');
  console.log('ORDER-HINT UI: «Подсказка» button + number-only popover: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();

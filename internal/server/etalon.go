@@ -118,6 +118,16 @@ func (s *AppServer) handleSaveEtalon(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Эталон не сохранён: "+err.Error())
 		return
 	}
+	// Батч-70: копия файла эталона — в папку из «Указать путь сохранения».
+	if custom := s.etalonDirSetting(); custom != "" {
+		if err = os.MkdirAll(custom, 0o700); err == nil {
+			err = writeVerifiedProperties(filepath.Join(custom, name), raw)
+		}
+		if err != nil {
+			writeError(w, 500, "Эталон не сохранён в указанную папку: "+err.Error())
+			return
+		}
+	}
 	if err = s.commitEtalonLocked(dir, catalog); err != nil {
 		writeError(w, 500, "Эталон не активирован: "+err.Error())
 		return

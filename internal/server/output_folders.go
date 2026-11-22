@@ -30,6 +30,12 @@ func (s *AppServer) saveExport(w http.ResponseWriter, folder, name string, raw [
 	s.mu.RLock()
 	desktop := s.desktopMode
 	dir, err := s.outputDirLocked(folder)
+	if folder == "Эталон" {
+		// Батч-70: выгрузка эталона — в папку из «Указать путь сохранения».
+		if custom := s.etalonDirSetting(); custom != "" {
+			dir, err = custom, nil
+		}
+	}
 	s.mu.RUnlock()
 	if !desktop {
 		writeError(w, 400, "Сохранение в папку Загрузки доступно в настольной программе")

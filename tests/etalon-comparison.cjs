@@ -33,6 +33,7 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
  }
  const budget=d.getElementById('kpiOrderCost').textContent;
  compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12,14],'Union bypasses both protected filters');
+ assert.match(d.getElementById('toast').textContent,/Сняты птички «\+» \(остаток вырос\): 2 поз\./,'Б70: сравнение уведомляет о снятых птичках');
  assert.equal(compare.getAttribute('aria-pressed'),'true');
  assert.match(d.querySelector('tr[data-row="14"] .comparison-reason').textContent,/новый товар/);
  assert.equal(d.querySelector('#tableBody tr[data-row="9"] .seg-pill').textContent,'0','Comparison displays the current 0 rather than reference 1');
