@@ -29,7 +29,7 @@ var embeddedWeb embed.FS
 
 // uiTheme — дизайн интерфейса, вшитый в сборку. Батч-48/52: дизайн
 // вшивается в сборку при отдаче index.html; с батча-52 вариант один —
-// «Острова+» (макет №6, релиз variant-7.14; индекс релиза растёт с каждой публикацией, батч-70). Значение переопределяется:
+// «Острова+» (макет №6, релиз variant-7.15; индекс релиза растёт с каждой публикацией, батч-71). Значение переопределяется:
 //   -ldflags "-H=windowsgui -X internal/server.uiTheme=islands"
 // Доступное значение: islands (warm — только fallback-токены :root).
 var uiTheme = "warm"
@@ -362,6 +362,8 @@ func (s *AppServer) Handler() http.Handler {
 	mux.HandleFunc("/api/orders/fill", s.handleFillOrder)
 	mux.HandleFunc("/api/settings/paths", s.handleSavePaths)
 	mux.HandleFunc("/api/settings/mail", s.handleMailSettings)
+	mux.HandleFunc("/api/settings/mail-test", s.handleMailTest)
+	mux.HandleFunc("/api/settings/pick-folder", s.handlePickFolder)
 	mux.HandleFunc("/api/supplier-emails", s.handleSupplierEmails)
 	mux.HandleFunc("/api/orders/send-mail", s.handleSendSupplierOrderMail)
 	mux.HandleFunc("/api/supplier-override", s.handleSupplierOverride)

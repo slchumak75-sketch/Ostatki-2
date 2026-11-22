@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Заказ — Вариант 7.14 • Управление закупками • Рейтинг • SBA</title>
+  <title>Заказ — Вариант 7.15 • Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
   <link rel="stylesheet" href="styles.css?v=4.26" />
 </head>
@@ -32,7 +32,7 @@
         <div class="brand-title-row">
           <h1>Заказ</h1>
           <span class="brand-date" id="brandCurrentDate" title="Текущая дата"></span>
-          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.14</span>
+          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.15</span>
           <span class="file-meta"><span id="fileMetaLine">Загрузка ведомости…</span><span id="safetyStatus" role="status" aria-live="polite"></span></span>
         </div>
       </div>
@@ -738,11 +738,11 @@
         <button type="button" class="btn btn-ghost icon-only" id="btnCloseSavePaths" aria-label="Закрыть окно">✕</button>
       </div>
       <label class="mail-field">Папка сохранения эталона
-        <input type="text" id="savePathEtalon" autocomplete="off" placeholder="Например: D:\\Закупки\\Эталоны" />
+        <span class="path-row"><input type="text" id="savePathEtalon" autocomplete="off" placeholder="Например: D:\\Закупки\\Эталоны" /><button type="button" class="btn btn-beige btn-sm" id="btnPickEtalonDir">Выбрать…</button></span>
         <span class="field-hint" id="savePathEtalonHint"></span>
       </label>
       <label class="mail-field">Папка сохранения текущей ведомости
-        <input type="text" id="savePathWorkbook" autocomplete="off" placeholder="Например: D:\\Закупки\\Ведомости" />
+        <span class="path-row"><input type="text" id="savePathWorkbook" autocomplete="off" placeholder="Например: D:\\Закупки\\Ведомости" /><button type="button" class="btn btn-beige btn-sm" id="btnPickWorkbookDir">Выбрать…</button></span>
         <span class="field-hint" id="savePathWorkbookHint"></span>
       </label>
       <div class="v4-modal-actions">
@@ -777,6 +777,10 @@
         <input type="text" id="mailFrom" autocomplete="off" placeholder="Совпадает с логином, если пусто" />
       </label>
       <label class="mail-check"><input type="checkbox" id="mailUseTLS" /> Защищённое соединение SSL (обычно порт 465; для 587 снимите — включится STARTTLS)</label>
+      <div class="v4-modal-toolbar">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnMailTest">Проверить отправку (тестовое письмо себе)</button>
+        <span class="field-hint" id="mailTestResult"></span>
+      </div>
       <div class="v4-modal-actions">
         <button type="button" class="btn btn-modal-yes" id="btnMailSettingsOk">Сохранить настройки</button>
         <button type="button" class="btn btn-ghost" id="btnMailSettingsCancel">Отмена</button>
@@ -809,7 +813,7 @@
 
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=19"></script>
-  <script src="app.js?v=5.31"></script>
+  <script src="app.js?v=5.32"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>

@@ -158,6 +158,7 @@
   // после её использования повторное открытие панели не должно принудительно показывать тело.
   let paramsBodyUserManaged = false;
   function syncPlanningChrome(panelOpen, bodyOpen) {
+    requestAnimationFrame(() => snapTableViewportToRows());
     el('paramsPanel').classList.toggle('hidden', !panelOpen);
     el('paramsBody').classList.toggle('hidden', !bodyOpen);
     el('btnToggleAdvanced')?.setAttribute('aria-expanded', String(panelOpen));
@@ -2067,10 +2068,16 @@
     return true;
   }
 
-  // Батч-69: высота области просмотра кратна целому числу строк —
+  // Батч-69/71: высота области просмотра кратна целому числу строк —
   // частично обрезанных строк внизу нет, позиции строк не «плывут».
+  // Б71: измерение всегда от ПОЛНОЙ доступной высоты: сначала снимаем
+  // ранее зафиксированную высоту, иначе один раз измеренная меньшая
+  // высота (окно ещё не развернулось) «съедала» 3–4 строки навсегда.
+  // Теряется меньше одной строки.
   function snapTableViewportToRows() {
-    const c = el('tableScrollContainer'); if (!c || !c.clientHeight) return;
+    const c = el('tableScrollContainer'); if (!c) return;
+    c.style.flex = ''; c.style.height = '';
+    if (!c.clientHeight) return;
     const head = el('itemsTable')?.querySelector('thead');
     if (!head) return;
     const headerH = head.getBoundingClientRect().height, H = VIRTUAL_ROW_HEIGHT;
@@ -2078,9 +2085,10 @@
     const k = Math.floor((c.clientHeight - headerH) / H);
     if (k < 3) return;
     const desiredClient = headerH + k * H;
-    if (Math.abs(desiredClient - c.clientHeight) < 0.5) return;
+    if (c.clientHeight - desiredClient < 0.5) return;
+    const extra = c.offsetHeight - c.clientHeight;
     c.style.flex = '0 0 auto';
-    c.style.height = `${Math.round(desiredClient + (c.offsetHeight - c.clientHeight))}px`;
+    c.style.height = `${Math.round(desiredClient + extra)}px`;
   }
 
   function renderTableBodyWindow(force = true) {
@@ -3132,6 +3140,15 @@
       } catch (err) { showToast(`Не удалось сохранить пути: ${err.message}`); }
       finally { btn.disabled = false; }
     });
+    // Б71: папка выбирается настоящим окном на компьютере, а не вводом.
+    async function pickFolderInto(inputId, title) {
+      try {
+        const res = await apiPost('api/settings/pick-folder', {title}, {unabortable:true});
+        if (res.path) el(inputId).value = res.path;
+      } catch (err) { showToast(`Не удалось выбрать папку: ${err.message}`); }
+    }
+    el('btnPickEtalonDir').addEventListener('click', () => pickFolderInto('savePathEtalon', 'Папка сохранения эталона'));
+    el('btnPickWorkbookDir').addEventListener('click', () => pickFolderInto('savePathWorkbook', 'Папка сохранения текущей ведомости'));
     el('btnCloseSavePaths').addEventListener('click', () => el('savePathsModal').classList.add('hidden'));
     el('btnSavePathsCancel').addEventListener('click', () => el('savePathsModal').classList.add('hidden'));
 
@@ -3149,13 +3166,50 @@
         el('mailPassword').placeholder = data.hasPassword ? 'Пароль сохранён — оставьте пустым, чтобы не менять' : 'Пароль почты или пароль приложения';
       } catch (err) { showToast(err.message); }
     });
+    // Б71: голый домен («mail.ru») — не сервер; подставляем настоящий SMTP.
+    const SMTP_KNOWN_HOSTS = {'mail.ru':'smtp.mail.ru','bk.ru':'smtp.mail.ru','inbox.ru':'smtp.mail.ru','list.ru':'smtp.mail.ru','yandex.ru':'smtp.yandex.ru','ya.ru':'smtp.yandex.ru','gmail.com':'smtp.gmail.com','outlook.com':'smtp.office365.com','hotmail.com':'smtp.office365.com','rambler.ru':'smtp.rambler.ru'};
+    function normalizeMailHostField() {
+      const input = el('mailHost');
+      const h = input.value.trim().toLowerCase();
+      if (SMTP_KNOWN_HOSTS[h]) { input.value = SMTP_KNOWN_HOSTS[h]; showToast(`Почтовый сервер исправлен: ${SMTP_KNOWN_HOSTS[h]}`); return; }
+      if (!h && el('mailUsername').value.includes('@')) {
+        const dom = el('mailUsername').value.split('@').pop().trim().toLowerCase();
+        if (SMTP_KNOWN_HOSTS[dom]) input.value = SMTP_KNOWN_HOSTS[dom];
+      }
+    }
+    function syncMailTlsByPort() {
+      const p = Number(el('mailPort').value);
+      if (p === 465) el('mailUseTLS').checked = true;
+      else if (p === 587) el('mailUseTLS').checked = false;
+    }
+    el('mailHost').addEventListener('change', normalizeMailHostField);
+    el('mailUsername').addEventListener('change', normalizeMailHostField);
+    el('mailPort').addEventListener('change', syncMailTlsByPort);
+    const mailSettingsPayload = () => ({host: el('mailHost').value.trim(), port: Number(el('mailPort').value) || 0, username: el('mailUsername').value.trim(), password: el('mailPassword').value, from: el('mailFrom').value.trim(), useTLS: el('mailUseTLS').checked});
     el('btnMailSettingsOk').addEventListener('click', async () => {
       const btn = el('btnMailSettingsOk'); btn.disabled = true;
       try {
-        await apiPost('api/settings/mail', {host: el('mailHost').value.trim(), port: Number(el('mailPort').value) || 0, username: el('mailUsername').value.trim(), password: el('mailPassword').value, from: el('mailFrom').value.trim(), useTLS: el('mailUseTLS').checked}, {unabortable:true});
+        normalizeMailHostField(); syncMailTlsByPort();
+        await apiPost('api/settings/mail', mailSettingsPayload(), {unabortable:true});
         el('mailSettingsModal').classList.add('hidden');
         showToast('Настройки почты сохранены');
       } catch (err) { showToast(`Не удалось сохранить настройки почты: ${err.message}`); }
+      finally { btn.disabled = false; }
+    });
+    // Б71: проверка — тестовое письмо самому себе, ошибка видна сразу.
+    el('btnMailTest').addEventListener('click', async () => {
+      const btn = el('btnMailTest'); btn.disabled = true;
+      el('mailTestResult').textContent = 'Отправляю тестовое письмо…';
+      try {
+        normalizeMailHostField(); syncMailTlsByPort();
+        await apiPost('api/settings/mail', mailSettingsPayload(), {unabortable:true});
+        const res = await apiPost('api/settings/mail-test', {}, {unabortable:true});
+        el('mailTestResult').textContent = `Тестовое письмо отправлено на ${res.to}. Проверьте «Входящие» (и папку «Спам»).`;
+        showToast('Почта работает: тестовое письмо отправлено');
+      } catch (err) {
+        el('mailTestResult').textContent = `Не отправлено: ${err.message}`;
+        showToast(`Почта не отправлена: ${err.message}`);
+      }
       finally { btn.disabled = false; }
     });
     el('btnCloseMailSettings').addEventListener('click', () => el('mailSettingsModal').classList.add('hidden'));
