@@ -13,7 +13,7 @@ const rep={fileName:'test.xlsx',items,periods,warehouses:[],groups:[],suppliers:
 const before=JSON.stringify(rep);
 w.SalesCharts.update(rep);
 assert.equal(d.querySelector('[data-tab="charts"]').nextElementSibling.dataset.tab,'analytics');
-assert.equal(d.querySelectorAll('#chartKind option').length,5);
+assert.equal(d.querySelectorAll('#chartKind option').length,6);
 assert.ok(d.getElementById('chartTop'),'Top-10 selector exists');
 assert.ok(d.getElementById('chartUnit'),'Units selector exists');
 let data=w.SalesCharts.aggregate(rep,'groups','',0,2);
@@ -24,7 +24,7 @@ assert.ok(!d.querySelector('#chartsContent script'));
 change('chartWarehouse','B');assert.match(d.getElementById('chartsContent').textContent,/60,00/);
 change('chartFrom','1');change('chartTo','1');assert.match(d.getElementById('chartsContent').textContent,/нет положительных продаж/);
 change('chartWarehouse','');change('chartFrom','0');change('chartTo','2');
-for(const kind of ['groups','suppliers','supplierShares','groupShares','monthlyGroups']){
+for(const kind of ['groups','suppliers','supplierShares','groupShares','monthlyGroups','monthlySuppliers']){
  change('chartKind',kind);assert.ok(d.querySelector('#chartsContent svg'));assert.ok(d.querySelector('#chartsContent .chart-values.data-table'),'Exact chart values use statement table styling');
  assert.match(d.getElementById('chartsContent').textContent,/130,00/);
  if(kind.endsWith('Shares'))assert.match(d.getElementById('chartsContent').textContent,/%/);
@@ -70,6 +70,18 @@ assert.match(d.querySelector('#chartsContent circle title').textContent,/1 кв\
 d.getElementById('chartQuarterBands').checked=false;d.getElementById('chartQuarterBands').dispatchEvent(new w.Event('change'));
 d.getElementById('chartGroupReset').click();
 assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Back to monthly per-group curves');
+// Б59: динамика продаж по поставщикам — аналогично группам, серии — поставщики.
+change('chartKind','monthlySuppliers');
+assert.equal(d.querySelectorAll('#chartsContent path').length,2,'One curve per supplier with priced sales');
+assert.ok(!d.getElementById('chartGroupPicker').classList.contains('hidden'),'Supplier picker is visible for the supplier dynamics chart');
+assert.equal(d.querySelectorAll('#chartGroupList input[data-cgp-group]').length,2,'Picker lists suppliers');
+const s2=[...d.querySelectorAll('#chartGroupList input[data-cgp-group]')].find(c=>c.dataset.cgpGroup==='S2');
+s2.checked=true;s2.dispatchEvent(new w.Event('change',{bubbles:true}));
+assert.equal(d.querySelectorAll('#chartsContent path').length,1,'Only the checked supplier is drawn');
+d.getElementById('chartGroupReset').click();
+assert.equal(d.querySelectorAll('#chartsContent path').length,2,'Reset restores top suppliers');
+const supData=w.SalesCharts.aggregate(rep,'monthlySuppliers','',0,2);
+assert.equal(supData.total,130);assert.equal(supData.rows[0].values.get('S1'),10);
 // Аналитика тенденций — отдельная вкладка справа от «Графики»; таблица всегда в рублях.
 const tabsBar=[...d.querySelectorAll('.tab-btn')].map(b=>b.dataset.tab);
 assert.deepEqual(tabsBar,['table','suppliers','charts','analytics'],'Tab row: ведомость, заказ, графики, аналитика');

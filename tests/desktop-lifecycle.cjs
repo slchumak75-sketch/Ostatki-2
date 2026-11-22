@@ -48,6 +48,12 @@ const tick=()=>new Promise(resolve=>setTimeout(resolve,40));
   assert.ok(d.getElementById('paramsBody').classList.contains('hidden'),'Configuration-left hidden body survives panel reopening');
   d.getElementById('btnToggleAdvanced').click();
   assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'),'Параметры collapses the whole panel');
+  // Б59: даже если «Конфигурация» была раскрыта, при открытии «Параметров» она по умолчанию свёрнута.
+  config.click();
+  assert.ok(!d.getElementById('paramsBody').classList.contains('hidden'),'Configuration body opened before reopening');
+  for(let i=0;i<4;i++)d.getElementById('btnToggleAdvanced').click();
+  assert.ok(!d.getElementById('paramsPanel').classList.contains('hidden'),'Параметры reopened');
+  assert.ok(d.getElementById('paramsBody').classList.contains('hidden'),'Б59: «Конфигурация» при открытии «Параметров» по умолчанию свёрнута');
   console.log('Desktop reload/resume/explicit-exit lifecycle tests passed');
  } finally {closeWindow();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

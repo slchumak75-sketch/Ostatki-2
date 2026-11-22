@@ -18,7 +18,7 @@ const tick=()=>new Promise(r=>setTimeout(r,30));
 (async()=>{
  await tick();
  const referenceInput=d.getElementById('etalonFileInput');Object.defineProperty(referenceInput,'files',{configurable:true,value:[new w.File(['ref'],'Эталон.xlsx')]});referenceInput.dispatchEvent(new w.Event('change'));await tick();
-for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementById(id).click();
+for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б59: один клик
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2,'Default excludes products without 12-month sales');
  // Expanded Parameters can push anchors down; keep popup actions above taskbar.
  const pop=d.getElementById('excelFilterPopover'),anchor=d.querySelector('[data-filter-col="supplier"]');
@@ -91,7 +91,7 @@ for(const id of ['btnSales12','btnRelevant'])for(let i=0;i<4;i++)d.getElementByI
  assert.ok(d.getElementById('btnSaveFields').closest('#paramsPanel'));
  assert.ok(d.getElementById('btnConfigurePanel').closest('#etalonActions'),'Configuration sits on the fields toolbar');
  assert.equal(d.getElementById('paramsPanel').classList.contains('hidden'),false);
- assert.equal(d.getElementById('paramsBody').classList.contains('hidden'),false);
+ assert.equal(d.getElementById('paramsBody').classList.contains('hidden'),true,'Б59: «Конфигурация» при открытии «Параметров» по умолчанию свёрнута');
  paramsButton.click();
  assert.equal(paramsButton.getAttribute('aria-expanded'),'false','One click closes the open panel');
  assert.ok(d.getElementById('paramsPanel').classList.contains('hidden'));

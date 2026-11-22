@@ -44,9 +44,9 @@ async function runClear(){
   clearBtn.click();
   await tick();
   assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'),'Clear dialog opens');
-  const sel=d.getElementById('supplierClearWarehouse');
-  sel.value=[...sel.options].find(o=>o.textContent==='Мир').value;
-  d.getElementById('safetyDialogYes').click();
+  const whBtn=[...d.querySelectorAll('#safetyDialog .v4-modal-actions button')].find(b=>b.textContent.includes('Мир'));
+  assert.ok(whBtn,'Б59: кнопка «Склад Мир + сумма» в диалоге очистки');
+  whBtn.click();
 }
 (async()=>{try{
  await tick();const {state,refreshExcelTable}=w.__drain;
@@ -88,11 +88,10 @@ async function runClear(){
  await tick();
  assert.ok(!d.getElementById('safetyDialog').classList.contains('hidden'),'Clear dialog opens');
  const clearSupplier=clearBtn.dataset.supplierClear;
- const expectedWarehouses=['Выберите склад',...[...new Set(items.filter(it=>it.supplier===clearSupplier).map(it=>it.warehouse))].sort()];
- const opts=[...d.getElementById('supplierClearWarehouse').options].map(o=>o.textContent);
- assert.deepEqual(opts,expectedWarehouses,'Dialog lists the supplier warehouses');
- d.getElementById('supplierClearWarehouse').value='0';
- d.getElementById('safetyDialogYes').click();
+ const expectedWarehouses=[...new Set(items.filter(it=>it.supplier===clearSupplier).map(it=>it.warehouse))].sort();
+ const whBtns=[...d.querySelectorAll('#safetyDialog .v4-modal-actions button')].filter(b=>b.textContent.includes('Склад'));
+ assert.deepEqual(whBtns.map(b=>b.textContent.replace(/ \+ .*/,'')),expectedWarehouses.map(wh=>wh.startsWith('Склад')?wh:`Склад ${wh}`),'Б59: диалог — кнопки складов с суммами');
+ whBtns.find(b=>b.textContent.includes('Мир')).click();
  await tick(400);
  assert.ok(!lastToastIncludes('Дождитесь сохранения'),'Clear must wait for the pending quantity instead of blocking');
  const clearReq=clearRequests(callsBefore)[0];

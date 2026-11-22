@@ -44,7 +44,7 @@
     const periods=rep?.periods||[],items=rep?.items||[];
     const mode=opts.unit||'money';
     const rows=new Map(),warehouses=new Set();let excluded=0,returns=0,total=0;
-    const monthlyGroups=kind==='monthlyGroups';
+    const monthlyGroups=kind==='monthlyGroups'||kind==='monthlySuppliers';
     if(monthlyGroups)for(let j=from;j<=to;j++)if(periods[j])rows.set(monthKey(periods[j]),{key:monthKey(periods[j]),label:periods[j].label||monthKey(periods[j]),values:new Map(),total:0,units:0,skuSet:new Set(),month:Number(periods[j].month)||1,year:Number(periods[j].year)||0});
     for(const it of items) {
       const whName=warehouse(it);if(wh && whName!==wh)continue;
@@ -59,7 +59,7 @@
         const value=mode==='units'?units:units*price;
         if(!Number.isFinite(value))continue;
         const key=monthlyGroups?monthKey(periods[j]):String((kind==='groups'||kind==='groupShares'?it.group:it.supplier)||'(Не указан)');
-        const series=monthlyGroups?String(it.group||'(Не указан)'):null;
+        const series=monthlyGroups?String((kind==='monthlySuppliers'?it.supplier:it.group)||'(Не указан)'):null;
         if(!rows.has(key))rows.set(key,{key,label:key,values:new Map(),total:0,units:0,skuSet:new Set()});
         const row=rows.get(key);
         const target=monthlyGroups?series:whName;
@@ -115,10 +115,14 @@
   // Динамика продаж по товарным группам: тонкие гладкие кривые по месяцам,
   // топ-15 групп; выбор групп галочками с автомасштабом по вертикали.
   let groupSelection=new Set();
+  let supplierSelection=new Set();
+  let seriesDimension='group';
+  const activeSelection=()=>seriesDimension==='supplier'?supplierSelection:groupSelection;
   let groupCatalog=[]; // [{name,total}] по убыванию продаж
   const TOP_GROUPS=15;
   function displayedGroups() {
-    const picked=groupCatalog.filter(g=>groupSelection.has(g.name)).map(g=>g.name);
+    const sel=activeSelection();
+    const picked=groupCatalog.filter(g=>sel.has(g.name)).map(g=>g.name);
     return picked.length?picked:groupCatalog.slice(0,TOP_GROUPS).map(g=>g.name);
   }
   // Поквартальная агрегация: сумма трёх месяцев за квартал, подпись «1 кв. 2025».
@@ -284,16 +288,21 @@
   }
   function renderGroupList() {
     const list=$('chartGroupList');if(!list)return;
+    const isSup=seriesDimension==='supplier';
+    const search=$('chartGroupSearch');if(search)search.placeholder=isSup?'Поиск поставщика':'Поиск группы';
     const q=($('chartGroupSearch')?.value||'').trim().toLowerCase();
     // Перечень — по порядку: номер группы, затем алфавит (не по продажам).
     const rows=groupCatalog.filter(g=>!q||g.name.toLowerCase().includes(q)).sort(groupSort);
-    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><i class="cgp-dot" style="background:${groupColor(g.name)}"></i><input type="checkbox" data-cgp-group="${esc(g.name)}" ${groupSelection.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>48?g.name.slice(0,46)+'…':g.name)}</span></label>`).join(''):'<p class="muted" style="padding:8px">Группа не найдена</p>';
+    const sel=activeSelection();
+    list.innerHTML=rows.length?rows.map(g=>`<label class="cgp-item" title="${esc(g.name)}"><i class="cgp-dot" style="background:${groupColor(g.name)}"></i><input type="checkbox" data-cgp-group="${esc(g.name)}" ${sel.has(g.name)?'checked':''}/><span class="cgp-name">${esc(g.name.length>48?g.name.slice(0,46)+'…':g.name)}</span></label>`).join(''):`<p class="muted" style="padding:8px">${isSup?'Поставщик не найден':'Группа не найдена'}</p>`;
     const hint=$('chartGroupHint');
-    if(hint)hint.textContent=groupSelection.size?`Отмечено групп: ${groupSelection.size} — вертикаль масштабируется по ним`:`Не отмечено — показаны топ-${TOP_GROUPS} групп`;
+    if(hint)hint.textContent=sel.size?`Отмечено ${isSup?'поставщиков':'групп'}: ${sel.size} — вертикаль масштабируется по ним`:`Не отмечено — показаны топ-${TOP_GROUPS} ${isSup?'поставщиков':'групп'}`;
   }
   function syncGroupPicker() {
     const picker=$('chartGroupPicker');if(!picker)return;
-    picker.classList.toggle('hidden',!report?.items?.length||$('chartKind')?.value!=='monthlyGroups');
+    const kind=$('chartKind')?.value;
+    if(kind==='monthlyGroups')seriesDimension='group';else if(kind==='monthlySuppliers')seriesDimension='supplier';
+    picker.classList.toggle('hidden',!report?.items?.length||(kind!=='monthlyGroups'&&kind!=='monthlySuppliers'));
   }
 
   function render() {
@@ -307,13 +316,15 @@
     const shares=kind.endsWith('Shares');
     if(!(data.total>0)){$('chartsContent').innerHTML=`<p class="charts-empty">За выбранный период нет положительных продаж${mode==='money'?' с заполненной ценой':''}. Строк без положительной цены: ${data.excluded}.</p>`;return;}
     const metric=unitWord(mode);
-    if(kind==='monthlyGroups') {
+    if(kind==='monthlyGroups'||kind==='monthlySuppliers') {
+      seriesDimension=kind==='monthlySuppliers'?'supplier':'group';
       // Каталог групп (по убыванию продаж) для панели галочек; выбор чистится от исчезнувших.
       const totals=new Map();
       for(const r of data.rows)for(const [g,v] of r.values)totals.set(g,(totals.get(g)||0)+v);
       groupCatalog=[...totals.entries()].sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0]),'ru')).map(([name,total])=>({name,total}));
       const names=new Set(groupCatalog.map(g=>g.name));
-      for(const g of [...groupSelection])if(!names.has(g))groupSelection.delete(g);
+      const sel=activeSelection();
+      for(const g of [...sel])if(!names.has(g))sel.delete(g);
       renderGroupList();
       $('chartsContent').innerHTML=`<h2>${esc(title)}</h2><p class="charts-summary">${esc(report.periods[from].label||monthKey(report.periods[from]))} — ${esc(report.periods[to].label||monthKey(report.periods[to]))} · Всего: <strong>${fmtMetric(data.total,mode)} ${metric}</strong>${mode==='money'?` · в штуках: ${qty(data.unitsTotal)}`:''}</p>${monthlyGroupsSvg(data,title)}<details><summary>Точные значения</summary><table class="chart-values data-table"><thead><tr><th>Месяц</th>${data.warehouses.map(g=>`<th>${esc(g)}, ${metric}</th>`).join('')}<th>Итого, ${metric}</th><th>Доля, %</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td>${esc(r.label)}</td>${data.warehouses.map(g=>`<td>${fmtMetric(r.values.get(g)||0,mode)}</td>`).join('')}<td>${fmtMetric(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),mode)}</td><td>${pct(data.warehouses.reduce((s,g)=>s+(r.values.get(g)||0),0),data.total)}</td></tr>`).join('')}</tbody></table></details>`;
       return;
@@ -343,11 +354,11 @@
   $('chartGroupSearch')?.addEventListener('input',renderGroupList);
   $('analyticsSupplier')?.addEventListener('change',renderAnalytics);
   $('analyticsWarehouse')?.addEventListener('change',renderAnalytics);
-  $('chartGroupReset')?.addEventListener('click',()=>{groupSelection.clear();renderGroupList();render();});
+  $('chartGroupReset')?.addEventListener('click',()=>{activeSelection().clear();renderGroupList();render();});
   $('chartGroupList')?.addEventListener('change',e=>{
     const box=e.target.closest('[data-cgp-group]');
     if(!box)return;
-    if(box.checked)groupSelection.add(box.dataset.cgpGroup);else groupSelection.delete(box.dataset.cgpGroup);
+    if(box.checked)activeSelection().add(box.dataset.cgpGroup);else activeSelection().delete(box.dataset.cgpGroup);
     renderGroupList();render();
   });
   // Вкладка «Аналитика»: таблица тенденций по данным всего отчёта (все склады), всегда в рублях.

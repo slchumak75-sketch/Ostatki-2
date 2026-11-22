@@ -57,6 +57,7 @@
     autoFilledQuantities: {},
     highlightedOrderRows: new Set(),
     orderTransferRows: new Set(),
+    extendedOrderSuppliers: new Set(),
     checkedSuppliers: new Set(),
     msFilters: {
       warehouse: new Set(),
@@ -120,10 +121,20 @@
       cancelBtn=document.createElement('button');cancelBtn.type='button';cancelBtn.className='btn btn-ghost';cancelBtn.id='safetyDialogCancel';cancelBtn.textContent='Отмена';
       el('safetyDialogNo').before(cancelBtn);
     } else el('safetyDialogNo').textContent='Отмена';
+    // Батч-59: opts.choices — вместо «Подтвердить» показываются кнопки выбора
+    // (например, склады с суммами заказа); «Отмена» остаётся третьей кнопкой.
+    const choiceBtns=[];
+    if(Array.isArray(opts.choices)&&opts.choices.length){
+      el('safetyDialogYes').classList.add('hidden');
+      for(const choice of opts.choices){
+        const b=document.createElement('button');b.type='button';b.className=choice.className||'btn btn-beige';b.textContent=choice.label;
+        el('safetyDialogYes').before(b);choiceBtns.push(b);
+      }
+    }
     return new Promise(resolve=>{
-      const finish=value=>{if(value===true && validate && !validate())return;box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;cancelBtn?.remove();box.removeEventListener('keydown',key);before?.focus();resolve(value);};
+      const finish=value=>{if(value===true && validate && !validate())return;box.classList.add('hidden');dialogBusy=false;el('safetyDialogYes').onclick=null;el('safetyDialogNo').onclick=null;cancelBtn?.remove();choiceBtns.forEach(b=>b.remove());el('safetyDialogYes').classList.remove('hidden');box.removeEventListener('keydown',key);before?.focus();resolve(value);};
       const key=e=>{if(e.key==='Escape'){e.stopPropagation();finish(opts.cancel?-1:false);}if(e.key==='Tab'){const controls=[...box.querySelectorAll('button,input,select')].filter(x=>!x.disabled);if(e.shiftKey&&document.activeElement===controls[0]){e.preventDefault();controls.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===controls.at(-1)){e.preventDefault();controls[0].focus();}}};
-      box.addEventListener('keydown',key);el('safetyDialogYes').onclick=()=>finish(true);el('safetyDialogNo').onclick=()=>finish(false);if(cancelBtn)cancelBtn.onclick=()=>finish(-1);
+      box.addEventListener('keydown',key);el('safetyDialogYes').onclick=()=>finish(true);el('safetyDialogNo').onclick=()=>finish(false);if(cancelBtn)cancelBtn.onclick=()=>finish(-1);choiceBtns.forEach((b,i)=>{b.onclick=()=>finish(opts.choices[i].value);});
     });
   }
   async function inspectWorkbook(file,fileName){
@@ -1005,6 +1016,7 @@
       filledOrderScopes: [...state.filledOrderScopes],
       autoFilledQuantities: {...state.autoFilledQuantities},
       orderTransferRows: [...state.orderTransferRows],
+      extendedOrderSuppliers: [...state.extendedOrderSuppliers],
       highlightedOrderRows: [...state.highlightedOrderRows],
       colFilters: state.colFilters,
       staryoMode: Boolean(state.staryoMode),
@@ -1077,6 +1089,7 @@
     state.highlightedOrderRows.clear();
     state.orderTransferRows.clear();
     state.checkedSuppliers.clear();
+    state.extendedOrderSuppliers.clear();
     clearAllMultiSelectFilters();
     Object.keys(state.msOptions).forEach((k) => { state.msOptions[k] = []; });
     state.staryoRows.clear();
@@ -1198,6 +1211,7 @@
       state.filledOrderScopes.clear();state.autoFilledQuantities={};
       state.highlightedOrderRows.clear();
       state.orderTransferRows.clear();
+      state.extendedOrderSuppliers.clear();
       state.lastLoadedFile = state.report.fileName;
       state.pendingOverrides.clear();
       state.checkedSuppliers = new Set((env.selectedSuppliers || []).map(normalizeSupName));
@@ -2448,6 +2462,9 @@
       const orderQs = new URLSearchParams();
       orderQs.set('warehouse', s.warehouse||'');
       if (s.supplier) orderQs.set('supplier', s.supplier);
+      const extKey=`${encodeURIComponent(s.warehouse||'')}|${encodeURIComponent(normalizeSupName(s.supplier))}`;
+      const isExtended = state.extendedOrderSuppliers.has(extKey);
+      if (isExtended) orderQs.set('extended', '1');
       const orderHref = `api/export/supplier-order?${orderQs.toString()}`;
       const orderFileName = formatOrderFileName(s.warehouse, s.supplier);
 
@@ -2472,6 +2489,9 @@
         <td class="center-col">${statusBadge}</td>
         <td class="right-col" style="white-space:nowrap">
           <button class="btn btn-ghost btn-sm" data-filter-sup="${esc(s.supplier)}" data-filter-wh="${esc(s.warehouse || '')}">Предварительный просмотр</button>
+        </td>
+        <td class="center-col">
+          <input type="checkbox" data-ext-order="${esc(extKey)}" ${isExtended ? 'checked' : ''} title="Отмечено — заказ выгружается в текущем формате со столбцами «Продажи» и «Остаток»; без отметки столбцы 5 и 6 в файл заказа не попадают" aria-label="Расширенный заказ: ${esc(s.supplier)}" />
         </td>
         <td class="right-col" style="white-space:nowrap">
           ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ</a>` : ''}
@@ -2499,7 +2519,7 @@
         <td class="num-col">${fmtInt(sumSupOrderSKU)}</td>
         <td class="num-col" style="color:var(--primary)">${fmtInt(sumSupOrderUnits)}</td>
         <td class="num-col">${fmtMoney(Math.round(sumSupOrderCost * 100) / 100)} руб.</td>
-        <td colspan="3"></td>
+        <td colspan="4"></td>
       </tr>`;
     }
   }
@@ -2988,12 +3008,10 @@
       if (e.key === 'Tab') { e.preventDefault(); el('btnAdminNoticeOk').focus(); }
     });
     let paramsClicks = 0;
-    const filterClicks={sales12Only:0,unmarkedOnly:0};
     syncPropertyFilters();
+    // Батч-59: «Продажи 12 мес.» и «Актуально» переключаются одним кликом.
     for (const [id, field] of [['btnSales12','sales12Only'], ['btnRelevant','unmarkedOnly']]) {
       el(id).addEventListener('click', () => {
-        if(state[field] && ++filterClicks[field]<4)return;
-        filterClicks[field]=0;
         const anchor=id==='btnRelevant'?captureTableAnchor():null;
         state[field] = !state[field];
         syncPropertyFilters();
@@ -3226,6 +3244,14 @@
       state.hasUnsavedChanges=true;hideWarehouseStock();
     });
     el('stockSimilarityPercent').addEventListener('change',()=>syncStockSearchControls());
+    // Батч-59: явные стрелки вверх/вниз у «Совпадение, %» (нативный спиннер
+    // в WebView не рисуется) — без обводки поля, значение меняется на ±1.
+    document.querySelectorAll('[data-sim-step]').forEach(btn=>btn.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      const input=el('stockSimilarityPercent');
+      input.value=String(Math.max(0,Math.min(100,(Number(input.value)||0)+Number(btn.dataset.simStep))));
+      input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));
+    }));
     el('btnStockHintsOff').addEventListener('click',event=>{event.stopPropagation();state.stockHintsDisabled=!state.stockHintsDisabled;state.hasUnsavedChanges=true;syncStockSearchControls();hideWarehouseStock();});
     el('btnStockSearchMode').addEventListener('click',()=>{if(state.stockHintsDisabled)return;state.stockSearchMode=state.stockSearchMode==='other'?'similar':'other';state.hasUnsavedChanges=true;syncStockSearchControls();hideWarehouseStock();});
     const stockPop=el('warehouseStockPopover');
@@ -3295,7 +3321,8 @@
       }
       // «Параметры» владеет только плашкой. Закрытие сворачивает и тело, но открытие
       // показывает тело лишь пока «Конфигурация» не управляла им самостоятельно.
-      const bodyOpen = opening ? (!paramsBodyUserManaged || !el('paramsBody').classList.contains('hidden')) : false;
+      // Батч-59: при открытии «Параметров» режим «Конфигурация» по умолчанию свёрнут.
+      const bodyOpen = false;
       syncPlanningChrome(opening, bodyOpen);
       if (state.report) state.hasUnsavedChanges = true;
     }
@@ -4197,6 +4224,15 @@
     });
 
     el('suppliersBody').addEventListener('change', (e) => {
+      // Батч-59: «Расширенный заказ» — птичка строки управляет форматом выгрузки её заказа.
+      const ext = e.target.closest('input[data-ext-order]');
+      if (ext) {
+        if (ext.checked) state.extendedOrderSuppliers.add(ext.dataset.extOrder);
+        else state.extendedOrderSuppliers.delete(ext.dataset.extOrder);
+        state.hasUnsavedChanges = true;
+        if (state.report) renderSuppliersView(state.report);
+        return;
+      }
       const chk = e.target.closest('input[data-sup-row-check]');
       if (!chk) return;
       const sup = normalizeSupName(chk.dataset.supRowCheck);
@@ -4836,13 +4872,12 @@
         const supplier=clear.dataset.supplierClear,epoch=state.clientEpoch;
         try{
           const warehouses=[...new Set((state.report?.items||[]).filter(it=>normalizeSupName(it.supplier)===supplier).map(it=>it.warehouse||''))].sort();
-          let warehouse;
-          const fields=`<label for="supplierClearWarehouse">С какого склада очистить заказ?</label><select id="supplierClearWarehouse" required><option value="">Выберите склад</option>${warehouses.map((wh,index)=>`<option value="${index}">${esc(wh||'(Склад не указан)')}</option>`).join('')}</select>`;
-          if(!await safetyDialog('Очистить заказ поставщика?',`Поставщик: ${supplier}\nВыберите склад. Будет очищен заказ только на выбранном складе, включая ручные количества и «пер». Другие склады, поставщики, галочки и эталон не изменятся.`,fields,()=>{
-            const select=el('supplierClearWarehouse');
-            if(select.value===''){showToast('Выберите склад для очистки');select.focus();return false;}
-            warehouse=warehouses[Number(select.value)];return warehouse!==undefined;
-          }))return;
+          // Батч-59: выбор склада — кнопками «Склад <имя> + сумма заказа» и «Отменить».
+          const whSum=wh=>{let sum=0;for(const it of state.report?.items||[])if(normalizeSupName(it.supplier)===supplier&&(it.warehouse||'')===wh)sum+=calcLineSum(it.finalOrderQty,it.purchasePrice);return Math.round(sum*100)/100;};
+          const whLabel=wh=>wh?(wh.startsWith('Склад')?wh:`Склад ${wh}`):'(Склад не указан)';
+          const choice=await safetyDialog('Очистить заказ поставщика?',`Поставщик: ${supplier}\nНажмите кнопку склада. Будет очищен заказ только на выбранном складе, включая ручные количества и «пер». Другие склады, поставщики, галочки и эталон не изменятся.`,'',null,{choices:warehouses.map((wh,index)=>({label:`${whLabel(wh)} + ${fmtMoney(whSum(wh))} руб.`,value:index}))});
+          if(typeof choice!=='number')return;
+          const warehouse=warehouses[choice];
           if(epoch!==state.clientEpoch)return;
           if(state.pendingOverrides.size || document.querySelector('input[data-qty-row][data-dirty="1"]')){
             if(!await flushQtyEdits())throw new Error('Дождитесь сохранения введённого количества и повторите');
@@ -4942,8 +4977,8 @@
     for(const [field,key] of [['warehouse','fltWarehouses'],['group','fltGroups'],['sku','fltSkus'],['nomenclature','fltNomenclatures'],['plus','fltPlus'],['rating','fltRatings'],['status','fltStatuses']])state.msFilters[field]=new Set(ui[key]||[]);
     for(const [id,key] of [['fltSupplier','fltSupplier'],['inpSearch','searchName'],['inpSupplierFilter','fltSupplierSearch'],['ovFltWarehouse','ovFltWarehouse'],['ovFltName','ovFltName'],['ovFltRating','ovFltRating'],['ovFltSupplier','ovFltSupplier'],['ovInpSearch','ovSearch']])if(el(id))el(id).value=ui[key]||'';
     state.ovSortKey=ui.ovSortKey;state.ovSortDir=ui.ovSortDir;state.overstockLimit=ui.overstockLimit;
-    state.filledOrderScopes=new Set(ui.filledOrderScopes||[]);state.autoFilledQuantities={...(ui.autoFilledQuantities||{})};state.orderTransferRows=new Set(ui.orderTransferRows||[]);state.highlightedOrderRows=new Set(ui.highlightedOrderRows||[]);
-    state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);
+    state.filledOrderScopes=new Set(ui.filledOrderScopes||[]);state.autoFilledQuantities={...(ui.autoFilledQuantities||{})};state.orderTransferRows=new Set(ui.orderTransferRows||[]);state.highlightedOrderRows=new Set(ui.highlightedOrderRows||[]);state.extendedOrderSuppliers=new Set(ui.extendedOrderSuppliers||[]);
+    state.stockSimilarityPercent=ui.stockSimilarityPercent??80;state.stockSearchMode=ui.stockSearchMode||'other';state.stockHintsDisabled=Boolean(ui.stockHintsDisabled);state.extendedOrderSuppliers=new Set(ui.extendedOrderSuppliers||[]);
     state.comparison=view.comparison?new Map(view.comparison):null;
     syncPropertyFilters();switchTabUI(ui.activeTab||'table');
     paramsBodyUserManaged=false;syncPlanningChrome(ui.paramsExpanded,ui.paramsExpanded);
