@@ -32,11 +32,6 @@ const rows=()=>[...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>Number
   const text=d.getElementById(id).textContent;assert.match(text,/\.\w+.*\d{2}\.\d{2}\.\d{4}.*\d{2}:\d{2}:\d{2}/);assert.ok(!text.includes('Users')&&!text.includes('Папка'));
  }
  const budget=d.getElementById('kpiOrderCost').textContent;
- const search=d.getElementById('inpSearch');search.value='нет совпадений';search.dispatchEvent(new w.Event('input',{bubbles:true}));
- compare.click();await tick();assert.deepEqual(rows(),[],'Name search narrows comparison results too');
- search.value='Товар 9';search.dispatchEvent(new w.Event('input',{bubbles:true}));await tick();
- assert.deepEqual(rows(),[9],'Search filters the comparison union');
- search.value='';search.dispatchEvent(new w.Event('input',{bubbles:true}));await tick();
  compare.click();await tick();assert.deepEqual(rows(),[8,9,11,12,14],'Union bypasses both protected filters');
  assert.equal(compare.getAttribute('aria-pressed'),'true');
  assert.match(d.querySelector('tr[data-row="14"] .comparison-reason').textContent,/новый товар/);

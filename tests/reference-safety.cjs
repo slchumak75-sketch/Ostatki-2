@@ -27,7 +27,7 @@ const choose=yes=>d.getElementById(yes?'safetyDialogYes':'safetyDialogNo').click
 (async()=>{try{
  await tick();assert.match(d.getElementById('safetyStatus').textContent,/Эталон сохранён • 25\.10\.2026, 18:00:00/);assert.ok(!d.getElementById('safetyStatus').textContent.includes('Invalid Date'));
  let resolveSave;saveWait=new Promise(resolve=>{resolveSave=resolve;});timers.find(t=>t.ms===180000).cb();await tick();
- const search=d.getElementById('inpSearch');search.value='Товар';search.dispatchEvent(new w.Event('input',{bubbles:true}));resolveSave();await tick();saveWait=null;
+ const simInput=d.getElementById('stockSimilarityPercent');simInput.value='80';simInput.dispatchEvent(new w.Event('input',{bubbles:true}));resolveSave();await tick();saveWait=null; // Б66: изменение во время сохранения — ввод в «Совпадение» (шапочного поиска больше нет)
  assert.match(d.getElementById('safetyStatus').textContent,/Есть несохранённые изменения/,'Changes arriving during a save must stay dirty');
  d.getElementById('btnSaveEtalon').click();await tick();assert.equal(count('api/etalon/save-confirmed'),0);assert.match(d.getElementById('safetyDialogText').textContent,/Изменится галочек: 1/);choose(false);await tick();assert.equal(count('api/etalon/save-confirmed'),0);
  d.getElementById('btnSaveEtalon').click();await tick();choose(true);await tick();assert.equal(count('api/etalon/save-confirmed'),1);assert.equal(JSON.parse(calls.find(x=>x.path==='api/etalon/save-confirmed').options.body).token,'revision-1');
