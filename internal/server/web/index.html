@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Заказ — Вариант 7 • Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
-  <link rel="stylesheet" href="styles.css?v=4.22" />
+  <link rel="stylesheet" href="styles.css?v=4.23" />
 </head>
 <body>
   <div id="dropOverlay" class="drop-overlay hidden">
@@ -200,7 +200,7 @@
           </button>
           <button class="tab-btn tab-beige" data-tab="charts" role="tab">Графики</button>
           <button class="tab-btn tab-beige" data-tab="analytics" role="tab">Аналитика</button>
-          <label class="stock-match-control btn-beige" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="number" min="0" max="100" step="1" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /><span class="sim-stepper"><button type="button" class="sim-step" data-sim-step="1" tabindex="-1" aria-label="Увеличить процент совпадения">▲</button><button type="button" class="sim-step" data-sim-step="-1" tabindex="-1" aria-label="Уменьшить процент совпадения">▼</button></span></label>
+          <label class="stock-match-control btn-beige" for="stockSimilarityPercent">Совпадение, % <input id="stockSimilarityPercent" type="text" inputmode="numeric" pattern="[0-9]*" value="80" title="Минимальное совпадение названий; не гарантия взаимозаменяемости" /><span class="sim-stepper"><button type="button" class="sim-step" data-sim-step="1" tabindex="-1" aria-label="Увеличить процент совпадения">▲</button><button type="button" class="sim-step" data-sim-step="-1" tabindex="-1" aria-label="Уменьшить процент совпадения">▼</button></span></label>
           <span class="stock-mode-switch" role="group" aria-label="Режим подсказок номенклатуры"><button type="button" class="btn btn-beige" id="btnStockSearchMode" aria-pressed="false" title="Показать совпадения на других складах">Другой склад</button><button type="button" class="stock-hints-close" id="btnStockHintsOff" title="Отключить подсказки" aria-label="Отключить подсказки" aria-pressed="false">×</button></span>
         </div>
         <div class="tabs-order-summary">
@@ -726,7 +726,7 @@
   </div>
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=19"></script>
-  <script src="app.js?v=5.23"></script>
+  <script src="app.js?v=5.24"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>

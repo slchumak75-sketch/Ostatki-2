@@ -3239,7 +3239,10 @@
     });
 
     el('stockSimilarityPercent').addEventListener('input',()=>{
-      const input=el('stockSimilarityPercent');if(input.value==='')return;
+      const input=el('stockSimilarityPercent');
+      // Батч-62: поле текстовое (без нативного спиннера) — оставляем только цифры.
+      if(/[^0-9-]/.test(input.value)||(input.value.indexOf('-')>0))input.value=(input.value.trim().startsWith('-')?'-':'')+input.value.replace(/\D/g,'');
+      if(input.value==='')return;
       state.stockSimilarityPercent=Math.max(0,Math.min(100,Math.round(Number(input.value)||0)));input.value=state.stockSimilarityPercent;
       state.hasUnsavedChanges=true;hideWarehouseStock();
     });

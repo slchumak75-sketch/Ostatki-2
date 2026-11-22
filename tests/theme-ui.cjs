@@ -87,5 +87,7 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  assert.ok(css.includes('.v4-modal-actions { flex-wrap: wrap; }'),'Б60: кнопки диалогов переносятся внутри окна');
  assert.ok(css.includes('.preview-qty-input'),'Б60: поле количества в предпросмотре');
  assert.ok(css.includes('.sim-step { width: 24px; padding: 0 6px; font-size: 10px; }'),'Б61: стрелки «Совпадение» в два раза шире');
+ assert.ok(html.includes('id="stockSimilarityPercent" type="text" inputmode="numeric"'),'Б62: поле «Совпадение» текстовое — нативное «облако» невозможно');
+ assert.ok(css.includes('.sim-step { -webkit-appearance: none; appearance: none; background: none !important;'),'Б62: у стрелок нет подложки-«облака»');
  console.log('THEME UI б55: «Заказ»+дата, «Подсказка», умолчания 20/5, цифры без обводки, только «Острова+»: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();
