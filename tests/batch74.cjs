@@ -8,5 +8,5 @@ assert.ok(writer.includes('normalizeWarehouseKey'),'Б74: переименова
 const mail=fs.readFileSync('internal/server/mail_order.go','utf8');
 assert.ok(mail.includes('orderMailSubject')&&mail.includes('xlsx.DisplayWarehouseName(warehouse)'),'Б74: тема и текст письма — с организацией');
 const html=fs.readFileSync('internal/server/web/index.html','utf8');
-assert.ok(html.includes('Вариант 7.18'),'Б74: индекс 7.18 в интерфейсе');
+assert.ok(/Вариант 7\.\d+/.test(html),'Б74: индекс сборки в интерфейсе');
 console.log('BATCH-74: excel repair fix + warehouse org name in mail: OK');

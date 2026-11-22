@@ -262,12 +262,12 @@
         state.staryoRows.add(it.excelRow);
         if (it._unmarkedAutoOrderQty === undefined) it._unmarkedAutoOrderQty = it.autoOrderQty;
         it.autoOrderQty = 0;
-        if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = 0;
+        if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) { it.finalOrderQty = 0; supplierSumsDirty = true; }
       } else {
         state.staryoRows.delete(it.excelRow);
         if (it._unmarkedAutoOrderQty !== undefined) {
           it.autoOrderQty = it._unmarkedAutoOrderQty;
-          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = 0;
+          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) { it.finalOrderQty = 0; supplierSumsDirty = true; }
           delete it._unmarkedAutoOrderQty;
         }
       }
@@ -297,7 +297,7 @@
         state.staryoRows.delete(it.excelRow);
         if (it._unmarkedAutoOrderQty !== undefined) {
           it.autoOrderQty = it._unmarkedAutoOrderQty;
-          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) it.finalOrderQty = 0;
+          if (it.manualOverride == null && !state.pendingOverrides.has(it.excelRow)) { it.finalOrderQty = 0; supplierSumsDirty = true; }
           delete it._unmarkedAutoOrderQty;
         }
         removed.push(it);
@@ -622,6 +622,7 @@
           : 0);
 
       it.finalOrderQty = qty;
+      supplierSumsDirty = true;
       it.orderCost = lineCost;
       it.orderRetailValue = lineRetail;
 
@@ -1247,6 +1248,7 @@
         if (target) {
           target.finalOrderQty = qty;
           target.manualOverride = qty;
+          supplierSumsDirty = true;
         }
       }
     }
@@ -2058,7 +2060,13 @@
   // окну (первая/последняя строки): единичные подрагивания высоты
   // отдельных строк на среднем не сказываются. Вызывается только из
   // клавиатурной навигации, НЕ из колёсной отрисовки окна.
+  let lastPitchCalibrateAt = 0;
   function calibrateRowPitch() {
+    // Б75: геометрию не меряем на каждое нажатие стрелки — при быстром
+    // скроллинге это пересчёт вёрстки в главном потоке на каждый шаг.
+    const nowMs = performance.now();
+    if (VIRTUAL_ROW_HEIGHT > 0 && nowMs - lastPitchCalibrateAt < 300) return false;
+    lastPitchCalibrateAt = nowMs;
     const rows = el('tableBody')?.querySelectorAll('tr[data-row]');
     if (!rows || rows.length < 2) return false;
     const first = rows[0].getBoundingClientRect(), last = rows[rows.length - 1].getBoundingClientRect();
@@ -2089,6 +2097,20 @@
     const extra = c.offsetHeight - c.clientHeight;
     c.style.flex = '0 0 auto';
     c.style.height = `${Math.round(desiredClient + extra)}px`;
+  }
+
+  // Б75: индекс excelRow -> позиция в отфильтрованном списке; строится
+  // один раз на список, а не линейным поиском на каждое нажатие стрелки.
+  let filteredIdxSrc = null;
+  let filteredIdxCache = null;
+  function filteredIndexOf(excelRow) {
+    if (filteredIdxSrc !== state.filteredItems) {
+      filteredIdxSrc = state.filteredItems;
+      filteredIdxCache = new Map();
+      state.filteredItems.forEach((it, i) => filteredIdxCache.set(it.excelRow, i));
+    }
+    const v = filteredIdxCache.get(excelRow);
+    return v === undefined ? -1 : v;
   }
 
   function renderTableBodyWindow(force = true) {
@@ -4227,6 +4249,7 @@
       const lineSum = calcLineSum(qty, it.purchasePrice);
       // Подсветка ячейки остаётся при проставлении заказа вручную.
       it.finalOrderQty = qty;
+      supplierSumsDirty = true;
       it.orderCost = lineSum;
 
       const tbody = el('tableBody');
@@ -4347,6 +4370,27 @@
     });
     document.addEventListener('mousedown',(e)=>{lastMouseX=e.clientX;lastMouseY=e.clientY;if(kbdNavActive)setKbdNav(false);});
 
+    // Б75: накопленные повторами шаги стрелок — один фокус-переход за кадр.
+    let kbdNavPendingIdx = null;
+    let kbdNavRaf = 0;
+    function queueKbdNavStep(inp, step) {
+      if (kbdNavPendingIdx === null) {
+        const idx = filteredIndexOf(Number(inp.dataset.qtyRow));
+        if (idx < 0) return;
+        kbdNavPendingIdx = idx;
+      }
+      kbdNavPendingIdx = Math.max(0, Math.min(state.filteredItems.length - 1, kbdNavPendingIdx + step));
+      if (!kbdNavRaf) {
+        kbdNavRaf = requestAnimationFrame(() => {
+          kbdNavRaf = 0;
+          const idx = kbdNavPendingIdx;
+          kbdNavPendingIdx = null;
+          const target = idx !== null ? state.filteredItems[idx] : null;
+          if (target) focusQtyRow(target.excelRow);
+        });
+      }
+    }
+
     // Батч-66/68: фокус на окошко заказа по excelRow. Батч-68: без прыжков
     // в середину экрана — когда до края видимой области остаётся 5 строк,
     // таблица при каждом нажатии стрелки сдвигается ровно на одну строку;
@@ -4356,20 +4400,20 @@
       // шага высота просмотра заново подгоняется под целое число строк.
       if(calibrateRowPitch())snapTableViewportToRows();
       const find=()=>el('tableBody').querySelector(`input[data-qty-row="${rowNum}"]`);
-      const idx=state.filteredItems.findIndex(it=>it.excelRow===rowNum);
+      const idx=filteredIndexOf(rowNum);
       const c=el('tableScrollContainer');
       if(idx>=0&&c){
         const H=VIRTUAL_ROW_HEIGHT,margin=5*H;
         // Смещение строк внутри контейнера — по любой отрисованной строке.
         let base=0;
         const anyRow=el('tableBody').querySelector('tr[data-row]');
-        if(anyRow){const ai=state.filteredItems.findIndex(it=>it.excelRow===Number(anyRow.dataset.row));if(ai>=0)base=anyRow.offsetTop-ai*H;}
+        if(anyRow){const ai=filteredIndexOf(Number(anyRow.dataset.row));if(ai>=0)base=anyRow.offsetTop-ai*H;}
         const rowTop=base+idx*H,rowBottom=rowTop+H;
         let st=c.scrollTop;
         if(rowBottom>st+c.clientHeight-margin)st=rowBottom-c.clientHeight+margin;
         else if(rowTop<st+margin)st=rowTop-margin;
         st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
-        if(st!==c.scrollTop){c.scrollTop=st;renderTableBodyWindow(true);}
+        if(st!==c.scrollTop){c.scrollTop=st;renderTableBodyWindow(false);}
       }
       let inp=find();
       // Б69: если строка уже отрисована — позиция берётся фактическая
@@ -4385,7 +4429,7 @@
           if(rowBottom>st+c.clientHeight-margin)st=rowBottom-c.clientHeight+margin;
           else if(rowTop<st+margin)st=rowTop-margin;
           st=Math.max(0,Math.min(st,Math.max(0,c.scrollHeight-c.clientHeight)));
-          if(Math.abs(st-c.scrollTop)>0.5){c.scrollTop=st;renderTableBodyWindow(true);inp=find();}
+          if(Math.abs(st-c.scrollTop)>0.5){c.scrollTop=st;renderTableBodyWindow(false);inp=find();}
         }
       }
       if(inp){try{inp.focus({preventScroll:true});}catch(_){inp.focus();}inp.select();}
@@ -4396,8 +4440,18 @@
       // Батч-66: стрелки вверх/вниз перемещаются по колонке «Заказ».
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        const idx=state.filteredItems.findIndex(it=>it.excelRow===Number(inp.dataset.qtyRow));
-        const target=state.filteredItems[idx+(e.key==='ArrowDown'?1:-1)];
+        const step=e.key==='ArrowDown'?1:-1;
+        // Б75: повторы клавиши при зажатой стрелке копятся и применяются
+        // одним переходом за кадр — очередь событий не растёт и таблица
+        // не «подвисает», догоняя прокрутку после отпускания клавиши.
+        if(e.repeat){
+          if(inp.dataset.dirty==='1')commitQtyOverride(inp);
+          setKbdNav(true);
+          queueKbdNavStep(inp,step);
+          return;
+        }
+        const idx=filteredIndexOf(Number(inp.dataset.qtyRow));
+        const target=state.filteredItems[idx+step];
         if(!target)return;
         if(inp.dataset.dirty==='1')commitQtyOverride(inp);
         setKbdNav(true);
@@ -4988,12 +5042,26 @@
     });
   }
 
+  // Б75: суммы поставщиков считаются одним проходом по позициям и
+  // кэшируются по объекту отчёта. Раньше сумма пересчитывалась полным
+  // проходом на каждое нажатие стрелки (renderCurrentSupplier по фокусу) —
+  // при ~33 тыс. позиций быстрая прокрутка стрелками подвисала.
+  let supplierSumsCache = null;
+  let supplierSumsCacheReport = null;
+  let supplierSumsDirty = true;
   function supplierOrderSum(supplier) {
-    let sum = 0;
-    for (const it of state.report?.items || []) {
-      if (warehouseIsActive(it.warehouse) && normalizeSupName(it.supplier) === supplier) sum += calcLineSum(it.finalOrderQty, it.purchasePrice);
+    if (!state.report) return 0;
+    if (supplierSumsDirty || supplierSumsCacheReport !== state.report || !supplierSumsCache) {
+      supplierSumsCache = new Map();
+      supplierSumsCacheReport = state.report;
+      for (const it of state.report.items || []) {
+        if (!warehouseIsActive(it.warehouse)) continue;
+        const key = normalizeSupName(it.supplier);
+        supplierSumsCache.set(key, (supplierSumsCache.get(key) || 0) + calcLineSum(it.finalOrderQty, it.purchasePrice));
+      }
+      supplierSumsDirty = false;
     }
-    return Math.round(sum * 100) / 100;
+    return Math.round((supplierSumsCache.get(supplier) || 0) * 100) / 100;
   }
   function renderCurrentSupplier() {
     const filtered = state.colFilters.supplier;
