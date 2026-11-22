@@ -431,7 +431,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { suffix: "7.19", theme: islands,  design: "острова+" }
+          - { suffix: "7.20", theme: islands,  design: "острова+" }
 
     steps:
       - name: Клонирование репозитория
