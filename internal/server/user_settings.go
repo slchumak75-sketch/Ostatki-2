@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/slchumak75-sketch/Ostatki-2/internal/model"
 )
 
 // Батч-70: пользовательские настройки путей сохранения и почты.
@@ -29,6 +31,33 @@ type userSettings struct {
 	Mail              mailSettings        `json:"mail"`
 	SupplierEmails    map[string][]string `json:"supplierEmails,omitempty"`
 	LastSupplierEmail map[string]string   `json:"lastSupplierEmail,omitempty"`
+	// Б77: параметры «Конфигурации» (режим планирования) — каждое
+	// изменение сохраняется автоматически и восстанавливается
+	// при следующем запуске/загрузке ведомости.
+	Params *model.ForecastParams `json:"params,omitempty"`
+}
+
+// persistConfigParams записывает параметры планирования в настройки
+// пользователя (вызывается при каждом изменении «Конфигурации»).
+func (s *AppServer) persistConfigParams(p model.ForecastParams) {
+	s.settingsMu.Lock()
+	defer s.settingsMu.Unlock()
+	s.loadUserSettingsLocked()
+	cp := p
+	s.settings.Params = &cp
+	s.persistUserSettingsLocked()
+}
+
+// configParams возвращает автоматически сохранённую конфигурацию или nil.
+func (s *AppServer) configParams() *model.ForecastParams {
+	s.settingsMu.Lock()
+	defer s.settingsMu.Unlock()
+	s.loadUserSettingsLocked()
+	if s.settings.Params == nil {
+		return nil
+	}
+	cp := *s.settings.Params
+	return &cp
 }
 
 func (s *AppServer) userSettingsPath() string {

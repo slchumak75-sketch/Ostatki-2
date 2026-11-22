@@ -283,6 +283,10 @@ func (s *AppServer) preferredParamsLocked() model.ForecastParams {
 	raw, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	var p model.ForecastParams
 	if err != nil || json.Unmarshal(raw, &p) != nil {
+		// Б77: автоматически сохранённая «Конфигурация» пользователя.
+		if cp := s.configParams(); cp != nil {
+			return forecast.NormalizeParams(*cp)
+		}
 		return model.DefaultParams()
 	}
 	return forecast.NormalizeParams(p)
