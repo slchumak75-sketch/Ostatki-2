@@ -27,7 +27,6 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  state.checkedSuppliers.clear();renderKPIs(report);renderSuppliersView(report);assert.equal(budgetNumber(),42,'Budget includes every supplier even without checkmarks');state.checkedSuppliers.add('Поставщик');renderKPIs(report);renderSuppliersView(report);assert.equal(budgetNumber(),42,'Budget ignores supplier selections');state.checkedSuppliers.add('Другой');
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');assert.ok(!css.includes('--auto-order-bg'),'No green order-row highlighting');
  const before=JSON.stringify(items),budget=d.getElementById('kpiOrderCost').textContent;
- const search=d.getElementById('inpSearch');search.value='нет совпадений';search.dispatchEvent(new w.Event('input',{bubbles:true}));
  const button=d.querySelector('[data-filter-sup="Поставщик"][data-filter-wh="Мир"]');assert.equal(button.textContent,'Предварительный просмотр');const beforeCalls=calls.length;button.click();
  const supHeads=[...d.querySelectorAll('#suppliersTable thead th')].map(th=>th.textContent.trim());
  assert.ok(!supHeads.includes('Оценка в рознице'),'Retail estimate column removed');
@@ -46,7 +45,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.equal(orderLink?.textContent,'Заказ','Download button is titled Заказ');
  assert.ok(!d.getElementById('orderPreviewModal').classList.contains('hidden'));
  assert.equal(d.querySelectorAll('#orderPreviewBody tr').length,1);assert.match(d.getElementById('orderPreviewBody').textContent,/Товар <9>/);assert.ok(!d.getElementById('orderPreviewBody').textContent.includes('Товар <10>'));assert.equal(d.getElementById('orderPreviewBody').querySelector('script'),null);
- assert.match(d.getElementById('orderPreviewTotal').textContent,/Заказ: 5/);assert.equal(search.value,'нет совпадений');assert.equal(calls.length,beforeCalls,'Preview is read-only, no server writes');assert.equal(JSON.stringify(items),before);assert.equal(d.getElementById('kpiOrderCost').textContent,budget);
+ assert.match(d.getElementById('orderPreviewTotal').textContent,/Заказ: 5/);assert.equal(d.getElementById('inpSearch'),null,'Б66: окна поиска на «морде» столбца нет');assert.equal(calls.length,beforeCalls,'Preview is read-only, no server writes');assert.equal(JSON.stringify(items),before);assert.equal(d.getElementById('kpiOrderCost').textContent,budget);
  d.getElementById('orderPreviewModal').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.ok(d.getElementById('orderPreviewModal').classList.contains('hidden'));
  // Б60: количество в предпросмотре редактируется и сохраняется; сумма строки видна и пересчитывается.
  const pin=d.querySelector('#orderPreviewBody input[data-preview-qty-row="9"]');

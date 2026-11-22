@@ -3499,15 +3499,9 @@
       }
     };
 
-    el('inpSearch').addEventListener('click', e => e.stopPropagation());
-    el('inpSearch').addEventListener('input', () => {
-      runInteractiveNameSearch(false);
-    });
-    el('inpSearch').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === 'Escape') {
-        el('ddSearchNameMenu')?.classList.add('hidden');
-      }
-    });
+    // Батч-66: поля поиска в шапке столбца «Номенклатура» больше нет
+    // (убрано по требованию пользователя) — поиск по номенклатуре остался
+    // в фильтре столбца (кнопка ▾ -> поле «Поиск»).
     el('btnSearchNameDropdown').addEventListener('click', (e) => {
       e.stopPropagation();
       const menu = el('ddSearchNameMenu');
@@ -4227,7 +4221,7 @@
         const rNum = Number(jumpRow.dataset.jumpRow);
         state.selectedExcelRow = rNum;
         clearAllMultiSelectFilters();
-        el('inpSearch').value = '';
+        if (el('inpSearch')) el('inpSearch').value = '';
         el('fltSupplier').value = '';
         if (state.report) populateFilterDropdowns(state.report);
         recomputeFilteredList();
@@ -5006,7 +5000,7 @@
       state.sortKey = excelMenu.anchor.closest('th').dataset.sort;state.sortDir=dir;closeExcelFilter();refreshExcelTable();
     });
     el('btnClearAllExcelFilters').addEventListener('click', () => {
-      clearAllMultiSelectFilters();el('inpSearch').value='';el('fltSupplier').value='';syncPropertyFilters();refreshExcelTable();
+      clearAllMultiSelectFilters();if (el('inpSearch')) el('inpSearch').value='';el('fltSupplier').value='';syncPropertyFilters();refreshExcelTable();
     });
     document.addEventListener('click', e => {
       if(excelMenu && !e.target.closest('#excelFilterPopover, [data-filter-col]')) closeExcelFilter();

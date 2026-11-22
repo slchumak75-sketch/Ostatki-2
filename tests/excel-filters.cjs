@@ -50,15 +50,17 @@ for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б
  d.getElementById('efFillAllPlus').click();
  assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,2,'Fill is idempotent, not toggle');
  // Отмена затрагивает только текущую выборку; скрытые отметки сохраняются.
- const markSearch=d.getElementById('inpSearch');
- markSearch.value='Кабель';markSearch.dispatchEvent(new w.Event('input'));
+ // Б66: шапочного окна поиска нет — выборка сужается фильтром столбца («Только»).
+ d.querySelector('[data-filter-col="name"]').click();
+ [...d.querySelectorAll('#efOptionsList .ef-opt-row')].find(row=>row.textContent.includes('Кабель')).querySelector('[data-excel-only]').click();
+ assert.deepEqual([...d.querySelectorAll('#tableBody tr[data-row]')].map(tr=>tr.dataset.row),['8'],'Фильтр номенклатуры оставил только «Кабель»');
  d.querySelector('[data-filter-col="plus"]').click();
  assert.equal(d.getElementById('efClearAllPlus').textContent,'Отменить');
  for(let i=0;i<3;i++) d.getElementById('efClearAllPlus').click();
  assert.ok(d.querySelectorAll('[data-plus-row]:checked').length>0,'First three clicks do not clear');
  d.getElementById('efClearAllPlus').click();
  assert.equal(d.querySelectorAll('[data-plus-row]:checked').length,0);
- markSearch.value='';markSearch.dispatchEvent(new w.Event('input'));
+ d.getElementById('btnClearAllExcelFilters').click();
  assert.equal(d.querySelector('[data-plus-row="9"]').checked,true,'Hidden marks must be preserved');
  d.querySelector('[data-filter-col="plus"]').click();
  for(let i=0;i<3;i++) d.getElementById('efClearAllPlus').click();
@@ -133,13 +135,14 @@ for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б
  d.getElementById('efBtnOk').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,0,'Empty selection must show no rows');
  d.getElementById('btnClearAllExcelFilters').click();
- // Поле поиска находится в видимом заголовке и фильтрует без ОК.
- const search=d.getElementById('inpSearch');
- assert.ok(search.closest('th[data-col="name"]'));
- search.value='авто'; search.dispatchEvent(new w.Event('input'));
- assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,1);
- search.value=''; search.dispatchEvent(new w.Event('input'));
- assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,2);
+ // Б66: окна поиска на «морде» столбца «Номенклатура» нет; поиск — в фильтре столбца.
+ assert.equal(d.getElementById('inpSearch'),null,'Б66: поле поиска в шапке столбца убрано');
+ assert.ok(!d.querySelector('th[data-col="name"] input'),'В шапке номенклатуры нет поля ввода');
+ d.querySelector('[data-filter-col="name"]').click();
+ assert.ok(!d.querySelector('#excelFilterPopover .ef-search-section').classList.contains('hidden'),'Поиск в фильтре номенклатуры на месте');
+ const efSearch=d.getElementById('efSearchInput');efSearch.value='Каб';efSearch.dispatchEvent(new w.Event('input'));
+ assert.ok([...d.querySelectorAll('#efOptionsList .ef-opt-row')].every(row=>row.textContent.includes('Каб')),'Поиск в фильтре сужает список номенклатуры');
+ d.getElementById('efBtnCancel').click();
  assert.ok(d.getElementById('budgetInlineCard').closest('.tabs-bar'));
  d.querySelector('[data-filter-col="supplier"]').click();
  assert.equal(d.querySelector('#efBudgetSuppliers'),null);
@@ -207,10 +210,12 @@ for(const id of ['btnSales12','btnRelevant'])d.getElementById(id).click(); // Б
  assert.equal(d.getElementById('currentSupplierName').textContent,'Второй');
  assert.match(d.getElementById('currentSupplierSum').textContent,/3,00/);
  // Даже пустая выборка строк не влияет на бюджет.
- search.value='нет совпадений'; search.dispatchEvent(new w.Event('input'));
+ // Б66: пустая выборка — снятие всех галочек в фильтре номенклатуры.
+ d.querySelector('[data-filter-col="name"]').click();
+ const efAll=d.getElementById('efSelectAllChk');efAll.checked=false;efAll.dispatchEvent(new w.Event('change',{bubbles:true}));d.getElementById('efBtnOk').click();
  assert.equal(d.querySelectorAll('#tableBody tr[data-row]').length,0);
  assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/);
- search.value=''; search.dispatchEvent(new w.Event('input'));
+ d.getElementById('btnClearAllExcelFilters').click();
  d.querySelector('[data-filter-col="supplier"]').click();
  w.__budget.state.checkedSuppliers.clear();w.__budget.renderKPIs(w.__budget.state.report);
  assert.match(d.getElementById('kpiOrderCost').textContent,/5,00/,'No supplier checkmarks must not zero budget');
