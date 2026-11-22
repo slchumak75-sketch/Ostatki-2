@@ -314,3 +314,41 @@ func decodePickedFolderPath(raw string) (string, error) {
 	}
 	return string(b), nil
 }
+
+// Батч-73: удаление ненужного адреса из списка получателей поставщика.
+func (s *AppServer) handleSupplierEmailRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "требуется POST")
+		return
+	}
+	var req struct {
+		Supplier  string `json:"supplier"`
+		Warehouse string `json:"warehouse"`
+		Email     string `json:"email"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeError(w, 400, "некорректный запрос удаления адреса")
+		return
+	}
+	key := supplierEmailKey(req.Supplier, req.Warehouse)
+	s.settingsMu.Lock()
+	s.loadUserSettingsLocked()
+	kept := make([]string, 0, len(s.settings.SupplierEmails[key]))
+	for _, existing := range s.settings.SupplierEmails[key] {
+		if !strings.EqualFold(existing, strings.TrimSpace(req.Email)) {
+			kept = append(kept, existing)
+		}
+	}
+	if s.settings.SupplierEmails == nil {
+		s.settings.SupplierEmails = map[string][]string{}
+	}
+	s.settings.SupplierEmails[key] = kept
+	if strings.EqualFold(s.settings.LastSupplierEmail[key], strings.TrimSpace(req.Email)) {
+		delete(s.settings.LastSupplierEmail, key)
+	}
+	s.persistUserSettingsLocked()
+	emails := append([]string{}, kept...)
+	last := s.settings.LastSupplierEmail[key]
+	s.settingsMu.Unlock()
+	writeJSON(w, 200, map[string]any{"emails": emails, "last": last})
+}

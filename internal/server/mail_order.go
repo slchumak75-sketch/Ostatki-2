@@ -31,6 +31,8 @@ func buildOrderMailMessage(from, to, subject, bodyText, fileName string, attachm
 	textPart, err := mw.CreatePart(textproto.MIMEHeader{
 		"Content-Type": {"text/plain; charset=utf-8"},
 	})
+	// Б73: имя файла — строго по RFC 5987 (mime.FormatMediaType), иначе
+	// почтовые программы обрезали русское имя («Мирстройма») и теряли .xlsx.
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +40,8 @@ func buildOrderMailMessage(from, to, subject, bodyText, fileName string, attachm
 		return nil, err
 	}
 	filePart, err := mw.CreatePart(textproto.MIMEHeader{
-		"Content-Type":              {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
-		"Content-Disposition":       {fmt.Sprintf("attachment; filename*=UTF-8''%s", mime.QEncoding.Encode("utf-8", fileName))},
+		"Content-Type":              {mime.FormatMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", map[string]string{"name": fileName})},
+		"Content-Disposition":       {mime.FormatMediaType("attachment", map[string]string{"filename": fileName})},
 		"Content-Transfer-Encoding": {"base64"},
 	})
 	if err != nil {

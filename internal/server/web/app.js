@@ -3217,6 +3217,14 @@
 
     // Б70: отправка заказа по почте из вкладки «Заказ» (столбец «Почта»).
     let mailCtx = null;
+    function fillMailAddresses(data) {
+      const emails = data.emails || [];
+      el('mailToSelect').innerHTML = emails.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+      el('mailToSelectWrap').classList.toggle('hidden', !emails.length);
+      const preset = data.last || emails[0] || '';
+      el('mailToInput').value = preset;
+      if (preset && emails.includes(preset)) el('mailToSelect').value = preset;
+    }
     async function openMailSend(supplier, warehouse, extended) {
       mailCtx = { supplier, warehouse, extended };
       el('mailSendSub').textContent = `Заказ: ${supplier} • ${warehouse || 'Склад не указан'} — тот же файл, что по кнопке «Заказ», уйдёт вложением в письмо.`;
@@ -3225,18 +3233,20 @@
       el('mailToSelectWrap').classList.add('hidden');
       el('mailSendModal').classList.remove('hidden');
       try {
-        const data = await apiGet(`api/supplier-emails?supplier=${encodeURIComponent(supplier)}&warehouse=${encodeURIComponent(warehouse)}`);
-        const emails = data.emails || [];
-        if (emails.length) {
-          el('mailToSelect').innerHTML = emails.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
-          el('mailToSelectWrap').classList.remove('hidden');
-        }
-        const preset = data.last || emails[0] || '';
-        el('mailToInput').value = preset;
-        if (preset && emails.includes(preset)) el('mailToSelect').value = preset;
+        fillMailAddresses(await apiGet(`api/supplier-emails?supplier=${encodeURIComponent(supplier)}&warehouse=${encodeURIComponent(warehouse)}`));
       } catch (_) {}
       el('mailToInput').focus();
     }
+    // Б73: ненужный адрес убирается из списка поставщика.
+    el('btnMailAddrDelete').addEventListener('click', async () => {
+      const email = el('mailToSelect').value;
+      if (!email || !mailCtx) return;
+      try {
+        const data = await apiPost('api/supplier-emails/remove', {supplier: mailCtx.supplier, warehouse: mailCtx.warehouse, email}, {unabortable:true});
+        fillMailAddresses(data);
+        showToast(`Адрес удалён из списка: ${email}`);
+      } catch (err) { showToast(`Не удалось удалить адрес: ${err.message}`); }
+    });
     el('mailToSelect').addEventListener('change', () => { el('mailToInput').value = el('mailToSelect').value; });
     el('btnMailSendOk').addEventListener('click', async () => {
       if (!mailCtx) return;
