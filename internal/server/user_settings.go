@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -240,10 +241,21 @@ func (s *AppServer) handlePickFolder(w http.ResponseWriter, r *http.Request) {
 	if title == "" {
 		title = "Выберите папку"
 	}
-	path, err := pickFolderDialog(title)
+	raw, err := pickFolderDialog(title)
 	if err != nil {
 		writeError(w, 500, "Не удалось открыть окно выбора папки: "+err.Error())
 		return
+	}
+	path := strings.TrimSpace(raw)
+	if decoded, derr := decodePickedFolderPath(raw); derr == nil && decoded != "" {
+		path = decoded
+	}
+	// Б72: выбранная папка обязана существовать — иначе путь «битый».
+	if path != "" {
+		if info, serr := os.Stat(path); serr != nil || !info.IsDir() {
+			writeError(w, 500, "Выбранная папка не найдена на компьютере: "+path)
+			return
+		}
 	}
 	writeJSON(w, 200, map[string]any{"path": path, "cancelled": path == ""})
 }
@@ -288,4 +300,17 @@ func (s *AppServer) handleMailTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"sent": true, "to": to})
+}
+
+// Батч-72: декодирование пути из окна выбора папки (base64/UTF-8).
+func decodePickedFolderPath(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	b, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

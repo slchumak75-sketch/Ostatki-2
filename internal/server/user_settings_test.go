@@ -127,3 +127,4 @@ func TestMailHostNormalizationAndTestGate(t *testing.T) {
 		t.Fatalf("host = %q, want smtp.mail.ru", mailResp.Host)
 	}
 }
+

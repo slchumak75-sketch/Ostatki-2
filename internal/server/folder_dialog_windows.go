@@ -7,15 +7,17 @@ import (
 	"strings"
 )
 
-// Батч-71: настоящее окно выбора папки Windows (FolderBrowserDialog
+// Батч-71/72: настоящее окно выбора папки Windows (FolderBrowserDialog
 // через PowerShell STA) — путь сохранения не нужно вводить руками.
+// Б72: путь возвращается в base64(UTF-8): консольная кодировка
+// PowerShell иначе искажала русские имена папок до неузнаваемости.
 func pickFolderDialog(title string) (string, error) {
 	safeTitle := strings.ReplaceAll(title, "'", " ")
 	script := "Add-Type -AssemblyName System.Windows.Forms; " +
 		"$d = New-Object System.Windows.Forms.FolderBrowserDialog; " +
 		"$d.Description = '" + safeTitle + "'; " +
 		"$d.ShowNewFolderButton = $true; " +
-		"if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }"
+		"if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($d.SelectedPath))) }"
 	cmd := exec.Command("powershell", "-NoProfile", "-STA", "-Command", script)
 	out, err := cmd.Output()
 	if err != nil {
