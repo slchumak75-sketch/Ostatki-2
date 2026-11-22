@@ -3422,7 +3422,21 @@
       const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('td.order-cell') : null;
       if (to !== e.target.closest('td.order-cell')) hideOrderHint();
     });
-    el('tableScrollContainer').addEventListener('scroll', () => { if (orderHintRow !== null) hideOrderHint(); }, { passive: true });
+    // Батч-67: «Подсказка» следует за фокусом — при клавиатурной навигации
+    // стрелками ↑/↓ по колонке «Заказ» (и при клике в окошко) окошко
+    // показывается для текущей строки без наведения мыши.
+    el('tableBody').addEventListener('focusin', (e) => {
+      const inp = e.target.closest && e.target.closest('input[data-qty-row]');
+      if (!inp) return;
+      const cell = inp.closest('td.order-cell');
+      if (cell) showOrderHint(cell);
+    });
+    el('tableScrollContainer').addEventListener('scroll', () => {
+      // Прокрутка от клавиатурной навигации не гасит подсказку текущей строки.
+      const ae = document.activeElement;
+      if (ae && ae.matches && ae.matches('input[data-qty-row]') && Number(ae.dataset.qtyRow) === orderHintRow) return;
+      if (orderHintRow !== null) hideOrderHint();
+    }, { passive: true });
     // «Загрузить заказ» (батч-36): файл заказа -> значения столбца «Заказ» ведомости.
     el('btnImportOrder').addEventListener('click', () => { el('orderImportInput').click(); });
     el('orderImportInput').addEventListener('change', async (e) => {
