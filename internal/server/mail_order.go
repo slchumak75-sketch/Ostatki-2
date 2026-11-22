@@ -104,7 +104,7 @@ func sendMailSMTP(cfg mailSettings, from, to string, msg []byte) error {
 	defer client.Close()
 	if strings.TrimSpace(cfg.Username) != "" {
 		if err := client.Auth(smtp.PlainAuth("", cfg.Username, cfg.Password, host)); err != nil {
-			return fmt.Errorf("почтовый сервер отклонил логин/пароль: %w", err)
+			return friendlySMTPError(err)
 		}
 	}
 	if err := client.Mail(from); err != nil {
@@ -227,4 +227,14 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 	s.persistUserSettingsLocked()
 	s.settingsMu.Unlock()
 	writeJSON(w, 200, map[string]any{"sent": true, "to": to, "fileName": fileName})
+}
+
+// Батч-72: технические ответы почтовых серверов переводим на человеческий.
+func friendlySMTPError(err error) error {
+	text := err.Error()
+	lower := strings.ToLower(text)
+	if strings.Contains(text, "535") || strings.Contains(lower, "application password") || strings.Contains(lower, "parol prilozheniya") || strings.Contains(lower, "app password") {
+		return fmt.Errorf("почтовый сервер требует ПАРОЛЬ ПРИЛОЖЕНИЯ, а не обычный пароль от ящика. Создайте его в настройках вашей почты (для Mail.ru: Настройки → Безопасность → Пароли для внешних приложений; подробнее: https://help.mail.ru/mail/security/protection/external), вставьте в поле «Пароль почты» выше и сохраните настройки. Ответ сервера: %s", text)
+	}
+	return fmt.Errorf("почтовый сервер отклонил логин/пароль: %w", err)
 }
