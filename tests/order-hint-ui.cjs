@@ -23,9 +23,10 @@ const tick=()=>new Promise(r=>setTimeout(r,60));
  const badge=d.getElementById('btnOrderHint');
  assert.ok(badge,'кнопка «Подсказка» есть');
  assert.equal(badge.textContent,'Подсказка');
- assert.equal(d.getElementById('btnHighlightOrder').textContent,'Подсветить заказ','у кнопки подсветки только текст, без «+»');
+ assert.equal(d.getElementById('btnHighlightOrder').firstChild.textContent,'Подсветить заказ','у кнопки подсветки текст и кружок «0» (батч-78), без «+»');
+assert.ok(d.getElementById('btnHighlightZero'),'Б78: кружок «0» внутри «Подсветить заказ»');
  assert.equal(d.getElementById('btnHighlightOrder').nextElementSibling.id,'btnOrderHint','«Подсказка» сразу после «Подсветить заказ»');
- assert.equal(badge.nextElementSibling.id,'btnToggleAdvanced');
+ assert.equal(badge.nextElementSibling.id,'btnAppExit');assert.equal(d.getElementById('btnAppExit').nextElementSibling.id,'btnToggleAdvanced');
  // Без подсвеченного заказа «Подсказка» не включается — сообщение.
  badge.click();await tick();
  assert.equal(badge.getAttribute('aria-pressed'),'false');

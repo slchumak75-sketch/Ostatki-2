@@ -220,6 +220,11 @@ html, body {
 }
 .topbar-actions .btn { white-space: nowrap; flex: 0 0 auto; }
 
+.zero-toggle{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border-radius:50%;background:#c0857d;color:#fff;font-size:10.5px;font-weight:700;line-height:1;cursor:pointer;flex:0 0 auto}
+.zero-toggle.on{background:#7fa08b}
+#itemsTable tr.zero-stock-hl > td{background:#e9f0e4}
+.btn.mail-sent{box-shadow:inset 0 0 0 1.5px #7fa08b}
+
 /* Buttons */
 .btn {
   display: inline-flex;

@@ -59,6 +59,8 @@
     filledOrderScopes: new Set(),
     autoFilledQuantities: {},
     highlightedOrderRows: new Set(),
+    highlightZeroStock: false,
+    mailSentMarks: {},
     orderTransferRows: new Set(),
     extendedOrderSuppliers: new Set(),
     checkedSuppliers: new Set(),
@@ -1342,6 +1344,7 @@
       applyTableColumnWidths(el('itemsTable'), ui.tableColWidths);
       applyTableColumnWidths(el('suppliersTable'), ui.suppliersColWidths);
       restoreSavedFields();
+      refreshMailSentMarks();
 
       const targetScroll = Number(ui.scrollY) || 0;
       requestAnimationFrame(() => {
@@ -1367,6 +1370,7 @@
     renderSuppliersView(state.report);
     renderOverstockView(state.report);
     restoreSavedFields();
+    refreshMailSentMarks();
   }
 
   function syncParamsControls(rep) {
@@ -1958,6 +1962,7 @@
     const rowCls = [
       hasAutoOrder ? 'auto-order-row' : '',
       isSelected ? 'selected-row' : '',
+      state.highlightZeroStock && Number(it.closingStock) === 0 ? 'zero-stock-hl' : '',
     ].filter(Boolean).join(' ');
 
     const isOrderHighlighted = state.highlightedOrderRows.has(it.excelRow);
@@ -2496,6 +2501,19 @@
     activePopoverRow = null;
   }
 
+  // Б78: пометки «Отправлено» — сервер сверяет отпечаток текущего заказа
+  // с отправленным; изменился заказ — пометки в ответе нет (снялась).
+  async function refreshMailSentMarks() {
+    try {
+      const data = await apiGet('api/orders/sent-marks');
+      const next = {};
+      for (const m of data.sent || []) next[m.key] = { sentAt: m.sentAt, to: m.to };
+      if (JSON.stringify(next) === JSON.stringify(state.mailSentMarks)) return;
+      state.mailSentMarks = next;
+      if (state.report) renderSuppliersView(state.report);
+    } catch (_) { /* Нет сети/данных — пометки просто не показываем. */ }
+  }
+
   function renderSuppliersView(rep) {
     state.pendingSuppliersRender=false;
     // Считаем сводки по складам строго по поставщикам с установленной галочкой
@@ -2577,7 +2595,7 @@
           ${isReadyToSend ? `<a class="btn btn-secondary btn-sm" href="${esc(orderHref)}" download="${esc(orderFileName)}" title="Скачать заказ: ${esc(orderFileName)}" style="text-decoration:none">Заказ</a>` : ''}
         </td>
         <td class="right-col" style="white-space:nowrap">
-          ${isReadyToSend ? `<button type="button" class="btn btn-secondary btn-sm" data-mail-sup="${esc(s.supplier)}" data-mail-wh="${esc(s.warehouse || '')}" data-mail-ext="${isExtended ? '1' : ''}" title="Отправить этот же заказ по электронной почте">Почта</button>` : ''}
+          ${isReadyToSend ? (() => { const mailKey = `${(s.supplier || '').trim()}|${(s.warehouse || '').trim()}`; const sentMark = state.mailSentMarks[mailKey]; return `<button type="button" class="btn btn-secondary btn-sm${sentMark ? ' mail-sent' : ''}" data-mail-sup="${esc(s.supplier)}" data-mail-wh="${esc(s.warehouse || '')}" data-mail-ext="${isExtended ? '1' : ''}" title="${sentMark ? `Отправлено ${esc(sentMark.sentAt)} на ${esc(sentMark.to)}. Если заказ изменится, пометка снимется автоматически` : 'Отправить этот же заказ по электронной почте'}">Почта${sentMark ? ' ✓' : ''}</button>`; })() : ''}
         </td>
       </tr>`;
     }).join('');
@@ -3288,6 +3306,7 @@
         const res = await apiPost('api/orders/send-mail', {supplier: mailCtx.supplier, warehouse: mailCtx.warehouse, extended: mailCtx.extended, to: el('mailToInput').value.trim()}, {unabortable:true});
         el('mailSendModal').classList.add('hidden');
         showToast(`Заказ отправлен по почте: ${res.to} (${res.fileName})`);
+        refreshMailSentMarks();
       } catch (err) { showToast(`Не удалось отправить заказ: ${err.message}`); }
       finally { btn.disabled = false; }
     });
@@ -3600,6 +3619,18 @@
       state.sortKey='finalOrderQty';state.sortDir='desc';
       refreshExcelTable();
     }
+    // Б78: кружок «0» внутри «Подсветить заказ» — дополнительная подсветка
+    // остатков 0 независимо ни от чего; клик не нажимает основную кнопку.
+    el('btnHighlightZero')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      state.highlightZeroStock = !state.highlightZeroStock;
+      const zeroBtn = el('btnHighlightZero');
+      zeroBtn.classList.toggle('on', state.highlightZeroStock);
+      zeroBtn.setAttribute('aria-pressed', String(state.highlightZeroStock));
+      refreshExcelTable();
+      showToast(state.highlightZeroStock ? 'Подсветка остатков 0 включена' : 'Подсветка остатков 0 выключена');
+    });
     el('btnHighlightOrder').addEventListener('click',()=>{
       try {const scope=highlightScope();const rows=state.report.items.filter(it=>highlightMatches(it,scope.suppliers,scope.warehouses));if(rows.some(it=>state.highlightedOrderRows.has(it.excelRow))){for(const it of rows)state.highlightedOrderRows.delete(it.excelRow);refreshExcelTable();showToast('Подсветка заказа снята');}else{highlightOrder(scope);showToast('Рекомендации заказа подсвечены');}}catch(err){showToast(err.message);}
     });
@@ -3642,6 +3673,7 @@
       }
       orderHintActive = !orderHintActive;
       const button = el('btnOrderHint');
+      button.textContent = orderHintActive ? 'Подсказка ✓' : 'Подсказка';
       button.setAttribute('aria-pressed', String(orderHintActive));
       button.classList.toggle('btn-active-toggle', orderHintActive);
       if (!orderHintActive) { hideOrderHint(); showToast('Подсказка выключена'); }
@@ -4934,13 +4966,12 @@
     window.addEventListener('beforeunload', (e) => {
       if (isClosingConfirmed || isDownloadingFile) return;
       if (state.report || propertiesDirty || state.hasUnsavedChanges) {
-        // Б77: закрытие окна крестиком сначала показывает наш вопрос
-        // «Сохранить эталон?» — если пользователь останется в программе,
-        // диалог уже открыт и выход завершится через него (ведомость
-        // при этом сохранится автоматически).
-        openCloseConfirmModal();
+        // Б78: только системный вопрос браузера, без нашего диалога
+        // «вслепую»: «Отмена» = просто продолжить работу, а вопрос
+        // «Сохранить эталон?» задаёт кнопка «Выход» до закрытия.
+        // Ведомость при закрытии сохранит сервер (автосейв при завершении).
         e.preventDefault();
-        e.returnValue = 'Сохранить эталон?';
+        e.returnValue = '';
       }
     });
 
@@ -5233,7 +5264,10 @@
     if (state.report) { renderKPIs(state.report); populateFilterDropdowns(state.report); }
     renderTable();
     const index=anchor?state.filteredItems.findIndex(it=>it.excelRow===anchor.row):-1;
-    el('tableScrollContainer').scrollTop=anchor?(Math.max(0,index<0?Math.min(anchor.index,state.filteredItems.length-1):index)*VIRTUAL_ROW_HEIGHT+anchor.offset):0;
+    // Б78: «Актуально» вкл/выкл не уводит со страницы: якорная строка на
+    // месте — держим её; отфильтровалась — остаёмся на том же сдвиге
+    // страницы, а не прыгаем к концу укоротившегося списка.
+    el('tableScrollContainer').scrollTop=anchor?(Math.max(0,(index<0?anchor.index:index))*VIRTUAL_ROW_HEIGHT+anchor.offset):0;
     if(anchor && state.filteredItems.length>VIRTUAL_THRESHOLD)renderTableBodyWindow(true);
   }
   function excelMatches() {

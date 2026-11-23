@@ -18,7 +18,7 @@ const tick=()=>new Promise(r=>setTimeout(r,70));
  assert.ok(d.getElementById('btnStockSearchMode').disabled,'Mode button is disabled while hints are off');
  d.getElementById('btnStockHintsOff').click();
  assert.equal(state.stockHintsDisabled,false);
- assert.equal(d.getElementById('btnImportOrder').nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnOrderHint');assert.equal(d.getElementById('btnOrderHint').nextElementSibling.id,'btnToggleAdvanced');
+ assert.equal(d.getElementById('btnImportOrder').nextElementSibling,highlight);assert.equal(highlight.nextElementSibling.id,'btnOrderHint');assert.equal(d.getElementById('btnOrderHint').nextElementSibling.id,'btnAppExit');assert.equal(d.getElementById('btnAppExit').nextElementSibling.id,'btnToggleAdvanced');
 
  state.colFilters={warehouse:['Мир'],supplier:['Поставщик']};refreshExcelTable();
  const before=JSON.stringify(items),beforeBudget=d.getElementById('kpiOrderCost').textContent,beforeCalls=calls.length;

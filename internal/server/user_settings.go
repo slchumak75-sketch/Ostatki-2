@@ -35,6 +35,9 @@ type userSettings struct {
 	// изменение сохраняется автоматически и восстанавливается
 	// при следующем запуске/загрузке ведомости.
 	Params *model.ForecastParams `json:"params,omitempty"`
+	// Б78: пометки «Отправлено» по заказам поставщикам (ключ —
+	// поставщик|склад), с отпечатком отправленного заказа.
+	OrderMailSent map[string]orderMailSentMark `json:"orderMailSent,omitempty"`
 }
 
 // persistConfigParams записывает параметры планирования в настройки

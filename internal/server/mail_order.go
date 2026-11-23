@@ -2,8 +2,10 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"mime"
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"net/textproto"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -137,6 +140,97 @@ func sendMailSMTP(cfg mailSettings, from, to string, msg []byte) error {
 	return client.Quit()
 }
 
+// Б78: пометка «Отправлено» на кнопке «Почта». После успешной отправки
+// запоминаем контрольный отпечаток заказа (состав, количества, цены,
+// расширенный формат). Пока текущий заказ совпадает с отпечатком,
+// кнопка показывает галочку; любое изменение заказа снимает пометку.
+type orderMailSentMark struct {
+	Hash     string `json:"hash"`
+	Extended bool   `json:"extended"`
+	SentAt   string `json:"sentAt"`
+	To       string `json:"to"`
+}
+
+func orderMailFingerprint(rep *model.CalculationReport, supplier, warehouse string, extended bool) string {
+	if rep == nil {
+		return ""
+	}
+	rows := make([]string, 0, len(rep.Items))
+	for _, it := range rep.Items {
+		if !strings.EqualFold(strings.TrimSpace(it.Supplier), supplier) || !strings.EqualFold(strings.TrimSpace(it.Warehouse), warehouse) {
+			continue
+		}
+		if it.FinalOrderQty <= 0 {
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("%d:%d:%.2f", it.ExcelRow, it.FinalOrderQty, it.PurchasePrice))
+	}
+	sort.Strings(rows)
+	sum := sha256.Sum256([]byte(strings.Join(rows, ";") + "|" + strconv.FormatBool(extended)))
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *AppServer) rememberOrderMailSent(supplier, warehouse string, extended bool, to string, rep *model.CalculationReport) {
+	hash := orderMailFingerprint(rep, strings.TrimSpace(supplier), strings.TrimSpace(warehouse), extended)
+	if hash == "" {
+		return
+	}
+	s.settingsMu.Lock()
+	defer s.settingsMu.Unlock()
+	s.loadUserSettingsLocked()
+	if s.settings.OrderMailSent == nil {
+		s.settings.OrderMailSent = map[string]orderMailSentMark{}
+	}
+	s.settings.OrderMailSent[supplierEmailKey(supplier, warehouse)] = orderMailSentMark{
+		Hash: hash, Extended: extended,
+		SentAt: time.Now().Format("02.01.2006 15:04"), To: strings.TrimSpace(to),
+	}
+	s.persistUserSettingsLocked()
+}
+
+// handleOrderSentMarks отдаёт пометки, чей отпечаток совпадает с текущим
+// заказом: изменился заказ — пометка в список не попадает (снялась).
+func (s *AppServer) handleOrderSentMarks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, 405, "требуется GET")
+		return
+	}
+	s.settingsMu.Lock()
+	s.loadUserSettingsLocked()
+	marks := make(map[string]orderMailSentMark, len(s.settings.OrderMailSent))
+	for k, v := range s.settings.OrderMailSent {
+		marks[k] = v
+	}
+	s.settingsMu.Unlock()
+
+	s.mu.RLock()
+	rep := s.report
+	s.mu.RUnlock()
+
+	type sentMark struct {
+		Key       string `json:"key"`
+		Supplier  string `json:"supplier"`
+		Warehouse string `json:"warehouse"`
+		SentAt    string `json:"sentAt"`
+		To        string `json:"to"`
+	}
+	sent := []sentMark{}
+	if rep != nil {
+		for key, m := range marks {
+			idx := strings.LastIndex(key, "|")
+			if idx < 0 {
+				continue
+			}
+			supplier, warehouse := key[:idx], key[idx+1:]
+			if orderMailFingerprint(rep, supplier, warehouse, m.Extended) == m.Hash {
+				sent = append(sent, sentMark{Key: key, Supplier: supplier, Warehouse: warehouse, SentAt: m.SentAt, To: m.To})
+			}
+		}
+	}
+	sort.Slice(sent, func(i, j int) bool { return sent[i].Key < sent[j].Key })
+	writeJSON(w, 200, map[string]any{"sent": sent})
+}
+
 func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "требуется POST")
@@ -239,6 +333,8 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 	s.settings.LastSupplierEmail[key] = to
 	s.persistUserSettingsLocked()
 	s.settingsMu.Unlock()
+	// Б78: пометка «Отправлено» с отпечатком именно этого заказа.
+	s.rememberOrderMailSent(filterSupplier, filterWarehouse, req.Extended, to, rep)
 	writeJSON(w, 200, map[string]any{"sent": true, "to": to, "fileName": fileName})
 }
 

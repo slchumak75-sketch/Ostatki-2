@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Заказ — Вариант 7.21 • Управление закупками • Рейтинг • SBA</title>
+  <title>Заказ — Вариант 7.22 • Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
   <link rel="stylesheet" href="styles.css?v=4.26" />
 </head>
@@ -32,7 +32,7 @@
         <div class="brand-title-row">
           <h1>Заказ</h1>
           <span class="brand-date" id="brandCurrentDate" title="Текущая дата"></span>
-          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.21</span>
+          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.22</span>
           <span class="file-meta"><span id="fileMetaLine">Загрузка ведомости…</span><span id="safetyStatus" role="status" aria-live="polite"></span></span>
         </div>
       </div>
@@ -60,8 +60,9 @@
         <button class="btn btn-ghost property-filter-active" id="btnRelevant" type="button" aria-pressed="true">Актуально</button>
         <button type="button" class="btn btn-beige" id="btnLoadEtalon">Загрузить эталон</button>
         <button type="button" class="btn btn-beige" id="btnImportOrder" title="Загрузить сохранённый файл заказа и перезаписать значения в столбце «Заказ» текущей ведомости">Загрузить заказ</button>
-        <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ</button>
+        <button type="button" class="btn btn-beige" id="btnHighlightOrder">Подсветить заказ<span class="zero-toggle" id="btnHighlightZero" role="button" aria-pressed="false" title="Дополнительно подсвечивать остатки 0 (независимо от заказа и фильтров)">0</span></button>
         <button type="button" class="btn btn-beige" id="btnOrderHint" aria-pressed="false" title="Показывать рекомендованный заказ при наведении курсора на подсвеченную ячейку">Подсказка</button>
+        <button type="button" class="btn btn-beige" id="btnAppExit" title="Завершить работу: спросит про эталон, ведомость сохранится автоматически">Выход</button>
         <button class="btn btn-ghost" id="btnToggleAdvanced" aria-expanded="false" aria-controls="paramsPanel">Параметры ▸</button>
       </div>
     </header>
@@ -80,7 +81,6 @@
             <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
             <button type="button" class="btn btn-beige" id="btnSavePaths" title="Папки, куда сохраняются эталон и текущая ведомость">Указать путь сохранения</button>
             <button type="button" class="btn btn-beige" id="btnMailSettings" title="Параметры вашей почты для отправки заказов поставщикам">Настройка почты</button>
-            <button type="button" class="btn btn-beige" id="btnAppExit" title="Завершить работу: спросит про эталон, ведомость сохранится автоматически">Выход</button>
             <button type="button" class="btn btn-beige" id="btnOverstockTab" title="Открыть вкладку Неликвиды">Неликвиды <span class="tab-counter" id="cntTabOverstock">0</span></button>
           </div>
           <input type="file" id="etalonFileInput" accept=".xlsx,.json" hidden>
@@ -815,7 +815,7 @@
 
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=19"></script>
-  <script src="app.js?v=5.38"></script>
+  <script src="app.js?v=5.39"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>
