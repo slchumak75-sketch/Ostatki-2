@@ -15,8 +15,8 @@ func TestOrderMailSentMarkFollowsOrderFingerprint(t *testing.T) {
 	app := New(false)
 	app.SetSaveDir(t.TempDir())
 	app.report = &model.CalculationReport{Items: []model.CalculatedItem{
-		{ExcelRow: 8, Supplier: "Поставщик", Warehouse: "Мир", FinalOrderQty: 5, PurchasePrice: 10},
-		{ExcelRow: 9, Supplier: "Поставщик", Warehouse: "Мир", FinalOrderQty: 0, PurchasePrice: 3},
+		{RawItem: model.RawItem{ExcelRow: 8, Supplier: "Поставщик", Warehouse: "Мир", PurchasePrice: 10}, FinalOrderQty: 5},
+		{RawItem: model.RawItem{ExcelRow: 9, Supplier: "Поставщик", Warehouse: "Мир", PurchasePrice: 3}, FinalOrderQty: 0},
 	}}
 	app.rememberOrderMailSent("Поставщик", "Мир", false, "zakaz@example.com", app.report)
 
