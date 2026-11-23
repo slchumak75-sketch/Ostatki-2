@@ -2986,7 +2986,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .qty-input.order-highlighted.wh-mir { background: #e4f0e7; border-color: transparent; }
 .qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: transparent; }
 /* Б79: остатки 0 — еле заметный жёлтый овал только в столбце «Заказ». */
-#itemsTable .qty-input.zero-order-hl { background: #fadce5; border-color: transparent; }
+#itemsTable .qty-input.zero-order-hl { background: #fceff3; border-color: transparent; }
 
 /* Батч-56: «Параметры»/«12 мес.»/«Актуально» в отжатом состоянии — белые
    сразу, с первого экрана (правило продублировано в теме islands с

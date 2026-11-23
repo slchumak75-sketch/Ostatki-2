@@ -39,6 +39,6 @@ const tick=()=>new Promise(r=>setTimeout(r,90));
  row9.querySelector('.sku-barcode').click();await tick();
  assert.equal(copied.length,before,'пустой штрихкод не копируется');
  // Б80: розовый овал нулей.
- assert.ok(css.includes('#itemsTable .qty-input.zero-order-hl { background: #fadce5;'),'розовый овал #fadce5');
+ assert.ok(css.includes('#itemsTable .qty-input.zero-order-hl { background: #fceff3;'),'бледно-розовый овал #fceff3');
  console.log('BATCH-80: sku+barcode cell, copy on click, pink zero oval: OK');
 }catch(e){console.error(e);process.exitCode=1;}finally{w.close();}})();
