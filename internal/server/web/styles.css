@@ -222,7 +222,6 @@ html, body {
 
 .zero-toggle{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border-radius:50%;background:#c0857d;color:#fff;font-size:10.5px;font-weight:700;line-height:1;cursor:pointer;flex:0 0 auto}
 .zero-toggle.on{background:#7fa08b}
-#itemsTable tr.zero-stock-hl > td{background:#e9f0e4}
 .btn.mail-sent{box-shadow:inset 0 0 0 1.5px #7fa08b}
 
 /* Buttons */
@@ -2964,6 +2963,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .qty-input.order-highlighted { border-color: transparent; background: transparent; }
 .qty-input.order-highlighted.wh-mir { background: #e4f0e7; border-color: transparent; }
 .qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: transparent; }
+/* Б79: остатки 0 — еле заметный жёлтый овал только в столбце «Заказ». */
+#itemsTable .qty-input.zero-order-hl { background: #fbf3cf; border-color: transparent; }
 
 /* Батч-56: «Параметры»/«12 мес.»/«Актуально» в отжатом состоянии — белые
    сразу, с первого экрана (правило продублировано в теме islands с

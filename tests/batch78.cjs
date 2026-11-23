@@ -47,13 +47,14 @@ const tick=()=>new Promise(r=>setTimeout(r,90));
  assert.ok(!zero.classList.contains('on'),'Б78: по умолчанию кружок выключен (красный)');
  const row8=d.querySelector('tr[data-row="8"]'),row9=d.querySelector('tr[data-row="9"]');
  assert.ok(row8&&row9,'строки таблицы отрисованы');
- assert.ok(!row8.classList.contains('zero-stock-hl'));
+ assert.ok(!row8.querySelector('.qty-input').classList.contains('zero-order-hl'));
  zero.click();await tick();
  assert.ok(zero.classList.contains('on'),'Б78: после клика кружок включён (зелёный)');
- assert.ok(d.querySelector('tr[data-row="8"]').classList.contains('zero-stock-hl'),'Б78: строка с остатком 0 подсвечена');
- assert.ok(!d.querySelector('tr[data-row="9"]').classList.contains('zero-stock-hl'),'Б78: строка с остатком 7 не подсвечена');
+ assert.ok(d.querySelector('input[data-qty-row="8"]').classList.contains('zero-order-hl'),'Б79: овал в столбце «Заказ» у остатка 0');
+ assert.ok(!d.querySelector('tr[data-row="8"]').classList.contains('zero-stock-hl'),'Б79: вся строка не подсвечивается');
+ assert.ok(!d.querySelector('input[data-qty-row="9"]').classList.contains('zero-order-hl'),'Б79: остаток 7 без овала');
  zero.click();await tick();
- assert.ok(!d.querySelector('tr[data-row="8"]').classList.contains('zero-stock-hl'),'Б78: повторный клик снимает подсветку нулей');
+ assert.ok(!d.querySelector('input[data-qty-row="8"]').classList.contains('zero-order-hl'),'Б79: повторный клик снимает подсветку нулей');
  // Б78-5: галочка на включённой «Подсказке».
  d.getElementById('btnHighlightOrder').click();await tick();
  d.getElementById('btnOrderHint').click();await tick();
