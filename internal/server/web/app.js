@@ -455,6 +455,22 @@
     state.stockSearchProducts=[...products.values()];
   }
 
+  // Б82: тихий коммит количества (pushOverrideToServer, silent) заменяет
+  // state.report и rowMap НОВЫМИ объектами, а state.filteredItems продолжает
+  // ссылаться на объекты прежнего отчёта. Без синхронизации строка,
+  // перерисованная после прокрутки туда-обратно, показывала старое (пустое)
+  // значение, хотя на сервере заказ уже сохранён (в предпросмотре виден).
+  function syncFilteredItemsFromReport() {
+    if (!state.filteredItems.length || !state.rowMap.size) return;
+    for (const entry of state.filteredItems) {
+      const fresh = state.rowMap.get(entry.excelRow);
+      if (!fresh || fresh === entry) continue;
+      entry.finalOrderQty = fresh.finalOrderQty;
+      entry.manualOverride = fresh.manualOverride;
+      entry.orderCost = fresh.orderCost;
+    }
+  }
+
     function orderScope() {
       if (!state.report || state.activeTab!=='table' || state.comparison) throw new Error('Откройте обычную ведомость и выберите поставщика и склад');
       let suppliers=new Set(state.report.items.map(it=>normalizeSupName(it.supplier)));
@@ -1957,7 +1973,11 @@
     const hasAutoOrder = it.autoOrderQty > 0;
     const hasPlus = state.staryoRows.has(it.excelRow);
     const segNum = Number(it.salesSegment) || 0;
-    const lineSum = calcLineSum(it.finalOrderQty, it.purchasePrice);
+    // Б82: пока сохранение количества ещё в полёте, ячейка показывает
+    // введённое значение из pendingOverrides, а не устаревшее из строки.
+    const pendingQty = state.pendingOverrides.get(it.excelRow);
+    const effQty = pendingQty === undefined ? (Number(it.finalOrderQty) || 0) : pendingQty;
+    const lineSum = calcLineSum(effQty, it.purchasePrice);
 
     const rowCls = [
       hasAutoOrder ? 'auto-order-row' : '',
@@ -1968,7 +1988,7 @@
     const whTintCls = whCellTintClass(it.warehouse);
     const qtyCls = [
       'qty-input',
-      it.finalOrderQty > 0 ? 'has-order' : '',
+      effQty > 0 ? 'has-order' : '',
       isOrderHighlighted ? 'order-highlighted' : '',
       isOrderHighlighted ? whTintCls.trim() : '',
       // Б79: нулевые остатки — только овал в столбце «Заказ», бледно-жёлтый;
@@ -1989,7 +2009,7 @@
       <td class="num-col col-5digits">${fmtStock(it.closingStock)}</td>
       <td class="num-col col-5digits order-cell" onclick="event.stopPropagation()">
         <div class="qty-editor">
-          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${state.orderTransferRows.has(it.excelRow)?'пер':Number(it.finalOrderQty)===0?'':fmtInt(it.finalOrderQty)}" data-qty-row="${it.excelRow}" />
+          <input type="text" inputmode="numeric" autocomplete="off" class="${qtyCls}" value="${state.orderTransferRows.has(it.excelRow)?'пер':effQty===0?'':fmtInt(effQty)}" data-qty-row="${it.excelRow}" />
         </div>
       </td>
       <td class="num-col">${fmtMoney(it.purchasePrice)}</td>
@@ -4185,6 +4205,9 @@
                 }
               }
             }
+            // Б82: отображаемый список обязан подхватить свежие количества
+            // нового отчёта, иначе перерисовка после прокрутки теряет заказ.
+            syncFilteredItemsFromReport();
             // Тихий коммит не гоняет пять тяжёлых проходов синхронно —
             // сводки/KPI/подвал/поставщики обновляются отложенно.
             scheduleRowSummaryRefresh();
@@ -4334,6 +4357,14 @@
       it.finalOrderQty = qty;
       supplierSumsDirty = true;
       it.orderCost = lineSum;
+      // Б82: та же строка в отображаемом списке может быть другим объектом
+      // (после тихой замены отчёта) — обновляем и её, чтобы перерисовка
+      // после прокрутки не показала пустую ячейку.
+      const filteredEntry = state.filteredItems[filteredIndexOf(rowNum)];
+      if (filteredEntry && filteredEntry !== it) {
+        filteredEntry.finalOrderQty = qty;
+        filteredEntry.orderCost = lineSum;
+      }
 
       const tbody = el('tableBody');
       const sumCell = tbody?.querySelector(`td[data-sum-row="${rowNum}"]`);
