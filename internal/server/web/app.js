@@ -1962,7 +1962,6 @@
     const rowCls = [
       hasAutoOrder ? 'auto-order-row' : '',
       isSelected ? 'selected-row' : '',
-      state.highlightZeroStock && Number(it.closingStock) === 0 ? 'zero-stock-hl' : '',
     ].filter(Boolean).join(' ');
 
     const isOrderHighlighted = state.highlightedOrderRows.has(it.excelRow);
@@ -1972,6 +1971,9 @@
       it.finalOrderQty > 0 ? 'has-order' : '',
       isOrderHighlighted ? 'order-highlighted' : '',
       isOrderHighlighted ? whTintCls.trim() : '',
+      // Б79: нулевые остатки — только овал в столбце «Заказ», бледно-жёлтый;
+      // стандартная подсветка цветом склада имеет приоритет.
+      !isOrderHighlighted && state.highlightZeroStock && Number(it.closingStock) === 0 ? 'zero-order-hl' : '',
     ].filter(Boolean).join(' ');
 
     return `<tr data-row="${it.excelRow}" class="${rowCls}">
