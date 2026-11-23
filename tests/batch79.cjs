@@ -17,7 +17,8 @@ const tick=()=>new Promise(r=>setTimeout(r,90));
  await tick();await tick();
  // CSS-контракт: только овал в «Заказ», бледно-жёлтый; построчной заливки нет.
  const css=fs.readFileSync('internal/server/web/styles.css','utf8');
- assert.ok(css.includes('#itemsTable .qty-input.zero-order-hl { background: #fbf3cf;'),'Б79: бледно-жёлтый овал только в столбце «Заказ»');
+ assert.ok(css.includes('#itemsTable .qty-input.zero-order-hl { background: #fadce5;'),'Б80: светлый розовый овал только в столбце «Заказ»');
+ assert.ok(!css.includes('#fbf3cf'),'Б80: прежний жёлтый заменён розовым');
  assert.ok(!css.includes('tr.zero-stock-hl'),'Б79: построчная заливка нулей убрана');
  const zero=d.getElementById('btnHighlightZero');
  const input8=()=>d.querySelector('input[data-qty-row="8"]'),input9=()=>d.querySelector('input[data-qty-row="9"]');

@@ -1454,6 +1454,28 @@ body.col-resize-active * {
   white-space: nowrap;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+/* Б80: артикул сверху (чуть мельче), штрихкод снизу шрифтом как «Группа»; без разделителя. */
+.sku-cell .sku-main {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.sku-cell .sku-barcode {
+  display: block;
+  font-size: 8px;
+  line-height: 1.05;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
 .name-cell {
@@ -2964,7 +2986,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .qty-input.order-highlighted.wh-mir { background: #e4f0e7; border-color: transparent; }
 .qty-input.order-highlighted.wh-korelichi { background: #f5ead6; border-color: transparent; }
 /* Б79: остатки 0 — еле заметный жёлтый овал только в столбце «Заказ». */
-#itemsTable .qty-input.zero-order-hl { background: #fbf3cf; border-color: transparent; }
+#itemsTable .qty-input.zero-order-hl { background: #fadce5; border-color: transparent; }
 
 /* Батч-56: «Параметры»/«12 мес.»/«Актуально» в отжатом состоянии — белые
    сразу, с первого экрана (правило продублировано в теме islands с
