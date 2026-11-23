@@ -17,6 +17,7 @@ type RawItem struct {
 	Warehouse     string    `json:"warehouse"`     // Столбец 1 (A): Склад
 	Group         string    `json:"group"`         // Столбец 2 (B): Группа номенклатуры
 	SKU           string    `json:"sku"`           // Столбец 3 (C): Артикул
+	Barcode       string    `json:"barcode"`       // Колонка «Код» (штрихкод), если есть в выгрузке (батч-80)
 	Name          string    `json:"name"`          // Столбец 4 (D): Номенклатура
 	Unit          string    `json:"unit"`          // Столбец 5 (E): Ед. изм.
 	TotalExpense  float64   `json:"totalExpense"`  // Столбец 6 (F): Расход за период отчёта

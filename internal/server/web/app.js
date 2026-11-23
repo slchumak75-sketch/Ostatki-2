@@ -1981,7 +1981,7 @@
       <td class="row-number-cell">${index + 1}</td>
       <td class="wh-cell${whCellTintClass(it.warehouse)}" title="${esc(it.warehouse)}">${esc(it.warehouse)}</td>
       <td class="grp-cell" title="${esc(it.group)}">${esc(it.group)}</td>
-      <td class="sku-cell">${esc(it.sku)}</td>
+      <td class="sku-cell"><span class="sku-main" data-copy-sku="${esc(it.sku)}" title="Артикул (клик — копировать)">${esc(it.sku)}</span><span class="sku-barcode" data-copy-barcode="${esc(it.barcode || '')}" title="Штрихкод (клик — копировать)">${esc(it.barcode || '')}</span></td>
       <td class="name-cell" data-stock-row="${it.excelRow}" tabindex="0" aria-describedby="warehouseStockPopover">${esc(it.name)}${state.comparison?.get(it.excelRow)?.reason?`<div class="comparison-reason">${esc(state.comparison.get(it.excelRow).reason)}</div>`:''}</td>
       <td class="unit-cell">шт.</td>
       <td class="seg-cell" data-rating-row="${it.excelRow}"><span class="seg-pill seg-${segNum}" data-rating-row="${it.excelRow}">${segNum}</span></td>
@@ -3099,6 +3099,30 @@
   }
 
   function bindEvents() {
+    // Б80: клик по артикулу или штрихкоду копирует значение в буфер обмена.
+    async function copyTextToClipboard(text, toastText) {
+      let ok = true;
+      try { await navigator.clipboard.writeText(text); } catch (_) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          ok = document.execCommand('copy');
+          ta.remove();
+        } catch (__) { ok = false; }
+      }
+      showToast(ok ? `${toastText}: ${text}` : `Не удалось скопировать: ${text}`);
+    }
+    el('tableBody').addEventListener('click', (e) => {
+      const span = e.target.closest('[data-copy-sku],[data-copy-barcode]');
+      if (!span) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const isSku = span.hasAttribute('data-copy-sku');
+      const value = (span.dataset[isSku ? 'copySku' : 'copyBarcode'] || '').trim();
+      if (!value) return;
+      copyTextToClipboard(value, isSku ? 'Артикул скопирован' : 'Штрихкод скопирован');
+    }, true);
     el('btnSaveFields').addEventListener('click', saveFields);
     // Б77: окно предпросмотра перекрывает основную кнопку — своя рядом.
     el('btnSaveFieldsPreview')?.addEventListener('click', saveFields);
