@@ -431,7 +431,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { suffix: "7.26", theme: islands,  design: "острова+" }
+          - { suffix: "7.27", theme: islands,  design: "острова+" }
 
     steps:
       - name: Клонирование репозитория
@@ -453,7 +453,7 @@ jobs:
       - name: Проверка и сборка «Вариант ${{ matrix.suffix }}» (дизайн ${{ matrix.design }})
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq osslsigncode
+          sudo apt-get install -y -qq osslsigncode nsis
 
           go vet ./cmd/... ./internal/...
           mkdir -p dist cert_tmp
@@ -480,6 +480,10 @@ jobs:
 
           rm -rf cert_tmp "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}_unsigned.exe"
 
+          # Батч-83: установщик Setup (NSIS собирается прямо на Ubuntu).
+          makensis -DVERSION=${{ matrix.suffix }} "-DSRCEXE=$PWD/dist/OstatkiZakupki_Variant_${{ matrix.suffix }}.exe" "-DOUTFILE=$PWD/dist/OstatkiZakupki_Variant_${{ matrix.suffix }}_Setup.exe" installer/ostatki.nsi
+          ls -l dist
+
       - name: Публикация релиза GitHub «Вариант ${{ matrix.suffix }}»
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
@@ -489,5 +493,6 @@ jobs:
           gh release create "variant-${{ matrix.suffix }}" \
             --target "${{ github.sha }}" \
             --title "Вариант ${{ matrix.suffix }} — ${{ matrix.design }}" \
-            --notes "Вариант ${{ matrix.suffix }} программы «Остатки 2»: дизайн «${{ matrix.design }}» (data-theme=${{ matrix.theme }}), вшит в сборку. Высота строк таблицы едина, рейтинг — только цифра в приглушённых цветах, у таблицы вертикальные границы — как во всех вариантах; вертикальных панелей нет. Подпись Authenticode SHA-256." \
-            "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}.exe#OstatkiZakupki_Variant_${{ matrix.suffix }}.exe (Вариант ${{ matrix.suffix }} — Windows x64 GUI)"
+            --notes "Вариант ${{ matrix.suffix }} программы «Остатки 2»: дизайн «${{ matrix.design }}» (data-theme=${{ matrix.theme }}), вшит в сборку. Высота строк таблицы едина, рейтинг — только цифра в приглушённых цветах, у таблицы вертикальные границы — как во всех вариантах; вертикальных панелей нет. Подпись Authenticode SHA-256. Файл …_Setup.exe — установщик для первой установки на компьютер (ярлыки, удаление через «Программы и компоненты»); дальше программа обновляется сама по кнопке «Обновление» файлом OstatkiZakupki_Variant_${{ matrix.suffix }}.exe." \
+            "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}.exe#OstatkiZakupki_Variant_${{ matrix.suffix }}.exe (Вариант ${{ matrix.suffix }} — Windows x64 GUI)" \
+            "dist/OstatkiZakupki_Variant_${{ matrix.suffix }}_Setup.exe#OstatkiZakupki_Variant_${{ matrix.suffix }}_Setup.exe (Вариант ${{ matrix.suffix }} — установщик Setup, Windows x64)"
