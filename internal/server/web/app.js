@@ -3144,6 +3144,24 @@
       copyTextToClipboard(value, isSku ? 'Артикул скопирован' : 'Штрихкод скопирован');
     }, true);
     el('btnSaveFields').addEventListener('click', saveFields);
+    // Б83: обновление программы по присланному файлу новой версии.
+    el('btnUpdateApp')?.addEventListener('click', async () => {
+      const btn = el('btnUpdateApp'); btn.disabled = true;
+      try {
+        const picked = await apiPost('api/settings/pick-file', {title: 'Выберите файл обновления программы (EXE новой версии)'}, {unabortable:true});
+        if (!picked || picked.cancelled || !picked.path) return;
+        const fileName = String(picked.path).split(/[\\/]/).pop();
+        const ok = await safetyDialog('Обновить программу?', `Файл обновления: ${fileName}\n\nПрограмма сохранит текущую ведомость, закроется, обновится по этому файлу и запустится снова уже новой версией.`);
+        if (!ok) return;
+        const res = await apiPost('api/update/apply', {path: picked.path}, {unabortable:true});
+        showToast(res.mode === 'setup' ? 'Запущен установщик новой версии — программа закрывается' : 'Обновление принято: программа сейчас перезапустится новой версией');
+        setTimeout(() => { try { window.close(); } catch (_) {} }, 700);
+        setTimeout(() => {
+          document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:24px;text-align:center"><div><h2 style="margin:0 0 8px;font-size:18px">Программа обновляется…</h2><p style="margin:0;color:#666;font-size:13px">Окно новой версии откроется само через несколько секунд. Это окно можно закрыть.</p></div></div>';
+        }, 1600);
+      } catch (err) { showToast(`Не удалось обновить программу: ${err.message}`); }
+      finally { btn.disabled = false; }
+    });
     // Б77: окно предпросмотра перекрывает основную кнопку — своя рядом.
     el('btnSaveFieldsPreview')?.addEventListener('click', saveFields);
     function closeAdminNotice() {
@@ -3326,6 +3344,7 @@
       mailCtx = { supplier, warehouse, extended };
       el('mailSendSub').textContent = `Заказ: ${supplier} • ${warehouse || 'Склад не указан'} — тот же файл, что по кнопке «Заказ», уйдёт вложением в письмо.`;
       el('mailToInput').value = '';
+      el('mailComment').value = '';
       el('mailToSelect').innerHTML = '';
       el('mailToSelectWrap').classList.add('hidden');
       el('mailSendModal').classList.remove('hidden');
@@ -3349,7 +3368,7 @@
       if (!mailCtx) return;
       const btn = el('btnMailSendOk'); btn.disabled = true;
       try {
-        const res = await apiPost('api/orders/send-mail', {supplier: mailCtx.supplier, warehouse: mailCtx.warehouse, extended: mailCtx.extended, to: el('mailToInput').value.trim()}, {unabortable:true});
+        const res = await apiPost('api/orders/send-mail', {supplier: mailCtx.supplier, warehouse: mailCtx.warehouse, extended: mailCtx.extended, to: el('mailToInput').value.trim(), comment: el('mailComment').value.trim()}, {unabortable:true});
         el('mailSendModal').classList.add('hidden');
         showToast(`Заказ отправлен по почте: ${res.to} (${res.fileName})`);
         refreshMailSentMarks();

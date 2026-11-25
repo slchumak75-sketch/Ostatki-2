@@ -79,7 +79,20 @@ func orderMailSubject(supplier, warehouse string, now time.Time) string {
 }
 
 func orderMailBody(supplier, warehouse, fileName string) string {
-	return fmt.Sprintf("Здравствуйте!\n\nВо вложении заказ: %s.\nСклад: %s.\nФайл: %s\n\nСформировано программой «Заказ» автоматически.", supplier, xlsx.DisplayWarehouseName(warehouse), fileName)
+	return orderMailBodyWithComment(supplier, warehouse, fileName, "")
+}
+
+// Б83: необязательный комментарий отправителя — в начале письма, после приветствия.
+func orderMailBodyWithComment(supplier, warehouse, fileName, comment string) string {
+	comment = strings.TrimSpace(comment)
+	if r := []rune(comment); len(r) > 2000 {
+		comment = string(r[:2000])
+	}
+	body := fmt.Sprintf("Здравствуйте!\n\nВо вложении заказ: %s.\nСклад: %s.\nФайл: %s\n\nСформировано программой «Заказ» автоматически.", supplier, xlsx.DisplayWarehouseName(warehouse), fileName)
+	if comment == "" {
+		return body
+	}
+	return fmt.Sprintf("Здравствуйте!\n\nКомментарий: %s\n\nВо вложении заказ: %s.\nСклад: %s.\nФайл: %s\n\nСформировано программой «Заказ» автоматически.", comment, supplier, xlsx.DisplayWarehouseName(warehouse), fileName)
 }
 
 func sendMailSMTP(cfg mailSettings, from, to string, msg []byte) error {
@@ -242,6 +255,7 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 		Warehouse string `json:"warehouse"`
 		Extended bool   `json:"extended"`
 		To       string `json:"to"`
+		Comment  string `json:"comment"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
 		writeError(w, 400, "некорректный запрос отправки")
@@ -302,7 +316,7 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 	// Б74: в теме и тексте письма склад называем организацией, как в имени
 	// файла и в самом файле («Мирстроймаркет», а не «Склад Мир»).
 	subject := orderMailSubject(filterSupplier, filterWarehouse, time.Now())
-	bodyText := orderMailBody(filterSupplier, filterWarehouse, fileName)
+	bodyText := orderMailBodyWithComment(filterSupplier, filterWarehouse, fileName, req.Comment)
 	msg, err := buildOrderMailMessage(from, to, subject, bodyText, fileName, outBytes)
 	if err != nil {
 		writeError(w, 500, "не удалось собрать письмо: "+err.Error())
