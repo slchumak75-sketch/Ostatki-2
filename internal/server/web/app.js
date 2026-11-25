@@ -3163,10 +3163,14 @@
         const ok = await safetyDialog('Обновить программу?', `Файл обновления: ${fileName}\n\nПрограмма сохранит текущую ведомость, закроется, обновится по этому файлу и запустится снова уже новой версией.`);
         if (!ok) return;
         const res = await apiPost('api/update/apply', {path: picked.path}, {unabortable:true});
+        // Б86: обновление — штатное закрытие, а не «уход со страницы»:
+        // без этого флага браузер показывал лишний системный вопрос
+        // «Уйти?» и старое окно не закрывалось, вися мёртвой заглушкой.
+        isClosingConfirmed = true;
         showToast(res.mode === 'setup' ? 'Запущен установщик новой версии — программа закрывается' : 'Обновление принято: программа сейчас перезапустится новой версией');
         setTimeout(() => { try { window.close(); } catch (_) {} }, 700);
         setTimeout(() => {
-          document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:24px;text-align:center"><div><h2 style="margin:0 0 8px;font-size:18px">Программа обновляется…</h2><p style="margin:0;color:#666;font-size:13px">Окно новой версии откроется само через несколько секунд. Это окно можно закрыть.</p></div></div>';
+          document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:24px;text-align:center"><div><h2 style="margin:0 0 8px;font-size:18px">Программа обновляется…</h2><p style="margin:0;color:#666;font-size:13px">Окно новой версии откроется само через несколько секунд — это старое окно можно закрыть крестиком. Если новое окно не появилось за полминуты, просто запустите программу ярлыком «Остатки 2»: она уже обновлена.</p></div></div>';
         }, 1600);
       } catch (err) { showToast(`Не удалось обновить программу: ${err.message}`); }
       finally { btn.disabled = false; }
