@@ -75,3 +75,50 @@ func TestSingleSupplierOrderShortFormatDropsSalesAndStock(t *testing.T) {
 		}
 	}
 }
+
+// Батч-84: копия заказа — расширенные 7 столбцов и строка «Итого» внизу
+// с суммарным количеством; обычный заказ поставщика итога не содержит.
+func TestSingleSupplierOrderCopyHasTotalsRow(t *testing.T) {
+	report := &model.CalculationReport{Items: []model.CalculatedItem{
+		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "001", Name: "Товар", Supplier: "Поставщик", ClosingStock: 7.5}, SumSalesLast12M: 32.5, FinalOrderQty: 4},
+		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "002", Name: "Товар 2", Supplier: "Поставщик", ClosingStock: 1}, SumSalesLast12M: 10, FinalOrderQty: 6},
+	}}
+	raw, err := GenerateSingleSupplierOrderXLSXCopy(report, "Мир", "Поставщик")
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sheet string
+	for _, f := range zr.File {
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			r, _ := f.Open()
+			b, _ := io.ReadAll(r)
+			r.Close()
+			sheet = string(b)
+		}
+	}
+	for _, want := range []string{inlineStrCell("A4", 1, "Итого"), numCell("G4", 3, 10), `<autoFilter ref="A1:G3"/>`} {
+		if !strings.Contains(sheet, want) {
+			t.Fatalf("copy sheet missing %s\n%s", want, sheet)
+		}
+	}
+	// Обычный (не копия) расширенный заказ строки «Итого» не получает.
+	rawPlain, err := GenerateSingleSupplierOrderXLSXEx(report, "Мир", "Поставщик", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr2, _ := zip.NewReader(bytes.NewReader(rawPlain), int64(len(rawPlain)))
+	for _, f := range zr2.File {
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			r, _ := f.Open()
+			b, _ := io.ReadAll(r)
+			r.Close()
+			if strings.Contains(string(b), "Итого") {
+				t.Fatal("plain supplier order must not contain totals row")
+			}
+		}
+	}
+}

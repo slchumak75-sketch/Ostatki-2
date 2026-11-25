@@ -65,3 +65,20 @@ func TestOrderMailBodyWithComment(t *testing.T) {
 		t.Fatalf("пустой комментарий не должен менять письмо")
 	}
 }
+
+// Батч-84: адресаты копий заказа — только корректные адреса, без дублей
+// и без основного получателя.
+func TestOrderMailCopyRecipients(t *testing.T) {
+	cfg := mailSettings{Copy1: " Boss@firma.ru ", Copy2: "boss@firma.ru"}
+	if got := orderMailCopyRecipients(cfg, "zakaz@sup.ru"); len(got) != 1 || got[0] != "Boss@firma.ru" {
+		t.Fatalf("dedupe failed: %v", got)
+	}
+	cfg = mailSettings{Copy1: "zakaz@sup.ru", Copy2: "не-почта"}
+	if got := orderMailCopyRecipients(cfg, "zakaz@sup.ru"); len(got) != 0 {
+		t.Fatalf("main recipient and invalid must be skipped: %v", got)
+	}
+	cfg = mailSettings{Copy1: "a@firma.ru", Copy2: "b@firma.ru"}
+	if got := orderMailCopyRecipients(cfg, "zakaz@sup.ru"); len(got) != 2 {
+		t.Fatalf("both copies expected: %v", got)
+	}
+}

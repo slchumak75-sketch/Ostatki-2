@@ -23,6 +23,10 @@ type mailSettings struct {
 	Password string `json:"password"`
 	From     string `json:"from"`
 	UseTLS   bool   `json:"useTLS"`
+	// Б84: два адреса, куда автоматически уходят копии каждого заказа,
+	// отправленного кнопкой «Почта» (расширенный формат с итогом).
+	Copy1 string `json:"copy1"`
+	Copy2 string `json:"copy2"`
 }
 
 type userSettings struct {
@@ -191,6 +195,7 @@ func (s *AppServer) handleMailSettings(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{
 			"host": mail.Host, "port": mail.Port, "username": mail.Username,
 			"from": mail.From, "useTLS": mail.UseTLS,
+			"copy1": mail.Copy1, "copy2": mail.Copy2,
 			"hasPassword": mail.Password != "",
 			"configured":  strings.TrimSpace(mail.Host) != "" && strings.TrimSpace(mail.Username) != "",
 		})
@@ -210,6 +215,7 @@ func (s *AppServer) handleMailSettings(w http.ResponseWriter, r *http.Request) {
 			Host: normalizeSMTPHost(req.Host), Port: req.Port,
 			Username: strings.TrimSpace(req.Username), Password: password,
 			From: strings.TrimSpace(req.From), UseTLS: req.UseTLS,
+			Copy1: strings.TrimSpace(req.Copy1), Copy2: strings.TrimSpace(req.Copy2),
 		}
 		s.persistUserSettingsLocked()
 		s.settingsMu.Unlock()
@@ -217,6 +223,27 @@ func (s *AppServer) handleMailSettings(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, 405, "требуется GET или POST")
 	}
+}
+
+// handleSaveAllSettings (батч-84): кнопка «Сохранить настройки» — одним
+// нажатием фиксирует на диске всё, что настраивается вручную: настройки
+// почты (включая адреса копий) и папок, параметры «Конфигурации» (запас,
+// горизонт и пр. — текущие значения расчёта), адреса поставщиков.
+// Ширины столбцов клиент сохраняет отдельным запросом api/column-widths.
+func (s *AppServer) handleSaveAllSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, 405, "требуется POST")
+		return
+	}
+	s.mu.RLock()
+	params := s.params
+	s.mu.RUnlock()
+	s.settingsMu.Lock()
+	s.loadUserSettingsLocked()
+	s.settings.Params = &params
+	s.persistUserSettingsLocked()
+	s.settingsMu.Unlock()
+	writeJSON(w, 200, map[string]any{"saved": true})
 }
 
 func (s *AppServer) handleSupplierEmails(w http.ResponseWriter, r *http.Request) {

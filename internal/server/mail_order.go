@@ -244,6 +244,25 @@ func (s *AppServer) handleOrderSentMarks(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, 200, map[string]any{"sent": sent})
 }
 
+// orderMailCopyRecipients (батч-84): адреса копий заказа из настроек почты —
+// корректные, без дублей и без основного получателя (ему копия не нужна).
+func orderMailCopyRecipients(cfg mailSettings, mainTo string) []string {
+	out := []string{}
+	seen := map[string]bool{strings.ToLower(strings.TrimSpace(mainTo)): true}
+	for _, raw := range []string{cfg.Copy1, cfg.Copy2} {
+		addr := strings.TrimSpace(raw)
+		if addr == "" || !strings.Contains(addr, "@") || strings.ContainsAny(addr, " \t\r\n") {
+			continue
+		}
+		if seen[strings.ToLower(addr)] {
+			continue
+		}
+		seen[strings.ToLower(addr)] = true
+		out = append(out, addr)
+	}
+	return out
+}
+
 func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, 405, "требуется POST")
@@ -347,9 +366,30 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 	s.settings.LastSupplierEmail[key] = to
 	s.persistUserSettingsLocked()
 	s.settingsMu.Unlock()
+	// Б84: копии заказа на адреса из настроек почты — всегда расширенный
+	// формат (7 столбцов) с итоговой строкой. Ошибка копии не отменяет
+	// уже отправленный основной заказ, а честно сообщается в ответе.
+	copiesSent := []string{}
+	copiesFailed := []string{}
+	if copyAddrs := orderMailCopyRecipients(cfg, to); len(copyAddrs) > 0 {
+		copyBytes, cerr := xlsx.GenerateSingleSupplierOrderXLSXCopy(rep, filterWarehouse, filterSupplier)
+		if cerr != nil {
+			copiesFailed = copyAddrs
+		} else {
+			copyBody := "Это копия заказа, отправленного поставщику на адрес " + to + ".\n\n" + bodyText
+			for _, copyTo := range copyAddrs {
+				copyMsg, berr := buildOrderMailMessage(from, copyTo, subject, copyBody, fileName, copyBytes)
+				if berr != nil || sendMailSMTP(cfg, from, copyTo, copyMsg) != nil {
+					copiesFailed = append(copiesFailed, copyTo)
+				} else {
+					copiesSent = append(copiesSent, copyTo)
+				}
+			}
+		}
+	}
 	// Б78: пометка «Отправлено» с отпечатком именно этого заказа.
 	s.rememberOrderMailSent(filterSupplier, filterWarehouse, req.Extended, to, rep)
-	writeJSON(w, 200, map[string]any{"sent": true, "to": to, "fileName": fileName})
+	writeJSON(w, 200, map[string]any{"sent": true, "to": to, "fileName": fileName, "copiesSent": copiesSent, "copiesFailed": copiesFailed})
 }
 
 // Батч-72: технические ответы почтовых серверов переводим на человеческий.

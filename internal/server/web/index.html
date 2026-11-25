@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Заказ — Вариант 7.27 • Управление закупками • Рейтинг • SBA</title>
+  <title>Заказ — Вариант 7.28 • Управление закупками • Рейтинг • SBA</title>
   <link rel="icon" type="image/png" href="app-icon.png?v=8" />
   <link rel="stylesheet" href="styles.css?v=4.26" />
 </head>
@@ -32,7 +32,7 @@
         <div class="brand-title-row">
           <h1>Заказ</h1>
           <span class="brand-date" id="brandCurrentDate" title="Текущая дата"></span>
-          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.27</span>
+          <span class="brand-date" id="brandVersion" title="Индекс сборки">Вариант 7.28</span>
           <span class="file-meta"><span id="fileMetaLine">Загрузка ведомости…</span><span id="safetyStatus" role="status" aria-live="polite"></span></span>
         </div>
       </div>
@@ -77,7 +77,7 @@
             <button type="button" class="btn btn-beige" id="btnSaveEtalon" title="Сохранить в программе: зафиксировать текущие рейтинг и остаток без скачивания файла">Сохранить эталон Номенклатуры</button>
             <button type="button" class="btn btn-beige" id="btnExportEtalon">Выгрузить эталон Номенклатуры (Excel)</button>
             <button type="button" class="btn btn-beige" id="btnCompareEtalon" aria-pressed="false">Сравнить с эталоном</button>
-            <button type="button" class="btn btn-beige" id="btnSaveFields">Сохранить поля</button>
+            <button type="button" class="btn btn-beige" id="btnSaveFields" title="Сохранить всё, что настраивается вручную: ширины полей всех таблиц, почту и адреса копий, параметры «Конфигурации» (запас, горизонт и пр.), папки сохранения">Сохранить настройки</button>
             <button type="button" class="btn btn-beige" id="btnUpdateApp" title="Обновить программу по присланному файлу новой версии (EXE): программа сохранится, закроется, обновится и запустится снова">Обновление</button>
             <button type="button" class="btn btn-beige" id="btnConfigurePanel" aria-expanded="false" aria-controls="paramsPanel" title="Показать или скрыть режим планирования">Конфигурация</button>
             <button type="button" class="btn btn-beige" id="btnSavePaths" title="Папки, куда сохраняются эталон и текущая ведомость">Указать путь сохранения</button>
@@ -728,7 +728,7 @@
       <h3 id="orderPreviewTitle">Предварительный просмотр заказа</h3>
       <div class="order-preview-scroll"><table class="data-table" id="orderPreviewTable"><thead><tr><th>Артикул</th><th>Номенклатура</th><th>Ед.</th><th>Продажи</th><th>Остаток</th><th>Заказ</th><th>Сумма</th></tr></thead><tbody id="orderPreviewBody"></tbody></table></div>
       <p id="orderPreviewTotal"></p>
-      <div class="v4-modal-actions"><button type="button" class="btn btn-beige" id="btnSaveFieldsPreview" title="Сохранить ширины столбцов всех таблиц (главная, Заказ, Неликвиды, предпросмотр)">Сохранить поля</button><button type="button" class="btn btn-beige" id="btnCloseOrderPreview">Закрыть</button></div>
+      <div class="v4-modal-actions"><button type="button" class="btn btn-beige" id="btnSaveFieldsPreview" title="Сохранить всё, что настраивается вручную: ширины полей всех таблиц, почту и адреса копий, параметры «Конфигурации», папки сохранения">Сохранить настройки</button><button type="button" class="btn btn-beige" id="btnCloseOrderPreview">Закрыть</button></div>
     </div>
   </div>
   <div id="savePathsModal" class="v4-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="savePathsTitle">
@@ -779,6 +779,13 @@
       <label class="mail-field">Адрес отправителя (От кого)
         <input type="text" id="mailFrom" autocomplete="off" placeholder="Совпадает с логином, если пусто" />
       </label>
+      <label class="mail-field">Копия заказа №1
+        <input type="text" id="mailCopy1" autocomplete="off" placeholder="Например: buhgalter@firma.ru" />
+        <span class="field-hint">Необязательно. Сюда автоматически уйдёт копия каждого заказа, отправленного кнопкой «Почта», — расширенная таблица (7 столбцов: продажи и остаток) с итоговой суммой внизу.</span>
+      </label>
+      <label class="mail-field">Копия заказа №2
+        <input type="text" id="mailCopy2" autocomplete="off" placeholder="Второй адрес для копии, если нужен" />
+      </label>
       <label class="mail-check"><input type="checkbox" id="mailUseTLS" /> Защищённое соединение SSL (обычно порт 465; для 587 снимите — включится STARTTLS)</label>
       <div class="v4-modal-toolbar">
         <button type="button" class="btn btn-secondary btn-sm" id="btnMailTest">Проверить отправку (тестовое письмо себе)</button>
@@ -820,7 +827,7 @@
 
   <div id="toast" class="toast hidden"></div>
   <script src="charts.js?v=19"></script>
-  <script src="app.js?v=5.44"></script>
+  <script src="app.js?v=5.45"></script>
   <script src="toolbar-layout.js?v=1"></script>
 </body>
 </html>

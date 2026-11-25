@@ -764,6 +764,17 @@ func GenerateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 // (со столбцами 5 «Продажи» и 6 «Остаток»); extended=false — короткий формат
 // из 5 столбцов без «Продажи» и «Остаток» (батч-59, столбец «Расширенный заказ»).
 func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWarehouse string, filterSupplier string, extended bool) ([]byte, error) {
+	return generateSingleSupplierOrderXLSX(report, filterWarehouse, filterSupplier, extended, false)
+}
+
+// GenerateSingleSupplierOrderXLSXCopy (батч-84): копия заказа для внутреннего
+// получателя — всегда расширенный формат из 7 столбцов («Продажи», «Остаток»)
+// и итоговая строка «Итого» внизу с суммарным количеством заказа.
+func GenerateSingleSupplierOrderXLSXCopy(report *model.CalculationReport, filterWarehouse string, filterSupplier string) ([]byte, error) {
+	return generateSingleSupplierOrderXLSX(report, filterWarehouse, filterSupplier, true, true)
+}
+
+func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWarehouse string, filterSupplier string, extended bool, withTotals bool) ([]byte, error) {
 	var orderItems []model.CalculatedItem
 	for _, it := range report.Items {
 		if it.FinalOrderQty <= 0 {
@@ -863,7 +874,11 @@ func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWa
 	}
 	dimensionRef := "A1:" + lastColLetter + "1"
 	if len(orderItems) > 0 {
-		dimensionRef = fmt.Sprintf("A1:%s%d", lastColLetter, len(orderItems)+1)
+		lastRow := len(orderItems) + 1
+		if withTotals {
+			lastRow++
+		}
+		dimensionRef = fmt.Sprintf("A1:%s%d", lastColLetter, lastRow)
 	}
 	var s1 strings.Builder
 	s1.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -903,6 +918,17 @@ func GenerateSingleSupplierOrderXLSXEx(report *model.CalculationReport, filterWa
 		} else {
 			s1.WriteString(numCell("E"+rs, 3, float64(it.FinalOrderQty)))
 		}
+		s1.WriteString(`</row>`)
+	}
+	if withTotals && len(orderItems) > 0 {
+		totalRow := strconv.Itoa(len(orderItems) + 2)
+		var totalQty float64
+		for _, it := range orderItems {
+			totalQty += float64(it.FinalOrderQty)
+		}
+		s1.WriteString(`<row r="` + totalRow + `" ht="20" customHeight="1">`)
+		s1.WriteString(inlineStrCell("A"+totalRow, 1, "Итого"))
+		s1.WriteString(numCell("G"+totalRow, 3, totalQty))
 		s1.WriteString(`</row>`)
 	}
 	s1.WriteString(`</sheetData>`)
