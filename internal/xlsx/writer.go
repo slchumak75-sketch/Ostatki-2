@@ -834,8 +834,9 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 
 	if err := addFile("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <numFmts count="1">
+  <numFmts count="2">
     <numFmt numFmtId="165" formatCode="#,##0"/>
+    <numFmt numFmtId="166" formatCode="#,##0.00"/>
   </numFmts>
   <fonts count="2">
     <font><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>
@@ -856,12 +857,13 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
     </border>
   </borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="5">
+  <cellXfs count="6">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
     <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
     <xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
     <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
   </cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`); err != nil {
@@ -872,6 +874,9 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 	if !extended {
 		lastColLetter = "E"
 	}
+	if withTotals {
+		lastColLetter = "H"
+	}
 	dimensionRef := "A1:" + lastColLetter + "1"
 	if len(orderItems) > 0 {
 		lastRow := len(orderItems) + 1
@@ -879,6 +884,10 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 			lastRow++
 		}
 		dimensionRef = fmt.Sprintf("A1:%s%d", lastColLetter, lastRow)
+	}
+	colSum := ""
+	if withTotals {
+		colSum = "  <col min=\"8\" max=\"8\" width=\"14\" customWidth=\"1\"/>\n"
 	}
 	var s1 strings.Builder
 	s1.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -892,11 +901,14 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
   <col min="3" max="3" width="54" customWidth="1"/>
   <col min="4" max="4" width="8" customWidth="1"/>
   <col min="5" max="7" width="12" customWidth="1"/>
-</cols><sheetData>`)
+` + colSum + `</cols><sheetData>`)
 
 	headers := []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Продажи", "Остаток", "Заказ"}
 	if !extended {
 		headers = []string{"Наименование склада", "Артикул", "Номенклатура", "Ед.", "Заказ"}
+	}
+	if withTotals {
+		headers = append(headers, "Сумма")
 	}
 	s1.WriteString(`<row r="1" ht="26" customHeight="1">`)
 	for i, h := range headers {
@@ -915,6 +927,9 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 			s1.WriteString(numCell("E"+rs, 3, it.SumSalesLast12M))
 			s1.WriteString(numCell("F"+rs, 3, it.ClosingStock))
 			s1.WriteString(numCell("G"+rs, 3, float64(it.FinalOrderQty)))
+			if withTotals {
+				s1.WriteString(numCell("H"+rs, 5, math.Round(float64(it.FinalOrderQty)*it.PurchasePrice*100)/100))
+			}
 		} else {
 			s1.WriteString(numCell("E"+rs, 3, float64(it.FinalOrderQty)))
 		}
@@ -922,13 +937,15 @@ func generateSingleSupplierOrderXLSX(report *model.CalculationReport, filterWare
 	}
 	if withTotals && len(orderItems) > 0 {
 		totalRow := strconv.Itoa(len(orderItems) + 2)
-		var totalQty float64
+		var totalQty, totalSum float64
 		for _, it := range orderItems {
 			totalQty += float64(it.FinalOrderQty)
+			totalSum += math.Round(float64(it.FinalOrderQty)*it.PurchasePrice*100) / 100
 		}
 		s1.WriteString(`<row r="` + totalRow + `" ht="20" customHeight="1">`)
 		s1.WriteString(inlineStrCell("A"+totalRow, 1, "Итого"))
 		s1.WriteString(numCell("G"+totalRow, 3, totalQty))
+		s1.WriteString(numCell("H"+totalRow, 5, totalSum))
 		s1.WriteString(`</row>`)
 	}
 	s1.WriteString(`</sheetData>`)

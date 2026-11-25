@@ -80,8 +80,8 @@ func TestSingleSupplierOrderShortFormatDropsSalesAndStock(t *testing.T) {
 // с суммарным количеством; обычный заказ поставщика итога не содержит.
 func TestSingleSupplierOrderCopyHasTotalsRow(t *testing.T) {
 	report := &model.CalculationReport{Items: []model.CalculatedItem{
-		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "001", Name: "Товар", Supplier: "Поставщик", ClosingStock: 7.5}, SumSalesLast12M: 32.5, FinalOrderQty: 4},
-		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "002", Name: "Товар 2", Supplier: "Поставщик", ClosingStock: 1}, SumSalesLast12M: 10, FinalOrderQty: 6},
+		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "001", Name: "Товар", Supplier: "Поставщик", ClosingStock: 7.5, PurchasePrice: 2.5}, SumSalesLast12M: 32.5, FinalOrderQty: 4},
+		{RawItem: model.RawItem{Warehouse: "Мир", SKU: "002", Name: "Товар 2", Supplier: "Поставщик", ClosingStock: 1, PurchasePrice: 3}, SumSalesLast12M: 10, FinalOrderQty: 6},
 	}}
 	raw, err := GenerateSingleSupplierOrderXLSXCopy(report, "Мир", "Поставщик")
 	if err != nil {
@@ -100,7 +100,8 @@ func TestSingleSupplierOrderCopyHasTotalsRow(t *testing.T) {
 			sheet = string(b)
 		}
 	}
-	for _, want := range []string{inlineStrCell("A4", 1, "Итого"), numCell("G4", 3, 10), `<autoFilter ref="A1:G3"/>`} {
+	// Б89: у копии есть столбец «Сумма» (количество × цена) и итог по сумме.
+	for _, want := range []string{inlineStrCell("A4", 1, "Итого"), numCell("G4", 3, 10), inlineStrCell("H1", 1, "Сумма"), numCell("H2", 5, 10), numCell("H3", 5, 18), numCell("H4", 5, 28), `<autoFilter ref="A1:H3"/>`} {
 		if !strings.Contains(sheet, want) {
 			t.Fatalf("copy sheet missing %s\n%s", want, sheet)
 		}

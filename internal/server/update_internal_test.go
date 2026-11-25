@@ -82,3 +82,13 @@ func TestOrderMailCopyRecipients(t *testing.T) {
 		t.Fatalf("both copies expected: %v", got)
 	}
 }
+
+// Батч-89: тема письма-копии начинается со слова «Копия», а не «Заказ».
+func TestOrderMailCopySubject(t *testing.T) {
+	if got := orderMailCopySubject("Заказ: ЧУП «МАВ» — Мирсититорг, 25.11.2026"); got != "Копия: ЧУП «МАВ» — Мирсититорг, 25.11.2026" {
+		t.Fatalf("copy subject = %q", got)
+	}
+	if got := orderMailCopySubject("Заказ поставщику"); got != "Копия: Заказ поставщику" {
+		t.Fatalf("fallback copy subject = %q", got)
+	}
+}
