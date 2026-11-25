@@ -39,7 +39,8 @@ function manualWidths(table,widths){
  assert.deepEqual(cw.body.widths.itemsTable,[40,180,90],'Б77: главная таблица в сохранении');
  assert.deepEqual(cw.body.widths.suppliersTable,[120,200,80],'Б77: вкладка «Заказ» в сохранении');
  assert.deepEqual(cw.body.widths.orderPreviewTable,[90,300,60],'Б77: предпросмотр в сохранении');
- assert.match(d.getElementById('toast').textContent,/всех таблиц/);
+ assert.ok(calls.some(c=>c.path==='api/settings/save-all'),'Б84: «Сохранить настройки» фиксирует и почту/параметры на сервере');
+ assert.match(d.getElementById('toast').textContent,/Настройки сохранены/,'Б84: кнопка теперь «Сохранить настройки» — всё одним нажатием');
  // Б77: кнопка «Выход» открывает вопрос «Сохранить эталон?».
  assert.ok(d.getElementById('btnAppExit'),'Б77: кнопка «Выход» на месте');
  d.getElementById('btnAppExit').click();await tick();

@@ -990,7 +990,11 @@
       }
     } catch (_) { /* Отсутствие настроек не мешает загрузке ведомости. */ }
   }
+  // Б84: «Сохранить настройки» — одним нажатием сохраняется абсолютно всё,
+  // что настраивается вручную: ширины полей всех таблиц, почта и адреса
+  // копий, параметры «Конфигурации» (запас, горизонт и т.д.), папки, отметки.
   async function saveFields() {
+    const failed = [];
     try {
       // Б77: одним нажатием сохраняются ширины всех таблиц: главная,
       // «Заказ», «Неликвиды» и предпросмотр заказа.
@@ -1011,8 +1015,13 @@
       if (Array.isArray(saved.overstockTable)) state.ovColWidths = [...saved.overstockTable];
       try { localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(saved)); } catch (_) {}
       state.hasUnsavedChanges = true;
-      showToast('Ширина столбцов сохранена для всех таблиц');
-    } catch (err) { showToast(`Не удалось сохранить поля: ${err.message}`); }
+    } catch (err) { failed.push('поля таблиц'); }
+    // Почта (с адресами копий), «Конфигурация» (запас и пр.) и папки — на сервере.
+    try { await apiPost('api/settings/save-all', {}); } catch (err) { failed.push('почту и параметры'); }
+    // Ручные отметки «+» и свойства номенклатуры.
+    try { await syncProperties(); } catch (err) { failed.push('отметки'); }
+    if (failed.length) showToast(`Настройки сохранены не полностью (не удалось: ${failed.join(', ')})`);
+    else showToast('Настройки сохранены: поля таблиц, почта, параметры «Конфигурации», папки');
   }
 
   function switchTabUI(tabName) {
@@ -3276,6 +3285,8 @@
         el('mailPort').value = data.port || '';
         el('mailUsername').value = data.username || '';
         el('mailFrom').value = data.from || '';
+        el('mailCopy1').value = data.copy1 || '';
+        el('mailCopy2').value = data.copy2 || '';
         el('mailUseTLS').checked = Boolean(data.useTLS);
         el('mailPassword').value = '';
         el('mailPassword').placeholder = data.hasPassword ? 'Пароль сохранён — оставьте пустым, чтобы не менять' : 'Пароль почты или пароль приложения';
@@ -3300,7 +3311,7 @@
     el('mailHost').addEventListener('change', normalizeMailHostField);
     el('mailUsername').addEventListener('change', normalizeMailHostField);
     el('mailPort').addEventListener('change', syncMailTlsByPort);
-    const mailSettingsPayload = () => ({host: el('mailHost').value.trim(), port: Number(el('mailPort').value) || 0, username: el('mailUsername').value.trim(), password: el('mailPassword').value, from: el('mailFrom').value.trim(), useTLS: el('mailUseTLS').checked});
+    const mailSettingsPayload = () => ({host: el('mailHost').value.trim(), port: Number(el('mailPort').value) || 0, username: el('mailUsername').value.trim(), password: el('mailPassword').value, from: el('mailFrom').value.trim(), useTLS: el('mailUseTLS').checked, copy1: el('mailCopy1').value.trim(), copy2: el('mailCopy2').value.trim()});
     el('btnMailSettingsOk').addEventListener('click', async () => {
       const btn = el('btnMailSettingsOk'); btn.disabled = true;
       try {
@@ -3370,7 +3381,10 @@
       try {
         const res = await apiPost('api/orders/send-mail', {supplier: mailCtx.supplier, warehouse: mailCtx.warehouse, extended: mailCtx.extended, to: el('mailToInput').value.trim(), comment: el('mailComment').value.trim()}, {unabortable:true});
         el('mailSendModal').classList.add('hidden');
-        showToast(`Заказ отправлен по почте: ${res.to} (${res.fileName})`);
+        let copiesNote = '';
+        if (Array.isArray(res.copiesSent) && res.copiesSent.length) copiesNote = `; копии: ${res.copiesSent.join(', ')}`;
+        if (Array.isArray(res.copiesFailed) && res.copiesFailed.length) copiesNote += `; НЕ ушли копии: ${res.copiesFailed.join(', ')}`;
+        showToast(`Заказ отправлен по почте: ${res.to} (${res.fileName})${copiesNote}`);
         refreshMailSentMarks();
       } catch (err) { showToast(`Не удалось отправить заказ: ${err.message}`); }
       finally { btn.disabled = false; }
