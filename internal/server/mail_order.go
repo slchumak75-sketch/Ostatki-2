@@ -246,6 +246,15 @@ func (s *AppServer) handleOrderSentMarks(w http.ResponseWriter, r *http.Request)
 
 // orderMailCopyRecipients (батч-84): адреса копий заказа из настроек почты —
 // корректные, без дублей и без основного получателя (ему копия не нужна).
+// orderMailCopySubject (батч-89): тема письма-копии начинается со слова
+// «Копия», а не «Заказ»: «Копия: ЧУП "МАВ" — Мирсититорг, 25.11.2026».
+func orderMailCopySubject(subject string) string {
+	if strings.HasPrefix(subject, "Заказ:") {
+		return "Копия:" + strings.TrimPrefix(subject, "Заказ:")
+	}
+	return "Копия: " + subject
+}
+
 func orderMailCopyRecipients(cfg mailSettings, mainTo string) []string {
 	out := []string{}
 	seen := map[string]bool{strings.ToLower(strings.TrimSpace(mainTo)): true}
@@ -378,7 +387,7 @@ func (s *AppServer) handleSendSupplierOrderMail(w http.ResponseWriter, r *http.R
 		} else {
 			copyBody := "Это копия заказа, отправленного поставщику на адрес " + to + ".\n\n" + bodyText
 			for _, copyTo := range copyAddrs {
-				copyMsg, berr := buildOrderMailMessage(from, copyTo, subject, copyBody, fileName, copyBytes)
+				copyMsg, berr := buildOrderMailMessage(from, copyTo, orderMailCopySubject(subject), copyBody, fileName, copyBytes)
 				if berr != nil || sendMailSMTP(cfg, from, copyTo, copyMsg) != nil {
 					copiesFailed = append(copiesFailed, copyTo)
 				} else {
