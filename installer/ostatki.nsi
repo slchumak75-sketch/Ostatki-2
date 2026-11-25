@@ -38,8 +38,42 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "Russian"
 
+Function .onInit
+  ; Б88: папка в Program Files требует прав администратора, а программа
+  ; ставится без них. Если прежняя установка запомнилась в Program Files —
+  ; возвращаем установку в профиль пользователя.
+  StrLen $0 $PROGRAMFILES
+  StrCpy $1 $INSTDIR $0
+  StrCmp $1 $PROGRAMFILES 0 check64
+  StrCpy $INSTDIR "$LOCALAPPDATA\Programs\Ostatki2"
+  Goto done
+  check64:
+  StrCmp $PROGRAMFILES64 "" done
+  StrLen $0 $PROGRAMFILES64
+  StrCpy $1 $INSTDIR $0
+  StrCmp $1 $PROGRAMFILES64 0 done
+  StrCpy $INSTDIR "$LOCALAPPDATA\Programs\Ostatki2"
+  done:
+FunctionEnd
+
 Section "Основная программа"
   SetOutPath "$INSTDIR"
+  ; Б88: если в выбранную папку записи нет (Program Files без
+  ; администратора), не падаем с "Невозможно открыть файл для записи",
+  ; а переключаемся на папку пользователя и продолжаем.
+  ClearErrors
+  FileOpen $9 "$INSTDIR\.ostatki_write_test" w
+  IfErrors 0 write_ok
+    MessageBox MB_OK|MB_ICONINFORMATION "В папку «$INSTDIR» нет прав на запись (для неё нужен администратор). Программа будет установлена в папку пользователя: $LOCALAPPDATA\Programs\Ostatki2"
+    StrCpy $INSTDIR "$LOCALAPPDATA\Programs\Ostatki2"
+    SetOutPath "$INSTDIR"
+    ClearErrors
+    FileOpen $9 "$INSTDIR\.ostatki_write_test" w
+    IfErrors 0 write_ok
+    Abort "Не удалось записать в папку установки."
+  write_ok:
+  FileClose $9
+  Delete "$INSTDIR\.ostatki_write_test"
   ; Если программа сейчас запущена, её EXE занят: честно просим закрыть
   ; окно и повторяем, а не падаем с непонятной ошибкой копирования.
   IfFileExists "$INSTDIR\OstatkiZakupki.exe" 0 file_free
