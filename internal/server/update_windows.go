@@ -50,7 +50,7 @@ func stageSelfUpdate(srcPath, exePath string, pid int) error {
 		"for ($i = 0; $i -lt 45 -and -not $ok; $i++) {",
 		"  try { Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop; $ok = $true } catch { Start-Sleep -Seconds 1 }",
 		"}",
-		"if (-not $ok) { Fail 'не удалось заменить файл программы — он остался занят' }",
+		"if (-not $ok) { Fail 'не удалось заменить файл программы: он занят, либо нет прав на запись в папку программы. Если программа установлена в Program Files, переустановите её установщиком Setup новой версии — он ставит программу в папку пользователя, и обновления заработают' }",
 		"if ((Get-Item -LiteralPath $dst).Length -ne (Get-Item -LiteralPath $src).Length) { Fail 'новый файл записался не полностью' }",
 		"Note 'replaced OK'",
 		"Write-Host 'Шаг 3 из 3. Запускаем новую версию…'",
